@@ -1,9 +1,9 @@
 import { MongoloquentModule } from '@mongoloquent/nestjs';
 import { Module } from '@nestjs/common';
-import { User } from './user.model';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtModule } from '@nestjs/jwt';
+import { User } from 'src/user/user.model';
 
 @Module({
   imports: [

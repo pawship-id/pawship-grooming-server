@@ -4,9 +4,9 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { User } from './user.model';
 import { comparePassword, hashPassword } from 'src/helpers/bcrypt';
 import { JwtService } from '@nestjs/jwt';
+import { User } from 'src/user/user.model';
 
 interface IUserCreate {
   username: string;
@@ -31,6 +31,8 @@ export class AuthService {
       username: newUser.username,
       email: newUser.email,
       password: hash,
+      role: 'customer',
+      is_active: true,
     });
 
     return user;
