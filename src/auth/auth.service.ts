@@ -1,43 +1,46 @@
-import { InjectModel } from '@mongoloquent/nestjs';
 import {
   BadRequestException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { User } from './user.model';
 import { comparePassword, hashPassword } from 'src/helpers/bcrypt';
 import { JwtService } from '@nestjs/jwt';
-
-interface IUserCreate {
-  username: string;
-  email: string;
-  password: string;
-}
+import { User, UserDocument } from 'src/user/user.model';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { CreateUserDto } from 'src/user/user.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectModel(User) private readonly userModel: typeof User,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     private jwtService: JwtService,
   ) {}
 
-  async createUser(newUser: IUserCreate) {
-    const hash = await hashPassword(newUser.password);
+  async createUser(body: CreateUserDto) {
+    try {
+      const hash = await hashPassword(body.password);
 
-    const findUser = await this.findUserByEmail(newUser.email);
-    if (findUser) throw new BadRequestException('email already exist');
+      const user = new this.userModel({
+        username: body.username,
+        email: body.email,
+        phone_number: body.phone_number,
+        password: hash,
+        role: body.role,
+        is_active: body.is_active,
+      });
 
-    const user = this.userModel.create({
-      username: newUser.username,
-      email: newUser.email,
-      password: hash,
-    });
-
-    return user;
+      return await user.save();
+    } catch (error) {
+      if (error.code === 11000) {
+        const duplicatedField = Object.keys(error.keyPattern)[0]; // ambil field yang duplicate
+        throw new BadRequestException(`${duplicatedField} already exists`);
+      }
+    }
   }
 
   async findUserByEmail(email: string) {
-    const user = await this.userModel.where('email', email).first();
+    const user = await this.userModel.findOne({ email: email });
 
     return user;
   }
