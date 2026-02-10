@@ -1,26 +1,34 @@
-import {
-  IMongoloquentSchema,
-  IMongoloquentSoftDelete,
-  IMongoloquentTimestamps,
-  Model,
-} from 'mongoloquent';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { HydratedDocument } from 'mongoose';
+import { UserRole } from './user.dto';
 
-export type RoleUser = 'admin' | 'groomer' | 'customer';
+export type UserDocument = HydratedDocument<User>;
 
-export interface IUser
-  extends
-    IMongoloquentSchema,
-    IMongoloquentTimestamps,
-    IMongoloquentSoftDelete {
+@Schema({ timestamps: true })
+export class User {
+  @Prop({ required: true })
   username: string;
+
+  @Prop({ required: true, unique: true })
   email: string;
+
+  @Prop({ required: true, unique: true })
+  phone_number: string;
+
+  @Prop({ type: String, required: true })
   password: string;
-  role: RoleUser;
+
+  @Prop({ enum: Object.values(UserRole), default: UserRole.CUSTOMER })
+  role: string;
+
+  @Prop({ default: true })
   is_active: boolean;
+
+  @Prop({ default: false })
+  isDeleted: boolean;
+
+  @Prop({ default: null })
+  deletedAt: Date;
 }
 
-export class User extends Model<IUser> {
-  public static $schema: IUser;
-  protected $collection: string = 'users';
-  protected $useSoftDelete: boolean = true;
-}
+export const UserSchema = SchemaFactory.createForClass(User);

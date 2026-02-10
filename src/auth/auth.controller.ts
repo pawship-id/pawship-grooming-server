@@ -7,6 +7,7 @@ import {
   Post,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { CreateUserDto } from 'src/user/user.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -14,20 +15,8 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  async register(
-    @Body('username') username: string,
-    @Body('email') email: string,
-    @Body('password') password: string,
-  ) {
-    if (!username) throw new BadRequestException('username is required');
-    if (!email) throw new BadRequestException('name is required');
-    if (!password) throw new BadRequestException('password is required');
-
-    await this.authService.createUser({
-      username,
-      email,
-      password,
-    });
+  async register(@Body() body: CreateUserDto) {
+    await this.authService.createUser(body);
 
     return {
       message: 'Successfully Created',

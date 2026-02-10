@@ -1,61 +1,78 @@
-import { InjectModel } from '@mongoloquent/nestjs';
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { RoleUser, User } from './user.model';
+import { InjectModel } from '@nestjs/mongoose';
 import { ObjectId } from 'mongodb';
+import { Model } from 'mongoose';
 import { hashPassword } from 'src/helpers/bcrypt';
-
-interface IUserCreate {
-  username: string;
-  email: string;
-  password: string;
-  role: RoleUser;
-  is_active: boolean;
-}
+import { User, UserDocument } from './user.model';
+import { CreateUserDto, UpdateUserDto } from './user.dto';
 
 @Injectable()
 export class UserService {
-  constructor(@InjectModel(User) private readonly userModel: typeof User) {}
+  constructor(
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+  ) {}
 
   async getUsers() {
-    const users = await this.userModel.get();
+    const users = await this.userModel.find({ isDeleted: false }).exec();
     return users;
   }
 
   async findById(id: ObjectId) {
-    const user = await this.userModel.where('_id', id).first();
+    const user = await this.userModel.findById(id).exec();
     return user;
   }
 
-  async create(body: IUserCreate) {
-    const hash = await hashPassword(body.password);
+  async create(body: CreateUserDto) {
+    try {
+      const hash = await hashPassword(body.password);
 
-    const findUser = await this.findByEmail(body.email);
-    if (findUser) throw new BadRequestException('email already exist');
+      const user = new this.userModel({
+        username: body.username,
+        email: body.email,
+        phone_number: body.phone_number,
+        password: hash,
+        role: body.role,
+        is_active: body.is_active,
+      });
 
-    const user = this.userModel.create({
-      username: body.username,
-      email: body.email,
-      password: hash,
-      role: body.role,
-      is_active: body.is_active,
-    });
-
-    return user;
+      return await user.save();
+    } catch (error) {
+      if (error.code === 11000) {
+        const duplicatedField = Object.keys(error.keyPattern)[0]; // ambil field yang duplicate
+        throw new BadRequestException(`${duplicatedField} already exists`);
+      }
+    }
   }
 
   async findByEmail(email: string) {
-    const user = await this.userModel.where('email', email).first();
+    const user = await this.userModel.findOne({ email: email });
 
     return user;
   }
 
-  async update(id: ObjectId, body: IUserCreate) {
-    const user = await this.userModel.where('_id', id).update(body);
-    return user;
+  async update(id: ObjectId, body: UpdateUserDto) {
+    try {
+      const user = await this.userModel.findByIdAndUpdate(
+        id,
+        { $set: body },
+        { new: true },
+      );
+
+      return user;
+    } catch (error) {
+      if (error.code === 11000) {
+        const duplicatedField = Object.keys(error.keyPattern)[0]; // ambil field yang duplicate
+        throw new BadRequestException(`${duplicatedField} already exists`);
+      }
+    }
   }
 
   async delete(id: ObjectId) {
-    const user = await this.userModel.where('_id', id).delete();
+    const user = await this.userModel.findByIdAndUpdate(id, {
+      isDeleted: true,
+      deletedAt: new Date(),
+    });
+
     return user;
   }
 }

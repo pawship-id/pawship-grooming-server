@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { ObjectId } from 'mongodb';
-import { RoleUser } from './user.model';
+import { CreateUserDto, UpdateUserDto, UserRole } from './user.dto';
 
 @Controller('users')
 export class UserController {
@@ -37,7 +37,7 @@ export class UserController {
 
     const _id = new ObjectId(id);
     const user = await this.userService.findById(_id);
-    if (!user) throw new NotFoundException('data not found');
+    if (!user || user.isDeleted) throw new NotFoundException('data not found');
 
     return {
       message: 'Fetch user successfully',
@@ -47,26 +47,8 @@ export class UserController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  async createUser(
-    @Body('username') username: string,
-    @Body('email') email: string,
-    @Body('password') password: string,
-    @Body('role') role: string,
-    @Body('is_active') is_active: boolean,
-  ) {
-    if (!username) throw new BadRequestException('username is required');
-    if (!email) throw new BadRequestException('email is required');
-    if (!password) throw new BadRequestException('password is required');
-    if (!role) throw new BadRequestException('role is required');
-    if (!is_active) throw new BadRequestException('status is required');
-
-    await this.userService.create({
-      username,
-      email,
-      password,
-      role: role as RoleUser,
-      is_active: is_active,
-    });
+  async createUser(@Body() body: CreateUserDto) {
+    await this.userService.create(body);
 
     return {
       message: 'Create user successfully',
@@ -75,32 +57,13 @@ export class UserController {
 
   @Put(':id')
   @HttpCode(HttpStatus.OK)
-  async updateUser(
-    @Param('id') id: string,
-    @Body('username') username: string,
-    @Body('email') email: string,
-    @Body('password') password: string,
-    @Body('role') role: string,
-    @Body('is_active') is_active: boolean,
-  ) {
+  async updateUser(@Param('id') id: string, @Body() body: UpdateUserDto) {
     if (!id) throw new BadRequestException('id is required');
-    if (!username) throw new BadRequestException('username is required');
-    if (!email) throw new BadRequestException('email is required');
-    if (!password) throw new BadRequestException('password is required');
-    if (!role) throw new BadRequestException('role is required');
-    if (!is_active) throw new BadRequestException('status is required');
 
     const _id = new ObjectId(id);
     const user = await this.userService.findById(_id);
-    if (!user) throw new NotFoundException('data not found');
+    if (!user || user.isDeleted) throw new NotFoundException('data not found');
 
-    const body = {
-      username,
-      email,
-      password,
-      role: role as RoleUser,
-      is_active,
-    };
     await this.userService.update(_id, body);
 
     return {
@@ -114,8 +77,11 @@ export class UserController {
     if (!id) throw new BadRequestException('id is required');
 
     const _id = new ObjectId(id);
-    const user = await this.userService.delete(_id);
-    if (user === 0) throw new NotFoundException('data not found');
+    const findUser = await this.userService.findById(_id);
+    if (!findUser || findUser.isDeleted)
+      throw new NotFoundException('data not found');
+
+    await this.userService.delete(_id);
 
     return {
       message: 'Delete user successfully',
