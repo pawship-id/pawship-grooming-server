@@ -20,6 +20,9 @@ export class CreateStoreDto {
   name: string;
 
   @IsOptional()
+  description: string;
+
+  @IsOptional()
   @ValidateNested()
   @Type(() => LocationDto)
   location?: LocationDto;

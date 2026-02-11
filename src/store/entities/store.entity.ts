@@ -11,6 +11,9 @@ export class Store {
   @Prop({ required: true })
   name: string;
 
+  @Prop()
+  description: string;
+
   @Prop({
     type: {
       address: { type: String },
