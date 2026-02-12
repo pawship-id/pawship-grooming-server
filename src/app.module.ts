@@ -9,6 +9,7 @@ import { UserModule } from './user/user.module';
 import { StoreModule } from './store/store.module';
 import { ServiceModule } from './service/service.module';
 import { MembershipModule } from './membership/membership.module';
+import { PetModule } from './pet/pet.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { MembershipModule } from './membership/membership.module';
     StoreModule,
     ServiceModule,
     MembershipModule,
+    PetModule,
   ],
   controllers: [AppController],
   providers: [AppService],
