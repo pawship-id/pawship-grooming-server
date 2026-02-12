@@ -41,7 +41,13 @@ export class ServiceService {
   }
 
   async findOne(id: ObjectId) {
-    const service = await this.serviceModel.findById(id).exec();
+    const service = await this.serviceModel
+      .findById(id)
+      .populate('service_type', 'name')
+      .populate('size_category', 'name')
+      .populate('pet_types', 'name')
+      .populate('avaiable_store', 'name')
+      .exec();
     return service;
   }
 
