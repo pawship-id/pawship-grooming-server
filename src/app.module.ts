@@ -8,6 +8,7 @@ import { OptionModule } from './option/option.module';
 import { UserModule } from './user/user.module';
 import { StoreModule } from './store/store.module';
 import { ServiceModule } from './service/service.module';
+import { MembershipModule } from './membership/membership.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { ServiceModule } from './service/service.module';
     OptionModule,
     StoreModule,
     ServiceModule,
+    MembershipModule,
   ],
   controllers: [AppController],
   providers: [AppService],
