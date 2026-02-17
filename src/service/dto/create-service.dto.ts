@@ -7,7 +7,19 @@ import {
   IsNumber,
   IsOptional,
   Min,
+  ValidateNested,
 } from 'class-validator';
+
+export class ServicePriceDto {
+  @IsMongoId({ message: 'size must be a valid ID' })
+  @IsNotEmpty({ message: 'size is required' })
+  size_id: string;
+
+  @Type(() => Number)
+  @IsNumber({}, { message: 'price must be a number' })
+  @Min(0, { message: 'price cannot be negative' })
+  price: number;
+}
 
 export class CreateServiceDto {
   @IsNotEmpty({ message: 'code is required' })
@@ -32,10 +44,11 @@ export class CreateServiceDto {
   @IsNotEmpty({ message: 'size category pet is required' })
   size_category_id: string;
 
-  @Type(() => Number)
-  @IsNumber({}, { message: 'Price must be a number' })
-  @Min(0, { message: 'Price cannot be negative' })
-  price: number;
+  @IsArray({ message: 'prices must be an array' })
+  @ValidateNested({ each: true })
+  @Type(() => ServicePriceDto)
+  @IsNotEmpty({ message: 'prices is required' })
+  prices: ServicePriceDto[];
 
   @Type(() => Number)
   @IsNumber({}, { message: 'Duration must be a number' })

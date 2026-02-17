@@ -35,6 +35,11 @@ export class ServiceService {
       .populate('size_category', 'name')
       .populate('pet_types', 'name')
       .populate('avaiable_store', 'name')
+      .populate({
+        path: 'prices.size_id',
+        model: 'Option',
+        select: 'name',
+      })
       .exec();
 
     return services;
@@ -47,6 +52,11 @@ export class ServiceService {
       .populate('size_category', 'name')
       .populate('pet_types', 'name')
       .populate('avaiable_store', 'name')
+      .populate({
+        path: 'prices.size_id',
+        model: 'Option',
+        select: 'name',
+      })
       .exec();
     return service;
   }

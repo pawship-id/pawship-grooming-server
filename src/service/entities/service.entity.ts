@@ -3,6 +3,21 @@ import { HydratedDocument, Types } from 'mongoose';
 
 export type ServiceDocument = HydratedDocument<Service>;
 
+@Schema({ _id: false })
+export class ServicePrice {
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Option',
+    required: true,
+  })
+  size_id: Types.ObjectId;
+
+  @Prop({ required: true })
+  price: number;
+}
+
+export const ServicePriceSchema = SchemaFactory.createForClass(ServicePrice);
+
 @Schema({
   timestamps: true,
   toJSON: {
@@ -14,6 +29,20 @@ export type ServiceDocument = HydratedDocument<Service>;
       delete ret.size_category_id;
       delete ret.pet_type_ids;
       delete ret.available_store_ids;
+
+      if (ret.prices?.length) {
+        ret.prices = ret.prices.map((p) => ({
+          size_id:
+            p.size_id && typeof p.size_id === 'object'
+              ? p.size_id._id
+              : p.size_id,
+          name:
+            p.size_id && typeof p.size_id === 'object'
+              ? p.size_id.name
+              : undefined,
+          price: p.price,
+        }));
+      }
 
       return ret;
     },
@@ -50,8 +79,12 @@ export class Service {
   })
   size_category_id: Types.ObjectId;
 
-  @Prop({ required: true })
-  price: number;
+  @Prop({
+    type: [ServicePriceSchema],
+    required: true,
+    default: [],
+  })
+  prices: ServicePrice[];
 
   @Prop({ required: true })
   duration: number;
