@@ -47,6 +47,9 @@ export class CreatePetDto {
   description?: string;
 
   @IsOptional()
+  internal_note?: string;
+
+  @IsOptional()
   @ValidateNested()
   @Type(() => ProfileImageDto)
   profile_image?: ProfileImageDto;

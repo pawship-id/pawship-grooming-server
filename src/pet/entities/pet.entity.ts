@@ -52,6 +52,9 @@ export class Pet {
   @Prop()
   description: string;
 
+  @Prop()
+  internal_note: string;
+
   @Prop({
     type: {
       secure_url: { type: String },
