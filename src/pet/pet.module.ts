@@ -16,5 +16,6 @@ import { User, UserSchema } from 'src/user/user.model';
   ],
   controllers: [PetController],
   providers: [PetService],
+  exports: [PetService],
 })
 export class PetModule {}

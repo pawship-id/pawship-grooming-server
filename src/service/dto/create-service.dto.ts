@@ -40,9 +40,10 @@ export class CreateServiceDto {
   @IsOptional()
   pet_type_ids?: string[];
 
-  @IsMongoId({ message: 'size category pet must be a valid ID' })
-  @IsNotEmpty({ message: 'size category pet is required' })
-  size_category_id: string;
+  @IsArray()
+  @IsMongoId({ each: true, message: 'Each size category must be a valid ID' })
+  @IsNotEmpty({ message: 'size category ids is required' })
+  size_category_ids: string[];
 
   @IsArray({ message: 'prices must be an array' })
   @ValidateNested({ each: true })

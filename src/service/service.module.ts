@@ -16,5 +16,6 @@ import { Store, StoreSchema } from 'src/store/entities/store.entity';
   ],
   controllers: [ServiceController],
   providers: [ServiceService],
+  exports: [ServiceService],
 })
 export class ServiceModule {}

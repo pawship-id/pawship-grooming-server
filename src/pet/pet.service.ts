@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreatePetDto } from './dto/create-pet.dto';
 import { UpdatePetDto } from './dto/update-pet.dto';
 import { InjectModel } from '@nestjs/mongoose';
@@ -70,5 +70,23 @@ export class PetService {
     });
 
     return pet;
+  }
+
+  async getPetSnapshot(petId: ObjectId) {
+    const pet = await this.petModel
+      .findById(petId)
+      .select('name isDeleted member_category_id size_category_id')
+      .populate('member_category', 'name')
+      .exec();
+
+    if (!pet || pet.isDeleted) {
+      throw new NotFoundException('pet not found');
+    }
+
+    return {
+      name: pet.name,
+      member_type: (pet as any).member_category?.name ?? null,
+      size_category_id: pet.size_category_id,
+    };
   }
 }
