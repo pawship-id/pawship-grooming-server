@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { InjectModel } from '@nestjs/mongoose';
@@ -25,6 +29,7 @@ export class ServiceService {
         const duplicatedField = Object.keys(error.keyPattern)[0]; // ambil field yang duplicate
         throw new BadRequestException(`${duplicatedField} already exists`);
       }
+      throw error;
     }
   }
 
@@ -32,7 +37,7 @@ export class ServiceService {
     const services = await this.serviceModel
       .find({ isDeleted: false })
       .populate('service_type', 'name')
-      .populate('size_category', 'name')
+      .populate('size_categories', 'name')
       .populate('pet_types', 'name')
       .populate('avaiable_store', 'name')
       .populate({
@@ -49,7 +54,7 @@ export class ServiceService {
     const service = await this.serviceModel
       .findById(id)
       .populate('service_type', 'name')
-      .populate('size_category', 'name')
+      .populate('size_categories', 'name')
       .populate('pet_types', 'name')
       .populate('avaiable_store', 'name')
       .populate({
@@ -88,5 +93,27 @@ export class ServiceService {
     });
 
     return service;
+  }
+
+  async getServiceForBooking(serviceId: ObjectId, sizeCategoryId: ObjectId) {
+    const service = await this.serviceModel
+      .findById(serviceId)
+      .select('code name prices size_category_id isDeleted')
+      .lean();
+
+    if (!service || service.isDeleted) {
+      throw new NotFoundException('service not found');
+    }
+
+    // filter price berdasarkan size_id (yang sesuai dengan sizeCategoryId)
+    const priceItem = (service as any).prices?.find(
+      (p: any) => p.size_id.toString() === sizeCategoryId.toString(),
+    );
+
+    return {
+      code: service.code,
+      name: service.name,
+      price: priceItem?.price ?? 0,
+    };
   }
 }
