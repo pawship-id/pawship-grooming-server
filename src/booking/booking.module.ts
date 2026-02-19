@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { BookingService } from './booking.service';
 import { BookingController } from './booking.controller';
+import { GroomingSessionService } from './grooming-session.service';
+import { GroomingSessionController } from './grooming-session.controller';
 import { MongooseModule } from '@nestjs/mongoose';
 import { User, UserSchema } from 'src/user/user.model';
 import { Pet, PetSchema } from 'src/pet/entities/pet.entity';
@@ -9,6 +11,7 @@ import { Booking, BookingSchema } from './entities/booking.entity';
 import { PetModule } from 'src/pet/pet.module';
 import { ServiceModule } from 'src/service/service.module';
 import { Store, StoreSchema } from 'src/store/entities/store.entity';
+import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -21,8 +24,9 @@ import { Store, StoreSchema } from 'src/store/entities/store.entity';
     ]),
     PetModule,
     ServiceModule,
+    CloudinaryModule,
   ],
-  controllers: [BookingController],
-  providers: [BookingService],
+  controllers: [BookingController, GroomingSessionController],
+  providers: [BookingService, GroomingSessionService],
 })
 export class BookingModule {}

@@ -260,6 +260,8 @@ export class BookingService {
     rescheduleData?: { date?: Date; time_range?: string },
   ) {
     try {
+      // status yang diupdate dari API ini hanya untuk CONFIRMED, RESCHEDULED, CANCELLED
+
       // validasi: jika status RESCHEDULED, date dan time_range harus ada
       if (status === BookingStatus.RESCHEDULED) {
         if (!rescheduleData?.date || !rescheduleData?.time_range) {

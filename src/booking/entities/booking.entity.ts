@@ -31,6 +31,22 @@ export class GroomingMedia {
 
   @Prop({ required: true })
   public_id: string;
+
+  @Prop()
+  note?: string;
+
+  @Prop({
+    type: {
+      user_id: { type: String, required: true },
+      name_snapshot: { type: String, required: true },
+    },
+    required: true,
+    _id: false,
+  })
+  created_by: {
+    user_id: string;
+    name_snapshot: string;
+  };
 }
 
 @Schema({ _id: false })
@@ -49,9 +65,6 @@ export class GroomingSession {
 
   @Prop({ default: null })
   finished_at?: Date;
-
-  @Prop()
-  pre_conditions?: string;
 
   @Prop()
   notes?: string;

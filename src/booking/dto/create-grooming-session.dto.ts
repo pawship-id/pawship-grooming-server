@@ -9,19 +9,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { GroomingSessionStatus, MediaType } from './booking.dto';
-
-export class GroomingMediaDto {
-  @IsEnum(MediaType)
-  type: MediaType;
-
-  @IsString()
-  @IsNotEmpty()
-  secure_url: string;
-
-  @IsString()
-  @IsNotEmpty()
-  public_id: string;
-}
+import { GroomingMediaDto } from './grooming-media.dto';
 
 export class CreateGroomingSessionDto {
   @IsOptional()
