@@ -1,0 +1,1551 @@
+# Pawship Grooming Server - API Documentation
+
+Base URL: `http://localhost:3000`
+
+---
+
+## Table of Contents
+
+1. [Authentication](#authentication)
+2. [Users](#users)
+3. [Options](#options)
+4. [Stores](#stores)
+5. [Services](#services)
+6. [Pets](#pets)
+7. [Memberships](#memberships)
+8. [Bookings](#bookings)
+9. [Grooming Sessions](#grooming-sessions)
+
+---
+
+## Authentication
+
+### 1. Register User
+
+**Endpoint:** `POST /auth/register`
+
+**Request Body:**
+
+```json
+{
+  "username": "string (required)",
+  "email": "string (required, valid email format)",
+  "phone_number": "string (required)",
+  "password": "string (required, min 6 characters)",
+  "role": "admin | ops | groomer | customer (optional)",
+  "is_active": "boolean (optional)"
+}
+```
+
+**Success Response (201):**
+
+```json
+{
+  "message": "Successfully Created"
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Validation error
+
+```json
+{
+  "statusCode": 400,
+  "message": ["email is required", "invalid email format"],
+  "error": "Bad Request"
+}
+```
+
+---
+
+### 2. Login
+
+**Endpoint:** `POST /auth/login`
+
+**Request Body:**
+
+```json
+{
+  "email": "string (required)",
+  "password": "string (required)"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "login berhasil",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Missing fields
+
+```json
+{
+  "statusCode": 400,
+  "message": "email is required",
+  "error": "Bad Request"
+}
+```
+
+- **401 Unauthorized:** Invalid credentials
+
+```json
+{
+  "statusCode": 401,
+  "message": "Invalid credentials",
+  "error": "Unauthorized"
+}
+```
+
+---
+
+## Users
+
+### 1. Get All Users
+
+**Endpoint:** `GET /users`
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch users successfully",
+  "users": [
+    {
+      "_id": "507f1f77bcf86cd799439011",
+      "username": "john_doe",
+      "email": "john@example.com",
+      "phone_number": "+628123456789",
+      "role": "customer",
+      "is_active": true,
+      "createdAt": "2026-02-19T10:00:00.000Z",
+      "updatedAt": "2026-02-19T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### 2. Get User By ID
+
+**Endpoint:** `GET /users/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch user successfully",
+  "user": {
+    "_id": "507f1f77bcf86cd799439011",
+    "username": "john_doe",
+    "email": "john@example.com",
+    "phone_number": "+628123456789",
+    "role": "customer",
+    "is_active": true
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Invalid ID
+
+```json
+{
+  "statusCode": 400,
+  "message": "id is required",
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** User not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "data not found",
+  "error": "Not Found"
+}
+```
+
+---
+
+### 3. Create User
+
+**Endpoint:** `POST /users`
+
+**Request Body:**
+
+```json
+{
+  "username": "string (required)",
+  "email": "string (required, valid email)",
+  "phone_number": "string (required)",
+  "password": "string (required, min 6 chars)",
+  "role": "admin | ops | groomer | customer (optional)",
+  "is_active": "boolean (optional)"
+}
+```
+
+**Success Response (201):**
+
+```json
+{
+  "message": "Create user successfully"
+}
+```
+
+---
+
+### 4. Update User
+
+**Endpoint:** `PUT /users/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Request Body:** (All fields optional)
+
+```json
+{
+  "username": "string",
+  "email": "string",
+  "phone_number": "string",
+  "password": "string",
+  "role": "admin | ops | groomer | customer",
+  "is_active": "boolean"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Update user successfully"
+}
+```
+
+**Error Responses:**
+
+- **404 Not Found:** User not found
+
+---
+
+### 5. Delete User (Soft Delete)
+
+**Endpoint:** `DELETE /users/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Delete user successfully"
+}
+```
+
+**Error Responses:**
+
+- **404 Not Found:** User not found
+
+---
+
+## Options
+
+Options are master data categories like pet types, sizes, breeds, etc.
+
+### 1. Get All Options
+
+**Endpoint:** `GET /options?category={category}`
+
+**Query Parameters:**
+
+- `category` (optional): Filter by category
+  - `feather category`
+  - `size category`
+  - `breed category`
+  - `member category`
+  - `customer category`
+  - `pet type`
+  - `service type`
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch options successfully",
+  "options": [
+    {
+      "_id": "507f1f77bcf86cd799439011",
+      "name": "Small",
+      "category_options": "size category",
+      "is_active": true,
+      "createdAt": "2026-02-19T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### 2. Get Option By ID
+
+**Endpoint:** `GET /options/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch option successfully",
+  "option": {
+    "_id": "507f1f77bcf86cd799439011",
+    "name": "Small",
+    "category_options": "size category",
+    "is_active": true
+  }
+}
+```
+
+**Error Responses:**
+
+- **404 Not Found:** Option not found
+
+---
+
+### 3. Create Option
+
+**Endpoint:** `POST /options`
+
+**Request Body:**
+
+```json
+{
+  "name": "string (required)",
+  "category_options": "feather category | size category | breed category | member category | customer category | pet type | service type (required)",
+  "is_active": "boolean (optional)"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Create option successfully"
+}
+```
+
+---
+
+### 4. Update Option
+
+**Endpoint:** `PUT /options/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Request Body:** (All fields optional)
+
+```json
+{
+  "name": "string",
+  "category_options": "string",
+  "is_active": "boolean"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Update option successfully"
+}
+```
+
+---
+
+### 5. Delete Option
+
+**Endpoint:** `DELETE /options/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Delete option successfully"
+}
+```
+
+---
+
+## Stores
+
+### 1. Get All Stores
+
+**Endpoint:** `GET /stores`
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch stores successfully",
+  "stores": [
+    {
+      "_id": "507f1f77bcf86cd799439011",
+      "code": "STR001",
+      "name": "Pawship Store Jakarta",
+      "description": "Main store in Jakarta",
+      "location": {
+        "address": "Jl. Sudirman No. 123",
+        "city": "Jakarta",
+        "province": "DKI Jakarta",
+        "postal_code": "12345",
+        "latitude": -6.2088,
+        "longitude": 106.8456
+      },
+      "contact": {
+        "phone_number": "+628123456789",
+        "whatsapp": "+628123456789",
+        "email": "jakarta@pawship.com"
+      },
+      "operational": {
+        "opening_time": "09:00",
+        "closing_time": "18:00",
+        "operational_days": [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday"
+        ],
+        "timezone": "Asia/Jakarta"
+      },
+      "capacity": {
+        "max_booking_per_day": 20,
+        "max_booking_per_slot": 5,
+        "slot_duration_minutes": 60
+      },
+      "is_active": true
+    }
+  ]
+}
+```
+
+---
+
+### 2. Get Store By ID
+
+**Endpoint:** `GET /stores/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch store successfully",
+  "store": {
+    "_id": "507f1f77bcf86cd799439011",
+    "code": "STR001",
+    "name": "Pawship Store Jakarta",
+    "description": "Main store",
+    "location": { ... },
+    "contact": { ... },
+    "operational": { ... },
+    "capacity": { ... },
+    "is_active": true
+  }
+}
+```
+
+**Error Responses:**
+
+- **404 Not Found:** Store not found
+
+---
+
+### 3. Create Store
+
+**Endpoint:** `POST /stores`
+
+**Request Body:**
+
+```json
+{
+  "code": "string (required)",
+  "name": "string (required)",
+  "description": "string (optional)",
+  "location": {
+    "address": "string (optional)",
+    "city": "string (optional)",
+    "province": "string (optional)",
+    "postal_code": "string (optional)",
+    "latitude": "number (optional)",
+    "longitude": "number (optional)"
+  },
+  "contact": {
+    "phone_number": "string (optional)",
+    "whatsapp": "string (optional)",
+    "email": "string (optional)"
+  },
+  "operational": {
+    "opening_time": "string (optional)",
+    "closing_time": "string (optional)",
+    "operational_days": ["Monday", "Tuesday", ...] (optional),
+    "timezone": "string (optional, default: Asia/Jakarta)"
+  },
+  "capacity": {
+    "max_booking_per_day": "number (optional)",
+    "max_booking_per_slot": "number (optional)",
+    "slot_duration_minutes": "number (optional)"
+  },
+  "is_active": "boolean (optional, default: true)"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Create store successfully"
+}
+```
+
+---
+
+### 4. Update Store
+
+**Endpoint:** `PUT /stores/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Request Body:** Same as Create Store (all fields optional)
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Update store successfully"
+}
+```
+
+---
+
+### 5. Delete Store
+
+**Endpoint:** `DELETE /stores/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Delete store successfully"
+}
+```
+
+---
+
+## Services
+
+Services support multi-size pricing (different prices for different pet sizes).
+
+### 1. Get All Services
+
+**Endpoint:** `GET /services`
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch services successfully",
+  "services": [
+    {
+      "_id": "507f1f77bcf86cd799439011",
+      "code": "SVC001",
+      "name": "Basic Grooming",
+      "description": "Basic grooming package",
+      "service_type_id": "507f1f77bcf86cd799439012",
+      "pet_type_ids": ["507f1f77bcf86cd799439013"],
+      "size_category_ids": [
+        "507f1f77bcf86cd799439014",
+        "507f1f77bcf86cd799439015"
+      ],
+      "prices": [
+        {
+          "size_id": "507f1f77bcf86cd799439014",
+          "price": 100000
+        },
+        {
+          "size_id": "507f1f77bcf86cd799439015",
+          "price": 150000
+        }
+      ],
+      "duration": 60,
+      "available_for_unlimited": false,
+      "available_store_ids": ["507f1f77bcf86cd799439016"],
+      "is_active": true
+    }
+  ]
+}
+```
+
+---
+
+### 2. Get Service By ID
+
+**Endpoint:** `GET /services/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch service successfully",
+  "service": {
+    "_id": "507f1f77bcf86cd799439011",
+    "code": "SVC001",
+    "name": "Basic Grooming",
+    "prices": [...],
+    "duration": 60,
+    "is_active": true
+  }
+}
+```
+
+**Error Responses:**
+
+- **404 Not Found:** Service not found
+
+---
+
+### 3. Create Service
+
+**Endpoint:** `POST /services`
+
+**Request Body:**
+
+```json
+{
+  "code": "string (required)",
+  "name": "string (required)",
+  "description": "string (optional)",
+  "service_type_id": "MongoDB ObjectId (required)",
+  "pet_type_ids": ["MongoDB ObjectId"] (optional array),
+  "size_category_ids": ["MongoDB ObjectId"] (required array),
+  "prices": [
+    {
+      "size_id": "MongoDB ObjectId (required)",
+      "price": "number (required, min: 0)"
+    }
+  ] (required array),
+  "duration": "number (required, min: 1, in minutes)",
+  "available_for_unlimited": "boolean (optional)",
+  "available_store_ids": ["MongoDB ObjectId"] (optional array),
+  "is_active": "boolean (optional, default: true)"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Create service successfully"
+}
+```
+
+**Validation Notes:**
+
+- `prices` array must match with `size_category_ids`
+- Each size must have a corresponding price
+
+---
+
+### 4. Update Service
+
+**Endpoint:** `PUT /services/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Request Body:** Same as Create Service (all fields optional)
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Update service successfully"
+}
+```
+
+---
+
+### 5. Delete Service
+
+**Endpoint:** `DELETE /services/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Delete service successfully"
+}
+```
+
+---
+
+## Pets
+
+### 1. Get All Pets
+
+**Endpoint:** `GET /pets`
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch pets successfully",
+  "pets": [
+    {
+      "_id": "507f1f77bcf86cd799439011",
+      "name": "Buddy",
+      "description": "Friendly dog",
+      "internal_note": "Sensitive to loud noises",
+      "profile_image": {
+        "secure_url": "https://cloudinary.com/...",
+        "public_id": "pets/buddy123"
+      },
+      "pet_type_id": "507f1f77bcf86cd799439012",
+      "feather_category_id": "507f1f77bcf86cd799439013",
+      "birthday": "2020-01-15T00:00:00.000Z",
+      "size_category_id": "507f1f77bcf86cd799439014",
+      "breed_category_id": "507f1f77bcf86cd799439015",
+      "weight": 15,
+      "member_category_id": "507f1f77bcf86cd799439016",
+      "tags": ["friendly", "energetic"],
+      "last_grooming_at": "2026-01-15T00:00:00.000Z",
+      "last_visit_at": "2026-02-01T00:00:00.000Z",
+      "customer_id": "507f1f77bcf86cd799439017",
+      "memberships": [
+        {
+          "membership_id": "507f1f77bcf86cd799439018",
+          "start_date": "2026-01-01T00:00:00.000Z",
+          "end_date": "2026-12-31T00:00:00.000Z",
+          "status": "active",
+          "usage_count": 2,
+          "max_usage": 12
+        }
+      ],
+      "is_active": true
+    }
+  ]
+}
+```
+
+---
+
+### 2. Get Pet By ID
+
+**Endpoint:** `GET /pets/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch pet successfully",
+  "pet": { ... }
+}
+```
+
+**Error Responses:**
+
+- **404 Not Found:** Pet not found
+
+---
+
+### 3. Create Pet
+
+**Endpoint:** `POST /pets`
+
+**Request Body:**
+
+```json
+{
+  "name": "string (required)",
+  "description": "string (optional)",
+  "internal_note": "string (optional)",
+  "profile_image": {
+    "secure_url": "string (optional)",
+    "public_id": "string (optional)"
+  },
+  "pet_type_id": "MongoDB ObjectId (required)",
+  "feather_category_id": "MongoDB ObjectId (optional)",
+  "birthday": "Date (optional)",
+  "size_category_id": "MongoDB ObjectId (required)",
+  "breed_category_id": "MongoDB ObjectId (required)",
+  "weight": "number (optional)",
+  "member_category_id": "MongoDB ObjectId (optional)",
+  "tags": ["string"] (optional array),
+  "last_grooming_at": "Date (optional)",
+  "last_visit_at": "Date (optional)",
+  "customer_id": "MongoDB ObjectId (required)",
+  "memberships": [
+    {
+      "membership_id": "MongoDB ObjectId (required)",
+      "start_date": "Date (required)",
+      "end_date": "Date (required)",
+      "status": "string (required)",
+      "usage_count": "number (optional)",
+      "max_usage": "number (optional)"
+    }
+  ] (optional array),
+  "is_active": "boolean (optional)"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Create pet successfully"
+}
+```
+
+---
+
+### 4. Update Pet
+
+**Endpoint:** `PUT /pets/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Request Body:** Same as Create Pet (all fields optional)
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Update pet successfully"
+}
+```
+
+---
+
+### 5. Delete Pet
+
+**Endpoint:** `DELETE /pets/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Delete pet successfully"
+}
+```
+
+---
+
+## Memberships
+
+### 1. Get All Memberships
+
+**Endpoint:** `GET /memberships`
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch memberships successfully",
+  "memberships": [
+    {
+      "_id": "507f1f77bcf86cd799439011",
+      "name": "Gold Membership",
+      "description": "Premium membership package",
+      "pet_type_ids": ["507f1f77bcf86cd799439012"],
+      "duration_months": 12,
+      "price": 1200000,
+      "max_usage": 12,
+      "service_include_ids": [
+        "507f1f77bcf86cd799439013",
+        "507f1f77bcf86cd799439014"
+      ],
+      "is_active": true
+    }
+  ]
+}
+```
+
+---
+
+### 2. Get Membership By ID
+
+**Endpoint:** `GET /memberships/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch membership successfully",
+  "membership": { ... }
+}
+```
+
+**Error Responses:**
+
+- **404 Not Found:** Membership not found
+
+---
+
+### 3. Create Membership
+
+**Endpoint:** `POST /memberships`
+
+**Request Body:**
+
+```json
+{
+  "name": "string (required)",
+  "description": "string (optional)",
+  "pet_type_ids": ["MongoDB ObjectId"] (optional array),
+  "duration_months": "number (required, min: 1)",
+  "price": "number (required, min: 0)",
+  "max_usage": "number (optional)",
+  "service_include_ids": ["MongoDB ObjectId"] (optional array),
+  "is_active": "boolean (optional, default: true)"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Create membership successfully"
+}
+```
+
+---
+
+### 4. Update Membership
+
+**Endpoint:** `PUT /memberships/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Request Body:** Same as Create Membership (all fields optional)
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Update membership successfully"
+}
+```
+
+---
+
+### 5. Delete Membership
+
+**Endpoint:** `DELETE /memberships/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Delete membership successfully"
+}
+```
+
+---
+
+## Bookings
+
+### 1. Get All Bookings
+
+**Endpoint:** `GET /bookings`
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch bookings successfully",
+  "bookings": [
+    {
+      "_id": "507f1f77bcf86cd799439011",
+      "customer_id": "507f1f77bcf86cd799439012",
+      "pet_snapshot": {
+        "name": "Buddy",
+        "member_type": "VIP"
+      },
+      "pet_id": "507f1f77bcf86cd799439013",
+      "store_id": "507f1f77bcf86cd799439014",
+      "date": "2026-02-25T00:00:00.000Z",
+      "time_range": "10:00 - 11:00",
+      "type": "in store",
+      "booking_status": "confirmed",
+      "status_logs": [
+        {
+          "status": "requested",
+          "timestamp": "2026-02-19T10:00:00.000Z",
+          "note": "Customer requested booking"
+        },
+        {
+          "status": "confirmed",
+          "timestamp": "2026-02-19T11:00:00.000Z",
+          "note": "Booking confirmed by admin"
+        }
+      ],
+      "service_id": "507f1f77bcf86cd799439015",
+      "service_addon_ids": ["507f1f77bcf86cd799439016"],
+      "travel_fee": 50000,
+      "sub_total_service": 150000,
+      "total_price": 200000,
+      "discount_ids": [],
+      "assigned_groomer_ids": ["507f1f77bcf86cd799439017"],
+      "referal_code": "FRIEND20",
+      "note": "Please be gentle, first time grooming",
+      "payment_method": "cash",
+      "grooming_session": {
+        "status": "not started",
+        "arrived_at": null,
+        "started_at": null,
+        "finished_at": null,
+        "notes": "",
+        "internal_note": "",
+        "media": []
+      },
+      "isDeleted": false,
+      "createdAt": "2026-02-19T10:00:00.000Z",
+      "updatedAt": "2026-02-19T11:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### 2. Get Booking By ID
+
+**Endpoint:** `GET /bookings/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch booking successfully",
+  "booking": { ... }
+}
+```
+
+**Error Responses:**
+
+- **404 Not Found:** Booking not found
+
+---
+
+### 3. Create Booking
+
+**Endpoint:** `POST /bookings`
+
+**Request Body:**
+
+```json
+{
+  "customer_id": "MongoDB ObjectId (required)",
+  "pet_id": "MongoDB ObjectId (required)",
+  "pet_snapshot": {
+    "name": "string (optional)",
+    "member_type": "string (optional)"
+  },
+  "store_id": "MongoDB ObjectId (optional, required for in store type)",
+  "date": "Date (required)",
+  "time_range": "string (required, format: HH:mm - HH:mm)",
+  "type": "in home | in store (required)",
+  "booking_status": "requested | confirmed | arrived | grooming in progress | grooming finished | rescheduled | cancelled (optional)",
+  "service_id": "MongoDB ObjectId (required)",
+  "service_addon_ids": ["MongoDB ObjectId"] (optional array),
+  "travel_fee": "number (optional)",
+  "sub_total_service": "number (optional)",
+  "total_price": "number (optional)",
+  "discount_ids": ["MongoDB ObjectId"] (optional array),
+  "assigned_groomer_ids": ["MongoDB ObjectId"] (optional array),
+  "referal_code": "string (optional)",
+  "note": "string (optional)",
+  "payment_method": "string (optional)"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Create booking successfully"
+}
+```
+
+**Business Logic:**
+
+- System automatically creates `pet_snapshot` from pet data
+- System calculates pricing based on service and pet size
+- Initial `booking_status` is "requested"
+- Creates initial status log entry
+
+---
+
+### 4. Update Booking
+
+**Endpoint:** `PUT /bookings/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Request Body:** Same as Create Booking (all fields optional except customer_id and status_logs)
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Update booking successfully"
+}
+```
+
+**Notes:**
+
+- Cannot update `customer_id` and `status_logs` through this endpoint
+- Use specific endpoints for status updates
+
+---
+
+### 5. Delete Booking
+
+**Endpoint:** `DELETE /bookings/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Delete booking successfully"
+}
+```
+
+---
+
+### 6. Assign Groomer to Booking
+
+**Endpoint:** `PATCH /bookings/assign-groomer/:id`
+
+**Parameters:**
+
+- `id` (path): Booking MongoDB ObjectId
+
+**Request Body:**
+
+```json
+{
+  "assigned_groomer_ids": ["MongoDB ObjectId"] (required array)
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Assign groomer successfully"
+}
+```
+
+**Business Logic:**
+
+- Assigns groomers to the booking
+- Initializes grooming_session object
+
+---
+
+### 7. Update Booking Status
+
+**Endpoint:** `PATCH /bookings/update-status/:id`
+
+**Parameters:**
+
+- `id` (path): Booking MongoDB ObjectId
+
+**Request Body:**
+
+```json
+{
+  "status": "requested | confirmed | arrived | grooming in progress | grooming finished | rescheduled | cancelled (required)",
+  "date": "Date (optional, required for rescheduled status)",
+  "time_range": "string (optional, required for rescheduled status)",
+  "note": "string (optional)"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Update status booking successfully"
+}
+```
+
+**Business Logic:**
+
+- Updates booking_status
+- Adds entry to status_logs with timestamp
+- If status is "rescheduled", updates date and time_range
+- If status is "rescheduled", requires date and time_range
+
+**Error Responses:**
+
+- **400 Bad Request:** Missing required fields for rescheduled status
+
+---
+
+## Grooming Sessions
+
+Grooming sessions track the actual grooming process workflow.
+
+### 1. Groomer Arrived (For In-Home Service)
+
+**Endpoint:** `PATCH /booking/grooming-session/arrive/:id`
+
+**Parameters:**
+
+- `id` (path): Booking MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Grooming session finished successfully"
+}
+```
+
+**Business Logic:**
+
+- Updates `booking_status` to "arrived"
+- Sets `grooming_session.arrived_at` to current timestamp
+- Adds entry to `status_logs`
+
+**Error Responses:**
+
+- **400 Bad Request:** ID is required
+- **404 Not Found:** Booking not found
+
+---
+
+### 2. Start Grooming Session
+
+**Endpoint:** `PATCH /booking/grooming-session/start/:id`
+
+**Parameters:**
+
+- `id` (path): Booking MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Grooming session started successfully"
+}
+```
+
+**Business Logic:**
+
+- Updates `booking_status` to "grooming in progress"
+- Updates `grooming_session.status` to "in progress"
+- Sets `grooming_session.started_at` to current timestamp
+- Adds entry to `status_logs`
+
+**Error Responses:**
+
+- **400 Bad Request:** ID is required
+- **404 Not Found:** Booking not found
+
+---
+
+### 3. Finish Grooming Session
+
+**Endpoint:** `PATCH /booking/grooming-session/finish/:id`
+
+**Parameters:**
+
+- `id` (path): Booking MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Grooming session finished successfully"
+}
+```
+
+**Business Logic:**
+
+- Updates `booking_status` to "grooming finished"
+- Updates `grooming_session.status` to "finished"
+- Sets `grooming_session.finished_at` to current timestamp
+- Adds entry to `status_logs`
+
+**Error Responses:**
+
+- **400 Bad Request:** ID is required
+- **404 Not Found:** Booking not found
+
+---
+
+### 4. Upload Grooming Media (Before/After Photos)
+
+**Endpoint:** `POST /booking/grooming-session/media/:id`
+
+**Content-Type:** `multipart/form-data`
+
+**Parameters:**
+
+- `id` (path): Booking MongoDB ObjectId
+
+**Request Body (Form-Data):**
+
+- `image`: File (required) - Image file to upload
+- `type`: "before" | "after" (required)
+- `user_id`: MongoDB ObjectId (required) - User who uploads the image
+- `user_name`: string (required) - Name snapshot of the user
+- `note`: string (optional) - Additional note about the image
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Media uploaded successfully"
+}
+```
+
+**Business Logic:**
+
+- Uploads image to Cloudinary (folder: grooming-session)
+- Stores media info in `grooming_session.media` array
+- Includes creator information (user_id, name_snapshot)
+- Stores optional note
+
+**Example Form-Data in Postman:**
+
+```
+Key: image         | Type: File | Value: [Select file]
+Key: type          | Type: Text | Value: before
+Key: user_id       | Type: Text | Value: 507f1f77bcf86cd799439011
+Key: user_name     | Type: Text | Value: John Doe
+Key: note          | Type: Text | Value: Pet condition before grooming
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Missing required fields or file
+
+```json
+{
+  "statusCode": 400,
+  "message": "image file is required",
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** Booking not found
+- **500 Internal Server Error:** Cloudinary upload failed (check environment variables)
+
+---
+
+## Enums Reference
+
+### BookingStatus
+
+```typescript
+REQUESTED = 'requested';
+CONFIRMED = 'confirmed';
+ARRIVED = 'arrived';
+GROOMING_IN_PROGRESS = 'grooming in progress';
+GROOMING_FINISHED = 'grooming finished';
+RESCHEDULED = 'rescheduled';
+CANCELLED = 'cancelled';
+```
+
+### GroomingType
+
+```typescript
+IN_HOME = 'in home';
+IN_STORE = 'in store';
+```
+
+### MediaType
+
+```typescript
+BEFORE = 'before';
+AFTER = 'after';
+```
+
+### UserRole
+
+```typescript
+ADMIN = 'admin';
+OPS = 'ops';
+GROOMER = 'groomer';
+CUSTOMER = 'customer';
+```
+
+### CategoryOption
+
+```typescript
+FEATHER = 'feather category';
+SIZE = 'size category';
+BREED = 'breed category';
+MEMBER = 'member category';
+CUSTOMER = 'customer category';
+PET_TYPE = 'pet type';
+SERVICE_TYPE = 'service type';
+```
+
+---
+
+## Common Error Responses
+
+### 400 Bad Request
+
+Returned when validation fails or required fields are missing.
+
+```json
+{
+  "statusCode": 400,
+  "message": "id is required",
+  "error": "Bad Request"
+}
+```
+
+### 404 Not Found
+
+Returned when requested resource doesn't exist or has been deleted.
+
+```json
+{
+  "statusCode": 404,
+  "message": "data not found",
+  "error": "Not Found"
+}
+```
+
+### 500 Internal Server Error
+
+Returned when server encounters an unexpected error.
+
+```json
+{
+  "statusCode": 500,
+  "message": "Internal server error",
+  "error": "Internal Server Error"
+}
+```
+
+---
+
+## Environment Variables Required
+
+```env
+# Database
+MONGODB_URI=mongodb://localhost:27017/pawship-grooming
+MONGODB_DATABASE_NAME=pawship-grooming
+
+# Cloudinary (Required for media upload)
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+
+# JWT
+JWT_SECRET=your_jwt_secret
+
+# Server
+PORT=3000
+```
+
+---
+
+## Notes for Frontend Developers
+
+1. **Authentication**: Save JWT token from login response and include in Authorization header for protected routes
+2. **MongoDB ObjectIds**: All IDs are 24-character hex strings (e.g., "507f1f77bcf86cd799439011")
+3. **Dates**: All dates are in ISO 8601 format (e.g., "2026-02-19T10:00:00.000Z")
+4. **Soft Delete**: Deleted items are not actually removed, just marked with `isDeleted: true`
+5. **File Upload**: Use `multipart/form-data` for media upload endpoints
+6. **Pricing**: Service prices vary by pet size - always check pet's size_category_id against service prices
+7. **Status Logs**: All status changes are tracked in `status_logs` array with timestamps
+8. **Grooming Workflow**:
+   - For In-Home: Requested → Confirmed → Arrived → In Progress → Finished
+   - For In-Store: Requested → Confirmed → In Progress → Finished
+
+---
+
+**Last Updated:** February 19, 2026
+**API Version:** 1.0.0
