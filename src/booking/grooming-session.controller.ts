@@ -129,6 +129,7 @@ export class GroomingSessionController {
     @Param('sessionId') sessionId: string,
     @UploadedFile() file: Express.Multer.File,
     @Body() body: GroomingMediaDto,
+    @Req() request: any,
   ) {
     if (!bookingId) throw new BadRequestException('bookingId is required');
     if (!sessionId) throw new BadRequestException('sessionId is required');
@@ -141,6 +142,7 @@ export class GroomingSessionController {
       _sessionId,
       file,
       body,
+      request.user,
     );
 
     return {

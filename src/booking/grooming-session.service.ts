@@ -292,6 +292,7 @@ export class GroomingSessionService {
     sessionId: ObjectId,
     file: Express.Multer.File,
     body: GroomingMediaDto,
+    user?: { _id: ObjectId; username: string; role: string },
   ) {
     try {
       const booking = await this.bookingModel.findById(bookingId);
@@ -321,8 +322,8 @@ export class GroomingSessionService {
         secure_url: uploadResult.secure_url,
         public_id: uploadResult.public_id,
         created_by: {
-          user_id: body.user_id,
-          name_snapshot: body.user_name,
+          user_id: user?._id,
+          name_snapshot: user?.username,
         },
         note: body.note || '',
         uploaded_at: new Date(),
