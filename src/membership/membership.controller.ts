@@ -8,13 +8,16 @@ import {
   BadRequestException,
   NotFoundException,
   Put,
+  UseGuards,
 } from '@nestjs/common';
 import { MembershipService } from './membership.service';
 import { CreateMembershipDto } from './dto/create-membership.dto';
 import { UpdateMembershipDto } from './dto/update-membership.dto';
 import { ObjectId } from 'mongodb';
+import { AuthGuard } from 'src/auth/auth.guard';
 
 @Controller('memberships')
+@UseGuards(AuthGuard)
 export class MembershipController {
   constructor(private readonly membershipService: MembershipService) {}
 

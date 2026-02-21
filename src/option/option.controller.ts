@@ -9,13 +9,16 @@ import {
   NotFoundException,
   Put,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { OptionService } from './option.service';
 import { CreateOptionDto } from './dto/create-option.dto';
 import { UpdateOptionDto } from './dto/update-option.dto';
 import { ObjectId } from 'mongodb';
+import { AuthGuard } from 'src/auth/auth.guard';
 
 @Controller('options')
+@UseGuards(AuthGuard)
 export class OptionController {
   constructor(private readonly optionService: OptionService) {}
 

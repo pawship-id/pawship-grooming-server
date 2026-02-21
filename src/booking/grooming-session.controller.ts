@@ -8,6 +8,7 @@ import {
   UseInterceptors,
   UploadedFile,
   Delete,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { GroomingSessionService } from './grooming-session.service';
@@ -17,8 +18,10 @@ import {
   UpdateSessionDto,
   FinishSessionDto,
 } from './dto/update-grooming-session.dto';
+import { AuthGuard } from 'src/auth/auth.guard';
 
 @Controller('bookings')
+@UseGuards(AuthGuard)
 export class GroomingSessionController {
   constructor(
     private readonly groomingSessionService: GroomingSessionService,

@@ -9,6 +9,7 @@ import {
   NotFoundException,
   Put,
   Patch,
+  UseGuards,
 } from '@nestjs/common';
 import { BookingService } from './booking.service';
 import { AssignedGroomerDto, CreateBookingDto } from './dto/create-booking.dto';
@@ -16,8 +17,10 @@ import { UpdateBookingDto } from './dto/update-booking.dto';
 import { ObjectId } from 'mongodb';
 import { BookingStatus } from './dto/booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
+import { AuthGuard } from 'src/auth/auth.guard';
 
 @Controller('bookings')
+@UseGuards(AuthGuard)
 export class BookingController {
   constructor(private readonly bookingService: BookingService) {}
 

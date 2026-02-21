@@ -12,6 +12,7 @@ import { PetModule } from 'src/pet/pet.module';
 import { ServiceModule } from 'src/service/service.module';
 import { Store, StoreSchema } from 'src/store/entities/store.entity';
 import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
+import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
     PetModule,
     ServiceModule,
     CloudinaryModule,
+    AuthModule,
   ],
   controllers: [BookingController, GroomingSessionController],
   providers: [BookingService, GroomingSessionService],
