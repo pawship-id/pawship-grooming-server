@@ -152,7 +152,7 @@ export class BookingService {
       const existingBooking = await this.bookingModel.findById(id);
 
       if (!existingBooking || existingBooking.isDeleted) {
-        throw new NotFoundException('booking not found');
+        throw new NotFoundException('Booking not found');
       }
 
       // simpan dan status_logs yang lama
@@ -209,10 +209,56 @@ export class BookingService {
       // menghitung harga total
       body.total_price = (body.sub_total_service || 0) + (body.travel_fee || 0);
 
+      // Prepare update data
+      const updateData: any = { ...body };
+
+      // Sync sessions with assigned_groomers if updated
+      if (body.assigned_groomers && body.assigned_groomers.length > 0) {
+        const existingSessions = existingBooking.sessions || [];
+        const updatedSessions = [...existingSessions];
+
+        // Convert assigned_groomers string IDs to ObjectId
+        const newAssignedGroomers = body.assigned_groomers.map((groomer) => ({
+          task: groomer.task,
+          groomer_id: new Types.ObjectId(groomer.groomer_id),
+        }));
+
+        // Update existing sessions or create new ones based on index/order
+        newAssignedGroomers.forEach((groomer, index) => {
+          // Find session by order matching the assigned_groomer index
+          const sessionIndex = updatedSessions.findIndex(
+            (session) => session.order === index,
+          );
+
+          if (sessionIndex >= 0) {
+            // Update existing session's groomer_id and type (task bisa berubah)
+            updatedSessions[sessionIndex].groomer_id = groomer.groomer_id;
+            updatedSessions[sessionIndex].type = groomer.task;
+          } else {
+            // Create new session for this groomer
+            updatedSessions.push({
+              type: groomer.task,
+              groomer_id: groomer.groomer_id,
+              status: SessionStatus.NOT_STARTED,
+              started_at: null,
+              finished_at: null,
+              notes: null,
+              internal_note: null,
+              order: index,
+              media: [],
+            } as any);
+          }
+        });
+
+        updateData.sessions = updatedSessions;
+        // Convert assigned_groomers to proper format with ObjectId
+        updateData.assigned_groomers = newAssignedGroomers;
+      }
+
       // update booking
       const updatedBooking = await this.bookingModel.findByIdAndUpdate(
         id,
-        { $set: body },
+        { $set: updateData },
         { new: true },
       );
 

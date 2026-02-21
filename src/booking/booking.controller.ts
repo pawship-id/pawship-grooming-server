@@ -68,10 +68,6 @@ export class BookingController {
     if (!id) throw new BadRequestException('id is required');
 
     const _id = new ObjectId(id);
-    const booking = await this.bookingService.findOne(_id);
-    if (!booking || booking.isDeleted)
-      throw new NotFoundException('data not found');
-
     await this.bookingService.update(_id, body, request.user);
 
     return {
