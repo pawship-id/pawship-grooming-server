@@ -3,85 +3,134 @@ import {
   Patch,
   Param,
   BadRequestException,
-  NotFoundException,
   Body,
   Post,
   UseInterceptors,
   UploadedFile,
+  Delete,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { GroomingSessionService } from './grooming-session.service';
 import { ObjectId } from 'mongodb';
-import { BookingService } from './booking.service';
 import { GroomingMediaDto } from './dto/grooming-media.dto';
+import {
+  UpdateSessionDto,
+  FinishSessionDto,
+} from './dto/update-grooming-session.dto';
 
-@Controller('booking/grooming-session')
+@Controller('bookings')
 export class GroomingSessionController {
   constructor(
     private readonly groomingSessionService: GroomingSessionService,
-    private readonly bookingService: BookingService,
   ) {}
 
-  @Patch('arrive/:id')
-  async arriveGroommer(@Param('id') id: string) {
-    if (!id) throw new BadRequestException('id is required');
+  // ==================== SESSION ENDPOINTS ====================
+  // Sessions are auto-created when groomers are assigned
+  // Use update, start, finish endpoints to manage existing sessions
 
-    const _id = new ObjectId(id);
-    const booking = await this.bookingService.findOne(_id);
-    if (!booking || booking.isDeleted)
-      throw new NotFoundException('data not found');
+  // Update a session by ID
+  @Patch(':bookingId/session/:sessionId')
+  async updateSession(
+    @Param('bookingId') bookingId: string,
+    @Param('sessionId') sessionId: string,
+    @Body() body: UpdateSessionDto,
+  ) {
+    if (!bookingId) throw new BadRequestException('bookingId is required');
+    if (!sessionId) throw new BadRequestException('sessionId is required');
 
-    await this.groomingSessionService.arriveGroomer(_id);
+    const _bookingId = new ObjectId(bookingId);
+    const _sessionId = new ObjectId(sessionId);
+    await this.groomingSessionService.updateSession(
+      _bookingId,
+      _sessionId,
+      body,
+    );
 
     return {
-      message: 'Grooming session finished successfully',
+      message: 'Session updated successfully',
     };
   }
 
-  @Patch('start/:id')
-  async startGrooming(@Param('id') id: string) {
-    if (!id) throw new BadRequestException('id is required');
+  // Delete a session by ID
+  @Delete(':bookingId/session/:sessionId')
+  async deleteSession(
+    @Param('bookingId') bookingId: string,
+    @Param('sessionId') sessionId: string,
+  ) {
+    if (!bookingId) throw new BadRequestException('bookingId is required');
+    if (!sessionId) throw new BadRequestException('sessionId is required');
 
-    const _id = new ObjectId(id);
-    const booking = await this.bookingService.findOne(_id);
-    if (!booking || booking.isDeleted)
-      throw new NotFoundException('data not found');
-
-    await this.groomingSessionService.startGrooming(_id);
+    const _bookingId = new ObjectId(bookingId);
+    const _sessionId = new ObjectId(sessionId);
+    await this.groomingSessionService.deleteSession(_bookingId, _sessionId);
 
     return {
-      message: 'Grooming session started successfully',
+      message: 'Session deleted successfully',
     };
   }
 
-  @Patch('finish/:id')
-  async finishGrooming(@Param('id') id: string) {
-    if (!id) throw new BadRequestException('id is required');
+  // Start a session by ID
+  @Patch(':bookingId/session/:sessionId/start')
+  async startSession(
+    @Param('bookingId') bookingId: string,
+    @Param('sessionId') sessionId: string,
+  ) {
+    if (!bookingId) throw new BadRequestException('bookingId is required');
+    if (!sessionId) throw new BadRequestException('sessionId is required');
 
-    const _id = new ObjectId(id);
-    const booking = await this.bookingService.findOne(_id);
-    if (!booking || booking.isDeleted)
-      throw new NotFoundException('data not found');
-
-    await this.groomingSessionService.finishGrooming(_id);
+    const _bookingId = new ObjectId(bookingId);
+    const _sessionId = new ObjectId(sessionId);
+    await this.groomingSessionService.startSession(_bookingId, _sessionId);
 
     return {
-      message: 'Grooming session finished successfully',
+      message: 'Session started successfully',
     };
   }
 
-  @Post('media/:id')
+  // Finish a session by ID
+  @Patch(':bookingId/session/:sessionId/finish')
+  async finishSession(
+    @Param('bookingId') bookingId: string,
+    @Param('sessionId') sessionId: string,
+    @Body() body: FinishSessionDto,
+  ) {
+    if (!bookingId) throw new BadRequestException('bookingId is required');
+    if (!sessionId) throw new BadRequestException('sessionId is required');
+
+    const _bookingId = new ObjectId(bookingId);
+    const _sessionId = new ObjectId(sessionId);
+    await this.groomingSessionService.finishSession(
+      _bookingId,
+      _sessionId,
+      body.notes,
+    );
+
+    return {
+      message: 'Session finished successfully',
+    };
+  }
+
+  // Upload media for a specific session
+  @Post(':bookingId/session/:sessionId/media')
   @UseInterceptors(FileInterceptor('image'))
-  async uploadMedia(
-    @Param('id') id: string,
+  async uploadSessionMedia(
+    @Param('bookingId') bookingId: string,
+    @Param('sessionId') sessionId: string,
     @UploadedFile() file: Express.Multer.File,
     @Body() body: GroomingMediaDto,
   ) {
-    if (!id) throw new BadRequestException('id is required');
+    if (!bookingId) throw new BadRequestException('bookingId is required');
+    if (!sessionId) throw new BadRequestException('sessionId is required');
     if (!file) throw new BadRequestException('image file is required');
 
-    const _id = new ObjectId(id);
-    await this.groomingSessionService.uploadMedia(_id, file, body);
+    const _bookingId = new ObjectId(bookingId);
+    const _sessionId = new ObjectId(sessionId);
+    await this.groomingSessionService.uploadSessionMedia(
+      _bookingId,
+      _sessionId,
+      file,
+      body,
+    );
 
     return {
       message: 'Media uploaded successfully',

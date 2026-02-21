@@ -2,16 +2,21 @@ export enum BookingStatus {
   REQUESTED = 'requested',
   CONFIRMED = 'confirmed',
   ARRIVED = 'arrived',
-  GROOMING_IN_PROGRESS = 'grooming in progress',
-  GROOMING_FINISHED = 'grooming finished',
+  IN_PROGRESS = 'in progress',
+  COMPLETED = 'completed',
   RESCHEDULED = 'rescheduled',
   CANCELLED = 'cancelled',
 }
 
-export enum GroomingSessionStatus {
+export enum SessionStatus {
   NOT_STARTED = 'not started',
   IN_PROGRESS = 'in progress',
   FINISHED = 'finished',
+}
+
+export enum ServiceType {
+  GROOMING = 'grooming',
+  HOTEL = 'hotel',
 }
 
 export enum GroomingType {

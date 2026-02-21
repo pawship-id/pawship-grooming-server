@@ -1,17 +1,17 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import {
+  AssignedGroomerDto,
   BookingStatusLogDto,
   CreateBookingDto,
 } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Booking, BookingDocument } from './entities/booking.entity';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { ObjectId } from 'mongodb';
 import { PetService } from 'src/pet/pet.service';
 import { ServiceService } from 'src/service/service.service';
-import { BookingStatus, GroomingSessionStatus } from './dto/booking.dto';
-import { CreateGroomingSessionDto } from './dto/create-grooming-session.dto';
+import { BookingStatus, SessionStatus } from './dto/booking.dto';
 
 @Injectable()
 export class BookingService {
@@ -98,7 +98,11 @@ export class BookingService {
       .populate('store', 'name')
       .populate('service', 'name prices')
       .populate('service_addons', 'name prices')
-      .populate('groomers', 'username email phone_number')
+      .populate({
+        path: 'assigned_groomers.groomer_id',
+        select: 'username email phone_number',
+        model: 'User',
+      })
       .exec();
 
     return bookings;
@@ -127,7 +131,11 @@ export class BookingService {
       .populate('store', 'name')
       .populate('service', 'name prices')
       .populate('service_addons', 'name prices')
-      .populate('groomers', 'username email phone_number')
+      .populate({
+        path: 'assigned_groomers.groomer_id',
+        select: 'username email phone_number',
+        model: 'User',
+      })
       .exec();
     return booking;
   }
@@ -216,7 +224,7 @@ export class BookingService {
     return booking;
   }
 
-  async assignGroomer(id: ObjectId, groomerIds: string[]) {
+  async assignGroomer(id: ObjectId, assigned_groomers: AssignedGroomerDto[]) {
     try {
       const existingBooking = await this.findOne(id);
 
@@ -224,22 +232,33 @@ export class BookingService {
         throw new NotFoundException('data not found');
       }
 
+      // Create sessions based on assigned groomers
+      const existingSession = existingBooking.sessions || [];
+      const sessions = assigned_groomers.map((groomer, index) => ({
+        type: groomer.task,
+        groomer_id: new Types.ObjectId(groomer.groomer_id),
+        status: SessionStatus.NOT_STARTED,
+        started_at: null,
+        finished_at: null,
+        notes: null,
+        internal_note: null,
+        order: existingSession.length + index,
+        media: [],
+      }));
+
+      // Convert assigned_groomers string IDs to ObjectId
+      const newAssignedGroomers = assigned_groomers.map((groomer) => ({
+        task: groomer.task,
+        groomer_id: new Types.ObjectId(groomer.groomer_id),
+      }));
+
       const updateData: any = {
-        assigned_groomer_ids: groomerIds,
+        assigned_groomers: [
+          ...existingBooking.assigned_groomers,
+          ...newAssignedGroomers,
+        ],
+        sessions: [...existingSession, ...sessions],
       };
-
-      // jika belum pernah ada groomer yang di-assign, set status NOT_STARTED
-      if (
-        !existingBooking.assigned_groomer_ids ||
-        existingBooking.assigned_groomer_ids.length === 0
-      ) {
-        const groomingSession: CreateGroomingSessionDto = {
-          status: GroomingSessionStatus.NOT_STARTED,
-        };
-
-        updateData.grooming_session = groomingSession;
-      }
-      // kalau sudah ada groomer sebelumnya, grooming_session tetap seperti yang ada
 
       const updatedBooking = await this.bookingModel.findByIdAndUpdate(
         id,

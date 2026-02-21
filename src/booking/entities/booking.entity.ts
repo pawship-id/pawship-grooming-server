@@ -2,7 +2,8 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import {
   BookingStatus,
-  GroomingSessionStatus,
+  SessionStatus,
+  ServiceType,
   GroomingType,
   MediaType,
 } from '../dto/booking.dto';
@@ -19,7 +20,7 @@ export class PetSnapshot {
 }
 
 @Schema({ _id: false })
-export class GroomingMedia {
+export class SessionMedia {
   @Prop({
     enum: MediaType,
     required: true,
@@ -47,18 +48,28 @@ export class GroomingMedia {
     user_id: string;
     name_snapshot: string;
   };
+
+  @Prop({ default: Date.now })
+  uploaded_at: Date;
 }
 
-@Schema({ _id: false })
+// Session - represents one grooming activity (bathing, styling, etc.)
+@Schema()
 export class GroomingSession {
-  @Prop({
-    enum: GroomingSessionStatus,
-    default: GroomingSessionStatus.NOT_STARTED,
-  })
-  status: GroomingSessionStatus;
+  @Prop({ type: String, required: true })
+  type: string; // Dynamic type: "bathing", "styling", "nail_trimming", etc.
 
-  @Prop({ default: null })
-  arrived_at?: Date; // IN HOME
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'User',
+  })
+  groomer_id: Types.ObjectId;
+
+  @Prop({
+    enum: SessionStatus,
+    default: SessionStatus.NOT_STARTED,
+  })
+  status: SessionStatus;
 
   @Prop({ default: null })
   started_at?: Date;
@@ -73,10 +84,13 @@ export class GroomingSession {
   internal_note?: string;
 
   @Prop({
-    type: [GroomingMedia],
+    type: [SessionMedia],
     default: [],
   })
-  media?: GroomingMedia[];
+  media?: SessionMedia[];
+
+  @Prop({ default: 0 })
+  order: number; // For session sequencing
 }
 
 @Schema({ _id: false })
@@ -91,6 +105,19 @@ export class BookingStatusLog {
   note?: string;
 }
 
+@Schema({ _id: false })
+export class AssignedGroomer {
+  @Prop({ required: true })
+  task: string; // contoh: 'bathing' | 'styling'
+
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'User',
+    required: true,
+  })
+  groomer_id: Types.ObjectId;
+}
+
 @Schema({
   timestamps: true,
   toJSON: {
@@ -103,7 +130,6 @@ export class BookingStatusLog {
       delete ret.store_id;
       delete ret.service_id;
       delete ret.service_addon_ids;
-      delete ret.assigned_groomer_ids;
 
       if (ret.pet?.size?._id) {
         const petSizeId = ret.pet.size._id.toString();
@@ -132,12 +158,33 @@ export class BookingStatusLog {
         }
       }
 
+      if (ret.assigned_groomers?.length) {
+        ret.assigned_groomers = ret.assigned_groomers.map((el: any) => {
+          return {
+            task: el.task,
+            groomer_detail: {
+              _id: el.groomer_id._id,
+              username: el.groomer_id.username,
+              email: el.groomer_id.email,
+              phone_number: el.groomer_id.phone_number,
+            },
+          };
+        });
+      }
+
       return ret;
     },
   },
   toObject: { virtuals: true },
 })
 export class Booking {
+  /* ===== Service Type ===== */
+  @Prop({
+    enum: ServiceType,
+    default: ServiceType.GROOMING,
+  })
+  service_type: ServiceType;
+
   /* ===== Owner ===== */
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   customer_id: Types.ObjectId;
@@ -200,10 +247,10 @@ export class Booking {
 
   /* ===== Groomer ===== */
   @Prop({
-    type: [{ type: Types.ObjectId, ref: 'Groomer' }],
+    type: [AssignedGroomer],
     default: [],
   })
-  assigned_groomer_ids: Types.ObjectId[];
+  assigned_groomers: AssignedGroomer[];
 
   /* ===== Misc ===== */
   @Prop()
@@ -215,9 +262,12 @@ export class Booking {
   @Prop()
   payment_method?: string;
 
-  /* ===== Grooming Execution ===== */
-  @Prop({ type: GroomingSession })
-  grooming_session?: GroomingSession;
+  /* ===== Sessions - Array of grooming/hotel sessions ===== */
+  @Prop({
+    type: [GroomingSession],
+    default: [],
+  })
+  sessions: GroomingSession[];
 
   /* ===== Soft Delete ===== */
   @Prop({ default: false })
@@ -260,11 +310,5 @@ BookingSchema.virtual('service', {
 BookingSchema.virtual('service_addons', {
   ref: 'Service',
   localField: 'service_addon_ids',
-  foreignField: '_id',
-});
-
-BookingSchema.virtual('groomers', {
-  ref: 'User',
-  localField: 'assigned_groomer_ids',
   foreignField: '_id',
 });
