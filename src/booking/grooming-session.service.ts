@@ -143,7 +143,11 @@ export class GroomingSessionService {
   }
 
   // Start a specific session by ID
-  async startSession(bookingId: ObjectId, sessionId: ObjectId) {
+  async startSession(
+    bookingId: ObjectId,
+    sessionId: ObjectId,
+    user?: { username: string; role: string },
+  ) {
     try {
       const booking = await this.bookingModel.findById(bookingId);
       if (!booking || booking.isDeleted) {
@@ -191,7 +195,7 @@ export class GroomingSessionService {
             status_logs: {
               status: BookingStatus.IN_PROGRESS,
               timestamp: new Date(),
-              note: `Session ${booking.sessions[sessionIndex].type} started`,
+              note: `Session ${booking.sessions[sessionIndex].type} started by ${user?.username || 'unknown'} (${user?.role || 'unknown'})`,
             },
           },
         },
@@ -209,6 +213,7 @@ export class GroomingSessionService {
     bookingId: ObjectId,
     sessionId: ObjectId,
     notes?: string,
+    user?: { username: string; role: string },
   ) {
     try {
       const booking = await this.bookingModel.findById(bookingId);
@@ -266,7 +271,7 @@ export class GroomingSessionService {
                 ? BookingStatus.COMPLETED
                 : BookingStatus.IN_PROGRESS,
               timestamp: new Date(),
-              note: `Session ${booking.sessions[sessionIndex].type} finished`,
+              note: `Session ${booking.sessions[sessionIndex].type} finished by ${user?.username || 'unknown'} (${user?.role || 'unknown'})`,
             },
           },
         },

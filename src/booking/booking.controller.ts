@@ -10,6 +10,7 @@ import {
   Put,
   Patch,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { BookingService } from './booking.service';
 import { AssignedGroomerDto, CreateBookingDto } from './dto/create-booking.dto';
@@ -25,8 +26,8 @@ export class BookingController {
   constructor(private readonly bookingService: BookingService) {}
 
   @Post()
-  async create(@Body() body: CreateBookingDto) {
-    await this.bookingService.create(body);
+  async create(@Body() body: CreateBookingDto, @Req() request: any) {
+    await this.bookingService.create(body, request.user);
 
     return {
       message: 'Create booking successfully',
@@ -59,7 +60,11 @@ export class BookingController {
   }
 
   @Put(':id')
-  async update(@Param('id') id: string, @Body() body: UpdateBookingDto) {
+  async update(
+    @Param('id') id: string,
+    @Body() body: UpdateBookingDto,
+    @Req() request: any,
+  ) {
     if (!id) throw new BadRequestException('id is required');
 
     const _id = new ObjectId(id);
@@ -67,7 +72,7 @@ export class BookingController {
     if (!booking || booking.isDeleted)
       throw new NotFoundException('data not found');
 
-    await this.bookingService.update(_id, body);
+    await this.bookingService.update(_id, body, request.user);
 
     return {
       message: 'Update booking successfully',
@@ -110,6 +115,7 @@ export class BookingController {
   async updateStatus(
     @Param('id') id: string,
     @Body() body: UpdateBookingStatusDto,
+    @Req() request: any,
   ) {
     if (!id) throw new BadRequestException('id is required');
 
@@ -128,6 +134,7 @@ export class BookingController {
       status as BookingStatus,
       note,
       rescheduleData,
+      request.user,
     );
 
     return {

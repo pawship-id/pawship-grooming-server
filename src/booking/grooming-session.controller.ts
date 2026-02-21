@@ -9,6 +9,7 @@ import {
   UploadedFile,
   Delete,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { GroomingSessionService } from './grooming-session.service';
@@ -77,13 +78,18 @@ export class GroomingSessionController {
   async startSession(
     @Param('bookingId') bookingId: string,
     @Param('sessionId') sessionId: string,
+    @Req() request: any,
   ) {
     if (!bookingId) throw new BadRequestException('bookingId is required');
     if (!sessionId) throw new BadRequestException('sessionId is required');
 
     const _bookingId = new ObjectId(bookingId);
     const _sessionId = new ObjectId(sessionId);
-    await this.groomingSessionService.startSession(_bookingId, _sessionId);
+    await this.groomingSessionService.startSession(
+      _bookingId,
+      _sessionId,
+      request.user,
+    );
 
     return {
       message: 'Session started successfully',
@@ -96,6 +102,7 @@ export class GroomingSessionController {
     @Param('bookingId') bookingId: string,
     @Param('sessionId') sessionId: string,
     @Body() body: FinishSessionDto,
+    @Req() request: any,
   ) {
     if (!bookingId) throw new BadRequestException('bookingId is required');
     if (!sessionId) throw new BadRequestException('sessionId is required');
@@ -106,6 +113,7 @@ export class GroomingSessionController {
       _bookingId,
       _sessionId,
       body.notes,
+      request.user,
     );
 
     return {

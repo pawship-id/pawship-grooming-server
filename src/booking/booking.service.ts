@@ -22,7 +22,10 @@ export class BookingService {
     private readonly serviceService: ServiceService,
   ) {}
 
-  async create(body: CreateBookingDto) {
+  async create(
+    body: CreateBookingDto,
+    user?: { username: string; role: string },
+  ) {
     try {
       let pet = await this.petService.getPetSnapshot(new ObjectId(body.pet_id));
 
@@ -62,7 +65,7 @@ export class BookingService {
       const statusLog: BookingStatusLogDto = {
         status: BookingStatus.REQUESTED,
         timestamp: new Date(),
-        note: 'Booking is created by the customer',
+        note: `Booking is created by ${user?.username || 'unknown'} (${user?.role || 'unknown'})`,
       };
 
       body.status_logs = [statusLog];
@@ -140,7 +143,11 @@ export class BookingService {
     return booking;
   }
 
-  async update(id: ObjectId, body: UpdateBookingDto) {
+  async update(
+    id: ObjectId,
+    body: UpdateBookingDto,
+    user?: { username: string; role: string },
+  ) {
     try {
       const existingBooking = await this.bookingModel.findById(id);
 
@@ -160,7 +167,7 @@ export class BookingService {
         const newStatusLog: BookingStatusLogDto = {
           status: body.booking_status,
           timestamp: new Date(),
-          note: `Status changed to ${body.booking_status} by the admin`,
+          note: `Status changed to ${body.booking_status} by ${user?.username || 'unknown'} (${user?.role || 'unknown'})`,
         };
 
         // tambahkan log baru ke log yang sudah ada.
@@ -277,6 +284,7 @@ export class BookingService {
     status: BookingStatus,
     note?: string,
     rescheduleData?: { date?: Date; time_range?: string },
+    user?: { username: string; role: string },
   ) {
     try {
       // status yang diupdate dari API ini hanya untuk CONFIRMED, RESCHEDULED, CANCELLED
@@ -294,7 +302,9 @@ export class BookingService {
       const statusLog: BookingStatusLogDto = {
         status: status,
         timestamp: new Date(),
-        note: note || `Status updated to ${status}`,
+        note:
+          note ||
+          `Status updated to ${status} by ${user?.username || 'unknown'} (${user?.role || 'unknown'})`,
       };
 
       // prepare update data
