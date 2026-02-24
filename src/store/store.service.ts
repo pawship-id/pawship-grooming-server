@@ -22,6 +22,8 @@ export class StoreService {
         const duplicatedField = Object.keys(error.keyPattern)[0]; // ambil field yang duplicate
         throw new BadRequestException(`${duplicatedField} already exists`);
       }
+
+      throw error;
     }
   }
 
@@ -49,6 +51,8 @@ export class StoreService {
         const duplicatedField = Object.keys(error.keyPattern)[0]; // ambil field yang duplicate
         throw new BadRequestException(`${duplicatedField} already exists`);
       }
+
+      throw error;
     }
   }
 

@@ -66,16 +66,14 @@ export class Store {
 
   @Prop({
     type: {
-      max_booking_per_day: { type: Number },
-      max_booking_per_slot: { type: Number },
-      slot_duration_minutes: { type: Number },
+      default_daily_capacity_minutes: { type: Number },
+      overbooking_limit_minutes: { type: Number },
     },
     _id: false,
   })
-  capacity?: {
-    max_booking_per_day?: number;
-    max_booking_per_slot?: number;
-    slot_duration_minutes?: number;
+  capacity: {
+    default_daily_capacity_minutes: number;
+    overbooking_limit_minutes: number;
   };
 
   @Prop({ default: true })

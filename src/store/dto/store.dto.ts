@@ -1,4 +1,10 @@
-import { IsOptional, IsEnum, IsArray } from 'class-validator';
+import {
+  IsOptional,
+  IsEnum,
+  IsArray,
+  isNotEmpty,
+  IsNotEmpty,
+} from 'class-validator';
 
 export enum DayOfWeek {
   Monday = 'Monday',
@@ -42,7 +48,11 @@ export class OperationalDto {
 }
 
 export class CapacityDto {
-  @IsOptional() max_booking_per_day?: number;
-  @IsOptional() max_booking_per_slot?: number;
-  @IsOptional() slot_duration_minutes?: number;
+  @IsNotEmpty({ message: 'daily capacity minutes is required' })
+  default_daily_capacity_minutes: number;
+
+  @IsNotEmpty({
+    message: 'overbooking limit minutes is required',
+  })
+  overbooking_limit_minutes: number;
 }
