@@ -3,7 +3,7 @@ import { CreatePetDto } from './dto/create-pet.dto';
 import { UpdatePetDto } from './dto/update-pet.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Pet, PetDocument } from './entities/pet.entity';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { capitalizeWords } from 'src/helpers/string.helper';
 import { ObjectId } from 'mongodb';
 
@@ -16,9 +16,40 @@ export class PetService {
 
   async create(body: CreatePetDto) {
     body.name = capitalizeWords(body.name);
-    const user = new this.petModel(body);
 
-    return await user.save();
+    // Convert string IDs to ObjectId
+    const petData: any = {
+      ...body,
+      pet_type_id: new Types.ObjectId(body.pet_type_id),
+      size_category_id: new Types.ObjectId(body.size_category_id),
+      breed_category_id: new Types.ObjectId(body.breed_category_id),
+      customer_id: new Types.ObjectId(body.customer_id),
+    };
+
+    if (body.feather_category_id) {
+      petData.feather_category_id = new Types.ObjectId(
+        body.feather_category_id,
+      );
+    }
+
+    if (body.member_category_id) {
+      petData.member_category_id = new Types.ObjectId(body.member_category_id);
+    }
+
+    if (body.memberships && body.memberships.length > 0) {
+      petData.memberships = body.memberships.map((membership) => ({
+        ...membership,
+        membership_id: new Types.ObjectId(membership.membership_id),
+      }));
+    }
+
+    if (body.tags) {
+      petData.tags = body.tags.map((tag) => capitalizeWords(tag));
+    }
+
+    const pet = new this.petModel(petData);
+
+    return await pet.save();
   }
 
   async findAll() {
@@ -54,9 +85,39 @@ export class PetService {
       body.name = capitalizeWords(body.name);
     }
 
+    // Convert string IDs to ObjectId
+    const updateData: Record<string, unknown> = { ...body };
+
+    const idFields: (keyof typeof body)[] = [
+      'pet_type_id',
+      'size_category_id',
+      'breed_category_id',
+      'customer_id',
+      'feather_category_id',
+      'member_category_id',
+    ];
+
+    idFields.forEach((field) => {
+      const value = body[field];
+      if (value) {
+        (updateData as any)[field] = new Types.ObjectId(value as any);
+      }
+    });
+
+    if (body.memberships && body.memberships.length > 0) {
+      updateData.memberships = body.memberships.map((membership) => ({
+        ...membership,
+        membership_id: new Types.ObjectId(membership.membership_id),
+      }));
+    }
+
+    if (body.tags) {
+      updateData.tags = body.tags.map((tag) => capitalizeWords(tag));
+    }
+
     const pet = await this.petModel.findByIdAndUpdate(
       id,
-      { $set: body },
+      { $set: updateData },
       { new: true },
     );
 

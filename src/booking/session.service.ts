@@ -16,7 +16,7 @@ import { GroomingMediaDto } from './dto/grooming-media.dto';
 import { UpdateSessionDto } from './dto/update-grooming-session.dto';
 
 @Injectable()
-export class GroomingSessionService {
+export class SessionService {
   constructor(
     @InjectModel(Booking.name)
     private readonly bookingModel: Model<BookingDocument>,

@@ -11,6 +11,7 @@ import { ServiceModule } from './service/service.module';
 import { MembershipModule } from './membership/membership.module';
 import { PetModule } from './pet/pet.module';
 import { BookingModule } from './booking/booking.module';
+import { GuestModule } from './guest/guest.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { BookingModule } from './booking/booking.module';
     MembershipModule,
     PetModule,
     BookingModule,
+    GuestModule,
   ],
   controllers: [AppController],
   providers: [AppService],

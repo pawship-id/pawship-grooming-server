@@ -12,7 +12,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { GroomingSessionService } from './grooming-session.service';
+import { SessionService } from './session.service';
 import { ObjectId } from 'mongodb';
 import { GroomingMediaDto } from './dto/grooming-media.dto';
 import {
@@ -23,10 +23,8 @@ import { AuthGuard } from 'src/auth/auth.guard';
 
 @Controller('bookings')
 @UseGuards(AuthGuard)
-export class GroomingSessionController {
-  constructor(
-    private readonly groomingSessionService: GroomingSessionService,
-  ) {}
+export class SessionController {
+  constructor(private readonly sessionService: SessionService) {}
 
   // ==================== SESSION ENDPOINTS ====================
   // Sessions are auto-created when groomers are assigned
@@ -44,11 +42,7 @@ export class GroomingSessionController {
 
     const _bookingId = new ObjectId(bookingId);
     const _sessionId = new ObjectId(sessionId);
-    await this.groomingSessionService.updateSession(
-      _bookingId,
-      _sessionId,
-      body,
-    );
+    await this.sessionService.updateSession(_bookingId, _sessionId, body);
 
     return {
       message: 'Session updated successfully',
@@ -66,7 +60,7 @@ export class GroomingSessionController {
 
     const _bookingId = new ObjectId(bookingId);
     const _sessionId = new ObjectId(sessionId);
-    await this.groomingSessionService.deleteSession(_bookingId, _sessionId);
+    await this.sessionService.deleteSession(_bookingId, _sessionId);
 
     return {
       message: 'Session deleted successfully',
@@ -85,7 +79,7 @@ export class GroomingSessionController {
 
     const _bookingId = new ObjectId(bookingId);
     const _sessionId = new ObjectId(sessionId);
-    await this.groomingSessionService.startSession(
+    await this.sessionService.startSession(
       _bookingId,
       _sessionId,
       request.user,
@@ -109,7 +103,7 @@ export class GroomingSessionController {
 
     const _bookingId = new ObjectId(bookingId);
     const _sessionId = new ObjectId(sessionId);
-    await this.groomingSessionService.finishSession(
+    await this.sessionService.finishSession(
       _bookingId,
       _sessionId,
       body.notes,
@@ -137,7 +131,7 @@ export class GroomingSessionController {
 
     const _bookingId = new ObjectId(bookingId);
     const _sessionId = new ObjectId(sessionId);
-    await this.groomingSessionService.uploadSessionMedia(
+    await this.sessionService.uploadSessionMedia(
       _bookingId,
       _sessionId,
       file,

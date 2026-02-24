@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { BookingService } from './booking.service';
 import { BookingController } from './booking.controller';
-import { GroomingSessionService } from './grooming-session.service';
-import { GroomingSessionController } from './grooming-session.controller';
+import { SessionService } from './session.service';
+import { SessionController } from './session.controller';
 import { MongooseModule } from '@nestjs/mongoose';
 import { User, UserSchema } from 'src/user/user.model';
 import { Pet, PetSchema } from 'src/pet/entities/pet.entity';
@@ -28,7 +28,8 @@ import { AuthModule } from 'src/auth/auth.module';
     CloudinaryModule,
     AuthModule,
   ],
-  controllers: [BookingController, GroomingSessionController],
-  providers: [BookingService, GroomingSessionService],
+  controllers: [BookingController, SessionController],
+  providers: [BookingService, SessionService],
+  exports: [BookingService],
 })
 export class BookingModule {}
