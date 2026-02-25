@@ -98,7 +98,7 @@ export class ServiceService {
   async getServiceForBooking(serviceId: ObjectId, sizeCategoryId: ObjectId) {
     const service = await this.serviceModel
       .findById(serviceId)
-      .select('code name prices size_category_id isDeleted')
+      .select('code name prices size_category_id isDeleted duration')
       .lean();
 
     if (!service || service.isDeleted) {
@@ -114,6 +114,7 @@ export class ServiceService {
       code: service.code,
       name: service.name,
       price: priceItem?.price ?? 0,
+      duration: service.duration,
     };
   }
 

@@ -36,13 +36,9 @@ export class StoreService {
   async findAll() {
     const stores = await this.storeModel.find({ isDeleted: false }).lean();
 
-    // Get today's date (start of day)
+    // Get today's date normalized to UTC midnight
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Get tomorrow date
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
+    today.setUTCHours(0, 0, 0, 0);
 
     // Get store IDs
     const storeIds = stores.map((store) => store._id);
@@ -51,10 +47,7 @@ export class StoreService {
     const todayCapacities = await this.storeDailyCapacityModel
       .find({
         store_id: { $in: storeIds },
-        date: {
-          $gte: today,
-          $lt: tomorrow,
-        },
+        date: today,
       })
       .lean();
 
@@ -86,22 +79,15 @@ export class StoreService {
       return null;
     }
 
-    // Get today's date (start of day)
+    // Get today's date normalized to UTC midnight
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Get tomorrow date
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
+    today.setUTCHours(0, 0, 0, 0);
 
     // Find today's capacity for this store
     const todayCapacity = await this.storeDailyCapacityModel
       .findOne({
         store_id: id,
-        date: {
-          $gte: today,
-          $lt: tomorrow,
-        },
+        date: today,
       })
       .lean();
 

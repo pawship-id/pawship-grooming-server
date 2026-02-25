@@ -13,6 +13,14 @@ import { ServiceModule } from 'src/service/service.module';
 import { Store, StoreSchema } from 'src/store/entities/store.entity';
 import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 import { AuthModule } from 'src/auth/auth.module';
+import {
+  StoreDailyUsage,
+  StoreDailyUsageSchema,
+} from './entities/store-daily-usage.entity';
+import {
+  StoreDailyCapacity,
+  StoreDailyCapacitySchema,
+} from 'src/store-daily-capacity/entities/store-daily-capacity.entity';
 
 @Module({
   imports: [
@@ -22,6 +30,8 @@ import { AuthModule } from 'src/auth/auth.module';
       { name: Pet.name, schema: PetSchema },
       { name: Service.name, schema: ServiceSchema },
       { name: Store.name, schema: StoreSchema },
+      { name: StoreDailyUsage.name, schema: StoreDailyUsageSchema },
+      { name: StoreDailyCapacity.name, schema: StoreDailyCapacitySchema },
     ]),
     PetModule,
     ServiceModule,
