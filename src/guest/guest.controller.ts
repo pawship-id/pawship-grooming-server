@@ -29,10 +29,10 @@ export class GuestController {
   // Step 1: Get all stores
   @Get('stores')
   async getStores() {
-    const stores = await this.storeService.findAll();
+    const result = await this.storeService.findAll({});
     return {
       message: 'Fetch stores successfully',
-      stores,
+      ...result,
     };
   }
 
