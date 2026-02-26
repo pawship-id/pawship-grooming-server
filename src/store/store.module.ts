@@ -8,12 +8,14 @@ import {
   StoreDailyCapacity,
   StoreDailyCapacitySchema,
 } from 'src/store-daily-capacity/entities/store-daily-capacity.entity';
+import { Service, ServiceSchema } from 'src/service/entities/service.entity';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Store.name, schema: StoreSchema },
       { name: StoreDailyCapacity.name, schema: StoreDailyCapacitySchema },
+      { name: Service.name, schema: ServiceSchema },
     ]),
     AuthModule,
   ],

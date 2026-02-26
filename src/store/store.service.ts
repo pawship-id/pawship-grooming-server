@@ -10,6 +10,7 @@ import {
   StoreDailyCapacity,
   StoreDailyCapacityDocument,
 } from 'src/store-daily-capacity/entities/store-daily-capacity.entity';
+import { Service, ServiceDocument } from 'src/service/entities/service.entity';
 
 @Injectable()
 export class StoreService {
@@ -17,6 +18,8 @@ export class StoreService {
     @InjectModel(Store.name) private readonly storeModel: Model<StoreDocument>,
     @InjectModel(StoreDailyCapacity.name)
     private readonly storeDailyCapacityModel: Model<StoreDailyCapacityDocument>,
+    @InjectModel(Service.name)
+    private readonly serviceModel: Model<ServiceDocument>,
   ) {}
 
   async create(body: CreateStoreDto) {
@@ -150,7 +153,26 @@ export class StoreService {
       ).total_capacity_minutes;
     }
 
-    return store;
+    // Find services available at this store
+    const services = await this.serviceModel
+      .find({
+        $or: [
+          { available_store_ids: { $size: 0 } }, // Services available at all stores
+          { available_store_ids: id }, // Services specifically for this store
+        ],
+        isDeleted: false,
+        is_active: true,
+      })
+      .populate('service_type', 'name')
+      .populate('size_categories', 'name')
+      .populate('pet_types', 'name')
+      .populate('prices.size_id', 'name')
+      .exec();
+
+    return {
+      ...store,
+      services,
+    };
   }
 
   async update(id: ObjectId, body: UpdateStoreDto) {

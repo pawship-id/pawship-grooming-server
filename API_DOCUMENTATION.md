@@ -843,10 +843,67 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
     },
     "is_active": true,
     "createdAt": "2024-01-15T08:00:00.000Z",
-    "updatedAt": "2024-01-15T08:00:00.000Z"
+    "updatedAt": "2024-01-15T08:00:00.000Z",
+    "services": [
+      {
+        "_id": "69946d03d658fb630058e22c",
+        "code": "SVC-0002",
+        "name": "Teeth Brushing",
+        "description": "Gentle teeth cleaning to promote dental health and fresh breath. Uses pet-safe toothpaste.",
+        "prices": [
+          {
+            "size_id": "698bf0e462f5760ac021c597",
+            "name": "Small",
+            "price": 40000
+          },
+          {
+            "size_id": "698bf0e862f5760ac021c599",
+            "name": "Medium",
+            "price": 40000
+          },
+          {
+            "size_id": "698bf0ea62f5760ac021c59b",
+            "name": "Large",
+            "price": 45000
+          }
+        ],
+        "duration": 10,
+        "available_for_unlimited": true,
+        "is_active": true,
+        "isDeleted": false,
+        "deletedAt": null,
+        "createdAt": "2026-02-17T13:28:35.231Z",
+        "updatedAt": "2026-02-17T13:28:35.231Z",
+        "service_type": {
+          "_id": "698c038520d26d4a72925a10",
+          "name": "Addon"
+        },
+        "size_categories": [
+          {
+            "_id": "698bf0e462f5760ac021c597",
+            "name": "Small"
+          },
+          {
+            "_id": "698bf0e862f5760ac021c599",
+            "name": "Medium"
+          },
+          {
+            "_id": "698bf0ea62f5760ac021c59b",
+            "name": "Large"
+          }
+        ],
+        "pet_types": []
+      }
+    ]
   }
 }
 ```
+
+**Notes:**
+
+- Returns store details along with all services available at this store
+- Only active and non-deleted services are returned
+- Service details include populated `service_type`, `pet_types`, `size_categories` and `prices.size_id` for easy display
 
 **Error Responses:**
 
