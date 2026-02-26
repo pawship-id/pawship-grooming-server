@@ -5,11 +5,13 @@ import { Model } from 'mongoose';
 import { hashPassword } from 'src/helpers/bcrypt';
 import { User, UserDocument } from './user.model';
 import { CreateUserDto, UpdateUserDto, GetUsersQueryDto } from './user.dto';
+import { Pet, PetDocument } from 'src/pet/entities/pet.entity';
 
 @Injectable()
 export class UserService {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    @InjectModel(Pet.name) private readonly petModel: Model<PetDocument>,
   ) {}
 
   async getUsers(query: GetUsersQueryDto) {
@@ -46,6 +48,7 @@ export class UserService {
     // Fetch users with filters, pagination, and sorting
     const users = await this.userModel
       .find(filter)
+      .select('-password -refresh_token -refresh_token_expires_at')
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 })
@@ -63,7 +66,24 @@ export class UserService {
   }
 
   async findById(id: ObjectId) {
-    const user = await this.userModel.findById(id).exec();
+    const user = await this.userModel
+      .findById(id)
+      .select('-password -refresh_token -refresh_token_expires_at')
+      .exec();
+
+    // If user is customer, fetch their pets
+    if (user && user.role === 'customer') {
+      const pets = await this.petModel
+        .find({ customer_id: id, isDeleted: false })
+        .populate('pet_type', 'name')
+        .populate('feather', 'name')
+        .populate('size', 'name')
+        .populate('breed', 'name')
+        .populate('member_category', 'name')
+        .exec();
+
+      return { ...user.toObject(), pets };
+    }
     return user;
   }
 

@@ -58,18 +58,9 @@ export class UserController {
       throw new NotFoundException('User not found');
     }
 
-    // Remove password from response
-    const {
-      password,
-      deletedAt,
-      is_active,
-      isDeleted,
-      ...userWithoutPassword
-    } = user.toObject();
-
     return {
       message: 'Fetch current user successfully',
-      user: userWithoutPassword,
+      user,
     };
   }
 

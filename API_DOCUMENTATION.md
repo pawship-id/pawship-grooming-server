@@ -221,6 +221,8 @@ GET /users?page=2&limit=20&search=john&role=customer&is_active=true
       "phone_number": "+628123456789",
       "role": "customer",
       "is_active": true,
+      "isDeleted": false,
+      "deletedAt": null,
       "createdAt": "2026-02-19T10:00:00.000Z",
       "updatedAt": "2026-02-19T10:00:00.000Z"
     }
@@ -257,20 +259,83 @@ Authorization: Bearer <jwt_token>
 
 **Success Response (200):**
 
+For non-customer users (admin, staff, etc.):
+
 ```json
 {
   "message": "Fetch current user successfully",
   "user": {
-    "_id": "507f1f77bcf86cd799439011",
-    "username": "john_doe",
-    "email": "john@example.com",
-    "phone_number": "+628123456789",
+    "_id": "698da2e219b8a1bbac7aabbb",
+    "username": "Jhon",
+    "email": "jhon@gmail.com",
+    "phone_number": "081234567809",
+    "role": "admin",
+    "is_active": true,
+    "isDeleted": false,
+    "createdAt": "2026-02-12T09:52:34.717Z",
+    "updatedAt": "2026-02-26T14:57:33.032Z"
+  }
+}
+```
+
+For customer users:
+
+```json
+{
+  "message": "Fetch current user successfully",
+  "user": {
+    "_id": "698da2e219b8a1bbac7aabbb",
+    "username": "Jane Doe",
+    "email": "jane@gmail.com",
+    "phone_number": "081234567890",
     "role": "customer",
     "is_active": true,
     "isDeleted": false,
-    "createdAt": "2026-02-19T10:00:00.000Z",
-    "updatedAt": "2026-02-20T15:30:00.000Z"
-  }
+    "createdAt": "2026-02-12T09:52:34.717Z",
+    "updatedAt": "2026-02-26T14:57:33.032Z",
+    "pets": [
+      {
+        "_id": "699a6285a99f14a4be787c77",
+        "name": "Pet 1",
+        "tags": [
+            "cat",
+            "grooming"
+        ],
+        "memberships": [
+            {
+                "membership_id": "698d8244218e6539ee47383f",
+                "start_date": "2026-02-12T00:00:00.000Z",
+                "end_date": "2026-08-12T00:00:00.000Z",
+                "status": "active",
+                "usage_count": 0,
+                "max_usage": 0
+            }
+        ],
+        "is_active": true,
+        "isDeleted": false,
+        "deletedAt": null,
+        "createdAt": "2026-02-22T01:57:25.554Z",
+        "updatedAt": "2026-02-22T02:06:37.220Z",
+        "weight": 3,
+        "pet_type": {
+            "_id": "698bf0d362f5760ac021c595",
+            "name": "Cat"
+        },
+        "feather": null,
+        "size": {
+            "_id": "698bf0e462f5760ac021c597",
+            "name": "Small"
+        },
+        "breed": {
+            "_id": "698da2bb19b8a1bbac7aabb6",
+            "name": "Pom"
+        },
+        "member_category": {
+            "_id": "699456cf429638a275fb0456",
+            "name": "Vip - In Store"
+        }
+    }
+  ]
 }
 ```
 
@@ -299,7 +364,9 @@ Authorization: Bearer <jwt_token>
 **Notes:**
 
 - This endpoint retrieves information about the currently authenticated user based on JWT token
-- Password field is excluded from the response
+- Sensitive fields (`password`, `refresh_token`, `refresh_token_expires_at`) are automatically excluded from response
+- If user role is `customer`, the response includes a `pets` array with all their pets (non-deleted only)
+- Pets are populated with their relationships: pet_type, feather_category, size_category, breed_category, and member_category
 - Useful for profile pages or checking current user permissions
 
 ---
@@ -308,11 +375,40 @@ Authorization: Bearer <jwt_token>
 
 **Endpoint:** `GET /users/:id`
 
+**Authentication:** Required (JWT Token)
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
 **Parameters:**
 
 - `id` (path): MongoDB ObjectId
 
 **Success Response (200):**
+
+For non-customer users (admin, staff, etc.):
+
+```json
+{
+  "message": "Fetch user successfully",
+  "user": {
+    "_id": "507f1f77bcf86cd799439011",
+    "username": "john_doe",
+    "email": "john@example.com",
+    "phone_number": "+628123456789",
+    "role": "admin",
+    "is_active": true,
+    "isDeleted": false,
+    "createdAt": "2026-02-12T09:52:34.717Z",
+    "updatedAt": "2026-02-26T14:57:33.032Z"
+  }
+}
+```
+
+For customer users:
 
 ```json
 {
@@ -323,7 +419,60 @@ Authorization: Bearer <jwt_token>
     "email": "john@example.com",
     "phone_number": "+628123456789",
     "role": "customer",
-    "is_active": true
+    "is_active": true,
+    "isDeleted": false,
+    "createdAt": "2026-02-12T09:52:34.717Z",
+    "updatedAt": "2026-02-26T14:57:33.032Z",
+    "pets": [
+      {
+        "_id": "507f1f77bcf86cd799439011",
+        "name": "Buddy",
+        "description": "Friendly dog",
+        "internal_note": "Sensitive to loud noises",
+        "profile_image": {
+          "secure_url": "https://cloudinary.com/...",
+          "public_id": "pets/buddy123"
+        },
+        "pet_type": {
+          "_id": "507f1f77bcf86cd799439012",
+          "name": "Dog"
+        },
+        "feather": {
+          "_id": "507f1f77bcf86cd799439013",
+          "name": "Short"
+        },
+        "birthday": "2020-01-15T00:00:00.000Z",
+        "size": {
+          "_id": "507f1f77bcf86cd799439014",
+          "name": "Medium"
+        },
+        "breed": {
+          "_id": "507f1f77bcf86cd799439015",
+          "name": "Golden Retriever"
+        },
+        "weight": 15,
+        "member_category": {
+          "_id": "507f1f77bcf86cd799439016",
+          "name": "Gold"
+        },
+        "tags": ["friendly", "energetic"],
+        "last_grooming_at": "2026-01-15T00:00:00.000Z",
+        "last_visit_at": "2026-02-01T00:00:00.000Z",
+        "memberships": [
+          {
+            "membership_id": "507f1f77bcf86cd799439018",
+            "start_date": "2026-01-01T00:00:00.000Z",
+            "end_date": "2026-12-31T00:00:00.000Z",
+            "status": "active",
+            "usage_count": 2,
+            "max_usage": 12
+          }
+        ],
+        "is_active": true,
+        "createdAt": "2026-01-10T10:30:00.000Z",
+        "updatedAt": "2026-02-01T10:30:00.000Z"
+      }
+    ]
   }
 }
 ```
@@ -349,6 +498,12 @@ Authorization: Bearer <jwt_token>
   "error": "Not Found"
 }
 ```
+
+**Notes:**
+
+- Sensitive fields (`password`, `refresh_token`, `refresh_token_expires_at`) are automatically excluded from response
+- If user role is `customer`, the response includes a `pets` array with all their pets (non-deleted only)
+- Pets are populated with their relationships: pet_type, feather, size, breed, and member_category
 
 ---
 
@@ -957,6 +1112,18 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
 }
 ```
 
+**Error Responses:**
+
+- **400 Bad Request:** Duplicate code or validation error
+
+```json
+{
+  "statusCode": 400,
+  "message": "code already exists",
+  "error": "Bad Request"
+}
+```
+
 **Notes:**
 
 - `code`: Must be unique (e.g., STR001, STR002)
@@ -975,7 +1142,39 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
 
 - `id` (path): MongoDB ObjectId
 
-**Request Body:** Same as Create Store (all fields optional)
+**Request Body:** (All fields optional)
+
+```json
+{
+  "code": "string (optional)",
+  "name": "string (optional)",
+  "description": "string (optional)",
+  "location": {
+    "address": "string (optional)",
+    "city": "string (optional)",
+    "province": "string (optional)",
+    "postal_code": "string (optional)",
+    "latitude": "number (optional)",
+    "longitude": "number (optional)"
+  },
+  "contact": {
+    "phone_number": "string (optional)",
+    "whatsapp": "string (optional)",
+    "email": "string (optional)"
+  },
+  "operational": {
+    "opening_time": "string (optional)",
+    "closing_time": "string (optional)",
+    "operational_days": ["Monday", "Tuesday", ...] (optional),
+    "timezone": "string (optional)"
+  },
+  "capacity": {
+    "default_daily_capacity_minutes": "number (optional)",
+    "overbooking_limit_minutes": "number (optional)"
+  },
+  "is_active": "boolean (optional)"
+}
+```
 
 **Success Response (200):**
 
@@ -985,9 +1184,31 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
 }
 ```
 
+**Error Responses:**
+
+- **400 Bad Request:** Invalid ID or duplicate code
+
+```json
+{
+  "statusCode": 400,
+  "message": "code already exists",
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** Store not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "data not found",
+  "error": "Not Found"
+}
+```
+
 ---
 
-### 5. Delete Store
+### 5. Delete Store (Soft Delete)
 
 **Endpoint:** `DELETE /stores/:id`
 
@@ -1003,15 +1224,47 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
 }
 ```
 
+**Error Responses:**
+
+- **400 Bad Request:** Invalid ID
+
+```json
+{
+  "statusCode": 400,
+  "message": "id is required",
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** Store not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "data not found",
+  "error": "Not Found"
+}
+```
+
+**Notes:**
+
+- This is a soft delete operation
+- Store is marked with `isDeleted: true` and `deletedAt` timestamp
+- Deleted stores are excluded from GET endpoints
+
 ---
 
 ## Services
 
-Services support multi-size pricing (different prices for different pet sizes).
+Services support multi-size pricing (different prices for different pet sizes). All responses include populated relationships for service_type, size_categories, pet_types, available_store, and price size names.
 
 ### 1. Get All Services
 
 **Endpoint:** `GET /services`
+
+**Headers:**
+
+- `Authorization: Bearer {access_token}` (required)
 
 **Success Response (200):**
 
@@ -1024,36 +1277,76 @@ Services support multi-size pricing (different prices for different pet sizes).
       "code": "SVC001",
       "name": "Basic Grooming",
       "description": "Basic grooming package",
-      "service_type_id": "507f1f77bcf86cd799439012",
-      "pet_type_ids": ["507f1f77bcf86cd799439013"],
-      "size_category_ids": [
-        "507f1f77bcf86cd799439014",
-        "507f1f77bcf86cd799439015"
+      "service_type": {
+        "_id": "507f1f77bcf86cd799439012",
+        "name": "Grooming"
+      },
+      "pet_types": [
+        {
+          "_id": "507f1f77bcf86cd799439013",
+          "name": "Dog"
+        }
+      ],
+      "size_categories": [
+        {
+          "_id": "507f1f77bcf86cd799439014",
+          "name": "Small"
+        },
+        {
+          "_id": "507f1f77bcf86cd799439015",
+          "name": "Medium"
+        }
       ],
       "prices": [
         {
-          "size_id": "507f1f77bcf86cd799439014",
-          "price": 100000
+          "size_id": {
+            "_id": "507f1f77bcf86cd799439014",
+            "name": "Small"
+          },
+          "price": 100000,
+          "_id": "507f1f77bcf86cd799439020"
         },
         {
-          "size_id": "507f1f77bcf86cd799439015",
-          "price": 150000
+          "size_id": {
+            "_id": "507f1f77bcf86cd799439015",
+            "name": "Medium"
+          },
+          "price": 150000,
+          "_id": "507f1f77bcf86cd799439021"
         }
       ],
       "duration": 60,
       "available_for_unlimited": false,
-      "available_store_ids": ["507f1f77bcf86cd799439016"],
-      "is_active": true
+      "avaiable_store": [
+        {
+          "_id": "507f1f77bcf86cd799439016",
+          "name": "Store Jakarta Pusat"
+        }
+      ],
+      "is_active": true,
+      "isDeleted": false,
+      "createdAt": "2026-01-15T10:30:00.000Z",
+      "updatedAt": "2026-01-15T10:30:00.000Z"
     }
   ]
 }
 ```
+
+**Notes:**
+
+- Returns only non-deleted services (`isDeleted: false`)
+- All relationships are populated with their respective names
+- Service names are automatically capitalized
 
 ---
 
 ### 2. Get Service By ID
 
 **Endpoint:** `GET /services/:id`
+
+**Headers:**
+
+- `Authorization: Bearer {access_token}` (required)
 
 **Parameters:**
 
@@ -1065,12 +1358,64 @@ Services support multi-size pricing (different prices for different pet sizes).
 {
   "message": "Fetch service successfully",
   "service": {
-    "_id": "507f1f77bcf86cd799439011",
-    "code": "SVC001",
-    "name": "Basic Grooming",
-    "prices": [...],
-    "duration": 60,
-    "is_active": true
+    "_id": "698d47e80085e35cb26fcab4",
+    "code": "SVC-0001",
+    "name": "Full Grooming Package",
+    "description": "Complete grooming service including bath, haircut, nail trimming, ear cleaning, and blow dry. Perfect for keeping your pet looking and feeling their best.",
+    "duration": 90,
+    "is_active": true,
+    "isDeleted": false,
+    "deletedAt": null,
+    "createdAt": "2026-02-12T03:24:24.372Z",
+    "updatedAt": "2026-02-17T13:23:16.199Z",
+    "available_for_unlimited": true,
+    "prices": [
+      {
+        "size_id": "698bf0e462f5760ac021c597",
+        "name": "Small",
+        "price": 120000
+      },
+      {
+        "size_id": "698bf0e862f5760ac021c599",
+        "name": "Medium",
+        "price": 150000
+      },
+      {
+        "size_id": "698bf0ea62f5760ac021c59b",
+        "name": "Large",
+        "price": 170000
+      }
+    ],
+    "service_type": {
+      "_id": "698c037b20d26d4a72925a0d",
+      "name": "Grooming"
+    },
+    "size_categories": [
+      {
+        "_id": "698bf0e462f5760ac021c597",
+        "name": "Small"
+      },
+      {
+        "_id": "698bf0e862f5760ac021c599",
+        "name": "Medium"
+      },
+      {
+        "_id": "698bf0ea62f5760ac021c59b",
+        "name": "Large"
+      }
+    ],
+    "pet_types": [
+      {
+        "_id": "698d5573b70c2a3711e368dd",
+        "name": "Dog"
+      }
+    ],
+    "avaiable_store": [
+      {
+        "_id": "698be0cd80c319b74fe2f073",
+        "name": "Pawship.id"
+      }
+    ]
   }
 }
 ```
@@ -1079,36 +1424,68 @@ Services support multi-size pricing (different prices for different pet sizes).
 
 - **404 Not Found:** Service not found
 
+```json
+{
+  "statusCode": 404,
+  "message": "data not found",
+  "error": "Not Found"
+}
+```
+
 ---
 
 ### 3. Create Service
 
 **Endpoint:** `POST /services`
 
+**Headers:**
+
+- `Authorization: Bearer {access_token}` (required)
+
 **Request Body:**
 
 ```json
 {
-  "code": "string (required)",
-  "name": "string (required)",
-  "description": "string (optional)",
-  "service_type_id": "MongoDB ObjectId (required)",
-  "pet_type_ids": ["MongoDB ObjectId"] (optional array),
-  "size_category_ids": ["MongoDB ObjectId"] (required array),
+  "code": "SVC001",
+  "name": "basic grooming",
+  "description": "Basic grooming package",
+  "service_type_id": "507f1f77bcf86cd799439012",
+  "pet_type_ids": ["507f1f77bcf86cd799439013"],
+  "size_category_ids": ["507f1f77bcf86cd799439014", "507f1f77bcf86cd799439015"],
   "prices": [
     {
-      "size_id": "MongoDB ObjectId (required)",
-      "price": "number (required, min: 0)"
+      "size_id": "507f1f77bcf86cd799439014",
+      "price": 100000
+    },
+    {
+      "size_id": "507f1f77bcf86cd799439015",
+      "price": 150000
     }
-  ] (required array),
-  "duration": "number (required, min: 1, in minutes)",
-  "available_for_unlimited": "boolean (optional)",
-  "available_store_ids": ["MongoDB ObjectId"] (optional array),
-  "is_active": "boolean (optional, default: true)"
+  ],
+  "duration": 60,
+  "available_for_unlimited": false,
+  "available_store_ids": ["507f1f77bcf86cd799439016"],
+  "is_active": true
 }
 ```
 
-**Success Response (200):**
+**Field Descriptions:**
+
+- `code`: Unique service code (required)
+- `name`: Service name - will be auto-capitalized (required)
+- `description`: Service description (optional)
+- `service_type_id`: Reference to service type option (required)
+- `pet_type_ids`: Array of pet type references (optional)
+- `size_category_ids`: Array of size category references (required)
+- `prices`: Array of price objects matching size categories (required)
+  - `size_id`: Size category reference (required)
+  - `price`: Price in smallest currency unit, minimum 0 (required)
+- `duration`: Service duration in minutes, minimum 1 (required)
+- `available_for_unlimited`: Whether available for unlimited membership (optional)
+- `available_store_ids`: Array of store references where service is available (optional)
+- `is_active`: Service active status (optional, default: true)
+
+**Success Response (201):**
 
 ```json
 {
@@ -1116,10 +1493,39 @@ Services support multi-size pricing (different prices for different pet sizes).
 }
 ```
 
-**Validation Notes:**
+**Error Responses:**
 
-- `prices` array must match with `size_category_ids`
-- Each size must have a corresponding price
+- **400 Bad Request:** Duplicate service code
+
+```json
+{
+  "statusCode": 400,
+  "message": "Service code already exists",
+  "error": "Bad Request"
+}
+```
+
+- **400 Bad Request:** Validation errors
+
+```json
+{
+  "statusCode": 400,
+  "message": [
+    "code is required",
+    "name service is required",
+    "service type must be a valid ID",
+    "size category ids is required",
+    "prices is required",
+    "Duration must be at least 1 minute"
+  ],
+  "error": "Bad Request"
+}
+```
+
+**Notes:**
+
+- Service name will be automatically capitalized (e.g., "basic grooming" → "Basic Grooming")
+- Code must be unique across all services
 
 ---
 
@@ -1127,11 +1533,40 @@ Services support multi-size pricing (different prices for different pet sizes).
 
 **Endpoint:** `PUT /services/:id`
 
+**Headers:**
+
+- `Authorization: Bearer {access_token}` (required)
+
 **Parameters:**
 
 - `id` (path): MongoDB ObjectId
 
 **Request Body:** Same as Create Service (all fields optional)
+
+```json
+{
+  "code": "SVC001",
+  "name": "premium grooming",
+  "description": "Updated description",
+  "service_type_id": "507f1f77bcf86cd799439012",
+  "pet_type_ids": ["507f1f77bcf86cd799439013"],
+  "size_category_ids": ["507f1f77bcf86cd799439014", "507f1f77bcf86cd799439015"],
+  "prices": [
+    {
+      "size_id": "507f1f77bcf86cd799439014",
+      "price": 120000
+    },
+    {
+      "size_id": "507f1f77bcf86cd799439015",
+      "price": 180000
+    }
+  ],
+  "duration": 90,
+  "available_for_unlimited": true,
+  "available_store_ids": ["507f1f77bcf86cd799439016"],
+  "is_active": true
+}
+```
 
 **Success Response (200):**
 
@@ -1141,11 +1576,43 @@ Services support multi-size pricing (different prices for different pet sizes).
 }
 ```
 
+**Error Responses:**
+
+- **400 Bad Request:** Duplicate service code
+
+```json
+{
+  "statusCode": 400,
+  "message": "Service code already exists",
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** Service not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "data not found",
+  "error": "Not Found"
+}
+```
+
+**Notes:**
+
+- All fields are optional - only send fields you want to update
+- Service name will be automatically capitalized
+- Code must remain unique if updated
+
 ---
 
 ### 5. Delete Service
 
 **Endpoint:** `DELETE /services/:id`
+
+**Headers:**
+
+- `Authorization: Bearer {access_token}` (required)
 
 **Parameters:**
 
@@ -1158,6 +1625,24 @@ Services support multi-size pricing (different prices for different pet sizes).
   "message": "Delete service successfully"
 }
 ```
+
+**Error Responses:**
+
+- **404 Not Found:** Service not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "data not found",
+  "error": "Not Found"
+}
+```
+
+**Notes:**
+
+- This is a soft delete operation
+- Service is marked with `isDeleted: true` and `deletedAt` timestamp
+- Deleted services are excluded from GET endpoints
 
 ---
 
