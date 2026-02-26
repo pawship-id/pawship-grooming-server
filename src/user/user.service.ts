@@ -138,10 +138,24 @@ export class UserService {
   }
 
   async delete(id: ObjectId) {
-    const user = await this.userModel.findByIdAndUpdate(id, {
-      isDeleted: true,
-      deletedAt: new Date(),
-    });
+    const currentUser = await this.userModel.findById(id);
+    if (!currentUser) {
+      return null;
+    }
+
+    const timestamp = Date.now();
+
+    // Add suffix to unique fields to allow reuse of email and phone_number
+    const user = await this.userModel.findByIdAndUpdate(
+      id,
+      {
+        isDeleted: true,
+        deletedAt: new Date(),
+        email: `${currentUser.email}_deleted_${timestamp}`,
+        phone_number: `${currentUser.phone_number}_deleted_${timestamp}`,
+      },
+      { new: true },
+    );
 
     return user;
   }
