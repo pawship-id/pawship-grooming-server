@@ -1494,14 +1494,14 @@ Services support multi-size pricing (different prices for different pet sizes). 
 - `name`: Service name - will be auto-capitalized (required)
 - `description`: Service description (optional)
 - `service_type_id`: Reference to service type option (required)
-- `pet_type_ids`: Array of pet type references (optional)
-- `size_category_ids`: Array of size category references (required)
-- `prices`: Array of price objects matching size categories (required)
+- `pet_type_ids`: Array of pet type references (optional, default: all active pet types if not provided or empty array)
+- `size_category_ids`: Array of size category references (required, default: all active size categories if not provided or empty array)
+- `prices`: Array of price objects matching size categories (required, default: all active size categories with price 0 if not provided or empty array)
   - `size_id`: Size category reference (required)
   - `price`: Price in smallest currency unit, minimum 0 (required)
 - `duration`: Service duration in minutes, minimum 1 (required)
 - `available_for_unlimited`: Whether available for unlimited membership (optional)
-- `available_store_ids`: Array of store references where service is available (optional)
+- `available_store_ids`: Array of store references where service is available (optional, default: all active stores if not provided or empty array)
 - `is_active`: Service active status (optional, default: true)
 
 **Success Response (201):**
@@ -1545,6 +1545,10 @@ Services support multi-size pricing (different prices for different pet sizes). 
 
 - Service name will be automatically capitalized (e.g., "basic grooming" → "Basic Grooming")
 - Code must be unique across all services
+- If `available_store_ids` is not provided or is an empty array, it defaults to all active stores (isDeleted: false)
+- If `size_category_ids` is not provided or is an empty array, it defaults to all active size categories (isDeleted: false)
+- If `pet_type_ids` is not provided or is an empty array, it defaults to all active pet types (isDeleted: false)
+- If `prices` is not provided or is an empty array, it defaults to all active size categories with price set to 0
 
 ---
 
@@ -1622,6 +1626,10 @@ Services support multi-size pricing (different prices for different pet sizes). 
 - All fields are optional - only send fields you want to update
 - Service name will be automatically capitalized
 - Code must remain unique if updated
+- If `available_store_ids` is updated with an empty array, it defaults to all active stores (isDeleted: false)
+- If `size_category_ids` is updated with an empty array, it defaults to all active size categories (isDeleted: false)
+- If `pet_type_ids` is updated with an empty array, it defaults to all active pet types (isDeleted: false)
+- If `prices` is updated with an empty array, it defaults to all active size categories with price set to 0
 
 ---
 

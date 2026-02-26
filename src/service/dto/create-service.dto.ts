@@ -42,14 +42,14 @@ export class CreateServiceDto {
 
   @IsArray()
   @IsMongoId({ each: true, message: 'Each size category must be a valid ID' })
-  @IsNotEmpty({ message: 'size category ids is required' })
-  size_category_ids: string[];
+  @IsOptional()
+  size_category_ids?: string[];
 
   @IsArray({ message: 'prices must be an array' })
   @ValidateNested({ each: true })
   @Type(() => ServicePriceDto)
-  @IsNotEmpty({ message: 'prices is required' })
-  prices: ServicePriceDto[];
+  @IsOptional()
+  prices?: ServicePriceDto[];
 
   @Type(() => Number)
   @IsNumber({}, { message: 'Duration must be a number' })

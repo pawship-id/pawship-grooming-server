@@ -11,17 +11,71 @@ import { Model } from 'mongoose';
 import { Service, ServiceDocument } from './entities/service.entity';
 import { ObjectId } from 'mongodb';
 import { capitalizeWords } from 'src/helpers/string.helper';
+import { Option, OptionDocument } from 'src/option/entities/option.entity';
+import { Store, StoreDocument } from 'src/store/entities/store.entity';
 
 @Injectable()
 export class ServiceService {
   constructor(
     @InjectModel(Service.name)
     private readonly serviceModel: Model<ServiceDocument>,
+    @InjectModel(Option.name)
+    private readonly optionModel: Model<OptionDocument>,
+    @InjectModel(Store.name)
+    private readonly storeModel: Model<StoreDocument>,
   ) {}
 
   async create(body: CreateServiceDto) {
     try {
       body.name = capitalizeWords(body.name);
+
+      // If available_store_ids not provided or empty, default to all active stores
+      if (!body.available_store_ids || body.available_store_ids.length === 0) {
+        const allStores = await this.storeModel
+          .find({ isDeleted: false })
+          .select('_id')
+          .exec();
+        body.available_store_ids = allStores.map((store) =>
+          store._id.toString(),
+        );
+      }
+
+      console.log(body);
+
+      // If size_category_ids not provided or empty, default to all active size categories
+      if (!body.size_category_ids || body.size_category_ids.length === 0) {
+        console.log('jaaa');
+
+        const allSizeCategories = await this.optionModel
+          .find({ isDeleted: false, category_options: 'size category' })
+          .select('_id')
+          .exec();
+        body.size_category_ids = allSizeCategories.map((cat) =>
+          cat._id.toString(),
+        );
+      }
+
+      // If pet_type_ids not provided or empty, default to all active pet types
+      if (!body.pet_type_ids || body.pet_type_ids.length === 0) {
+        const allPetTypes = await this.optionModel
+          .find({ isDeleted: false, category_options: 'pet type' })
+          .select('_id')
+          .exec();
+        body.pet_type_ids = allPetTypes.map((type) => type._id.toString());
+      }
+
+      // If prices not provided or empty, default to all active size categories with price 0
+      if (!body.prices || body.prices.length === 0) {
+        const allSizeCategories = await this.optionModel
+          .find({ isDeleted: false, category_options: 'size category' })
+          .select('_id')
+          .exec();
+        body.prices = allSizeCategories.map((cat) => ({
+          size_id: cat._id.toString(),
+          price: 0,
+        }));
+      }
+
       const user = new this.serviceModel(body);
 
       return await user.save();
@@ -132,6 +186,56 @@ export class ServiceService {
       if (body.name) {
         body.name = capitalizeWords(body.name);
       }
+
+      // If available_store_ids is provided but empty, default to all active stores
+      if (
+        body.available_store_ids !== undefined &&
+        body.available_store_ids.length === 0
+      ) {
+        const allStores = await this.storeModel
+          .find({ isDeleted: false })
+          .select('_id')
+          .exec();
+        body.available_store_ids = allStores.map((store) =>
+          store._id.toString(),
+        );
+      }
+
+      // If size_category_ids is provided but empty, default to all active size categories
+      if (
+        body.size_category_ids !== undefined &&
+        body.size_category_ids.length === 0
+      ) {
+        const allSizeCategories = await this.optionModel
+          .find({ isDeleted: false, category_options: 'size category' })
+          .select('_id')
+          .exec();
+        body.size_category_ids = allSizeCategories.map((cat) =>
+          cat._id.toString(),
+        );
+      }
+
+      // If pet_type_ids is provided but empty, default to all active pet types
+      if (body.pet_type_ids !== undefined && body.pet_type_ids.length === 0) {
+        const allPetTypes = await this.optionModel
+          .find({ isDeleted: false, category_options: 'pet type' })
+          .select('_id')
+          .exec();
+        body.pet_type_ids = allPetTypes.map((type) => type._id.toString());
+      }
+
+      // If prices is provided but empty, default to all active size categories with price 0
+      if (body.prices !== undefined && body.prices.length === 0) {
+        const allSizeCategories = await this.optionModel
+          .find({ isDeleted: false, category_options: 'size category' })
+          .select('_id')
+          .exec();
+        body.prices = allSizeCategories.map((cat) => ({
+          size_id: cat._id.toString(),
+          price: 0,
+        }));
+      }
+
       const service = await this.serviceModel.findByIdAndUpdate(
         id,
         { $set: body },
