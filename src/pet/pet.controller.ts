@@ -9,10 +9,12 @@ import {
   NotFoundException,
   Put,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { PetService } from './pet.service';
 import { CreatePetDto } from './dto/create-pet.dto';
 import { UpdatePetDto } from './dto/update-pet.dto';
+import { GetPetsQueryDto } from './dto/get-pets-query.dto';
 import { ObjectId } from 'mongodb';
 import { AuthGuard } from 'src/auth/auth.guard';
 
@@ -31,12 +33,12 @@ export class PetController {
   }
 
   @Get()
-  async findAll() {
-    const pets = await this.petService.findAll();
+  async findAll(@Query() query: GetPetsQueryDto) {
+    const result = await this.petService.findAll(query);
 
     return {
       message: 'Fetch pets successfully',
-      pets,
+      ...result,
     };
   }
 

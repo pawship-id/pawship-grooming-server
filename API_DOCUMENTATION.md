@@ -1671,6 +1671,22 @@ Services support multi-size pricing (different prices for different pet sizes). 
 
 **Endpoint:** `GET /pets`
 
+**Headers:**
+
+- `Authorization: Bearer {access_token}` (required)
+
+**Query Parameters (optional):**
+
+- `page` (number, default: 1)
+- `limit` (number, default: 10)
+- `search` (string) — search by `name`, `description`, `internal_note`, or `tags`
+- `is_active` (boolean)
+- `pet_type_id` (MongoDB ObjectId)
+- `size_category_id` (MongoDB ObjectId)
+- `breed_category_id` (MongoDB ObjectId)
+- `member_category_id` (MongoDB ObjectId)
+- `customer_id` (MongoDB ObjectId)
+
 **Success Response (200):**
 
 ```json
@@ -1686,17 +1702,35 @@ Services support multi-size pricing (different prices for different pet sizes). 
         "secure_url": "https://cloudinary.com/...",
         "public_id": "pets/buddy123"
       },
-      "pet_type_id": "507f1f77bcf86cd799439012",
-      "feather_category_id": "507f1f77bcf86cd799439013",
+      "pet_type": {
+        "_id": "507f1f77bcf86cd799439012",
+        "name": "Dog"
+      },
+      "feather": {
+        "_id": "507f1f77bcf86cd799439013",
+        "name": "Short"
+      },
       "birthday": "2020-01-15T00:00:00.000Z",
-      "size_category_id": "507f1f77bcf86cd799439014",
-      "breed_category_id": "507f1f77bcf86cd799439015",
+      "size": {
+        "_id": "507f1f77bcf86cd799439014",
+        "name": "Medium"
+      },
+      "breed": {
+        "_id": "507f1f77bcf86cd799439015",
+        "name": "Golden Retriever"
+      },
       "weight": 15,
-      "member_category_id": "507f1f77bcf86cd799439016",
+      "member_category": {
+        "_id": "507f1f77bcf86cd799439016",
+        "name": "Gold"
+      },
       "tags": ["friendly", "energetic"],
       "last_grooming_at": "2026-01-15T00:00:00.000Z",
       "last_visit_at": "2026-02-01T00:00:00.000Z",
-      "customer_id": "507f1f77bcf86cd799439017",
+      "owner": {
+        "_id": "507f1f77bcf86cd799439017",
+        "username": "john_doe"
+      },
       "memberships": [
         {
           "membership_id": "507f1f77bcf86cd799439018",
@@ -1707,17 +1741,35 @@ Services support multi-size pricing (different prices for different pet sizes). 
           "max_usage": 12
         }
       ],
-      "is_active": true
+      "is_active": true,
+      "createdAt": "2026-01-10T10:30:00.000Z",
+      "updatedAt": "2026-02-01T10:30:00.000Z"
     }
-  ]
+  ],
+  "pagination": {
+    "total": 1,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 1
+  }
 }
 ```
+
+**Notes:**
+
+- Returns only non-deleted pets (`isDeleted: false`)
+- All relationships are populated with their respective names
+- Use query parameters to filter and paginate results
 
 ---
 
 ### 2. Get Pet By ID
 
 **Endpoint:** `GET /pets/:id`
+
+**Headers:**
+
+- `Authorization: Bearer {access_token}` (required)
 
 **Parameters:**
 
@@ -1728,13 +1780,77 @@ Services support multi-size pricing (different prices for different pet sizes). 
 ```json
 {
   "message": "Fetch pet successfully",
-  "pet": { ... }
+  "pet": {
+    "_id": "507f1f77bcf86cd799439011",
+    "name": "Buddy",
+    "description": "Friendly dog",
+    "internal_note": "Sensitive to loud noises",
+    "profile_image": {
+      "secure_url": "https://cloudinary.com/...",
+      "public_id": "pets/buddy123"
+    },
+    "pet_type": {
+      "_id": "507f1f77bcf86cd799439012",
+      "name": "Dog"
+    },
+    "feather": {
+      "_id": "507f1f77bcf86cd799439013",
+      "name": "Short"
+    },
+    "birthday": "2020-01-15T00:00:00.000Z",
+    "size": {
+      "_id": "507f1f77bcf86cd799439014",
+      "name": "Medium"
+    },
+    "breed": {
+      "_id": "507f1f77bcf86cd799439015",
+      "name": "Golden Retriever"
+    },
+    "weight": 15,
+    "member_category": {
+      "_id": "507f1f77bcf86cd799439016",
+      "name": "Gold"
+    },
+    "tags": ["friendly", "energetic"],
+    "last_grooming_at": "2026-01-15T00:00:00.000Z",
+    "last_visit_at": "2026-02-01T00:00:00.000Z",
+    "owner": {
+      "_id": "507f1f77bcf86cd799439017",
+      "username": "john_doe"
+    },
+    "memberships": [
+      {
+        "membership_id": "507f1f77bcf86cd799439018",
+        "start_date": "2026-01-01T00:00:00.000Z",
+        "end_date": "2026-12-31T00:00:00.000Z",
+        "status": "active",
+        "usage_count": 2,
+        "max_usage": 12
+      }
+    ],
+    "is_active": true,
+    "createdAt": "2026-01-10T10:30:00.000Z",
+    "updatedAt": "2026-02-01T10:30:00.000Z"
+  }
 }
 ```
 
 **Error Responses:**
 
 - **404 Not Found:** Pet not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "data not found",
+  "error": "Not Found"
+}
+```
+
+**Notes:**
+
+- Returns only non-deleted pets (`isDeleted: false`)
+- All relationships are populated with their respective names
 
 ---
 

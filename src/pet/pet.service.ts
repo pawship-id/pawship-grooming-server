@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreatePetDto } from './dto/create-pet.dto';
 import { UpdatePetDto } from './dto/update-pet.dto';
+import { GetPetsQueryDto } from './dto/get-pets-query.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Pet, PetDocument } from './entities/pet.entity';
 import { Model, Types } from 'mongoose';
@@ -52,9 +53,62 @@ export class PetService {
     return await pet.save();
   }
 
-  async findAll() {
+  async findAll(query: GetPetsQueryDto) {
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      is_active,
+      pet_type_id,
+      size_category_id,
+      breed_category_id,
+      member_category_id,
+      customer_id,
+    } = query;
+
+    const filter: any = { isDeleted: false };
+
+    if (is_active !== undefined) {
+      filter.is_active = is_active;
+    }
+
+    if (pet_type_id) {
+      filter.pet_type_id = pet_type_id;
+    }
+
+    if (size_category_id) {
+      filter.size_category_id = size_category_id;
+    }
+
+    if (breed_category_id) {
+      filter.breed_category_id = breed_category_id;
+    }
+
+    if (member_category_id) {
+      filter.member_category_id = member_category_id;
+    }
+
+    if (customer_id) {
+      filter.customer_id = customer_id;
+    }
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { internal_note: { $regex: search, $options: 'i' } },
+        { tags: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+    const total = await this.petModel.countDocuments(filter).exec();
+
     const pets = await this.petModel
-      .find({ isDeleted: false })
+      .find(filter)
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 })
       .populate('pet_type', 'name')
       .populate('feather', 'name')
       .populate('size', 'name')
@@ -63,7 +117,15 @@ export class PetService {
       .populate('owner', 'username')
       .exec();
 
-    return pets;
+    return {
+      pets,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async findOne(id: ObjectId) {
