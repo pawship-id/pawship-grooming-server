@@ -77,7 +77,8 @@ Base URL: `http://localhost:3000`
 ```json
 {
   "message": "login berhasil",
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
 ```
 
@@ -102,6 +103,74 @@ Base URL: `http://localhost:3000`
   "error": "Unauthorized"
 }
 ```
+
+---
+
+### 3. Refresh Token
+
+**Endpoint:** `POST /auth/refresh`
+
+**Request Body:**
+
+```json
+{
+  "refresh_token": "string (required)"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "token refreshed successfully",
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Error Responses:**
+
+- **401 Unauthorized:** Invalid or expired refresh token
+
+```json
+{
+  "statusCode": 401,
+  "message": "refresh token is invalid",
+  "error": "Unauthorized"
+}
+```
+
+**Notes:**
+
+- Refresh token is rotated on every successful refresh
+- If refresh token is expired or revoked, user must login again
+
+---
+
+### 4. Logout
+
+**Endpoint:** `POST /auth/logout`
+
+**Authentication:** Required (JWT Token)
+
+**Headers:**
+
+```
+Authorization: Bearer <access_token>
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "logout successfully"
+}
+```
+
+**Notes:**
+
+- Logout will revoke the current refresh token
+- Access token remains valid until it expires
 
 ---
 

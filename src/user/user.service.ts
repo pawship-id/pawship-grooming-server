@@ -130,7 +130,13 @@ export class UserService {
 
     const user = await this.userModel.findByIdAndUpdate(
       id,
-      { $set: { password: hash } },
+      {
+        $set: {
+          password: hash,
+          refresh_token: null,
+          refresh_token_expires_at: null,
+        },
+      },
       { new: true },
     );
 

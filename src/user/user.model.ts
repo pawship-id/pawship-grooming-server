@@ -28,6 +28,12 @@ export class User {
   isDeleted: boolean;
 
   @Prop({ default: null })
+  refresh_token: string;
+
+  @Prop({ default: null })
+  refresh_token_expires_at: Date;
+
+  @Prop({ default: null })
   deletedAt: Date;
 }
 

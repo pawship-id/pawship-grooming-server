@@ -5,10 +5,12 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Req,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from 'src/user/user.dto';
 import { Public } from './public.decorator';
+import { RefreshTokenDto } from './auth.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -35,11 +37,38 @@ export class AuthController {
     if (!email) throw new BadRequestException('email is required');
     if (!password) throw new BadRequestException('password is required');
 
-    const token = await this.authService.signIn(email, password);
+    const tokens = await this.authService.signIn(email, password);
 
     return {
       message: 'login berhasil',
-      token,
+      ...tokens,
+    };
+  }
+
+  @Public()
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  async refresh(@Body() body: RefreshTokenDto) {
+    const tokens = await this.authService.refreshTokens(body.refresh_token);
+
+    return {
+      message: 'token refreshed successfully',
+      ...tokens,
+    };
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(@Req() request: any) {
+    const userId = request.user?._id;
+    if (!userId) {
+      throw new BadRequestException('user is required');
+    }
+
+    await this.authService.revokeRefreshToken(userId);
+
+    return {
+      message: 'logout successfully',
     };
   }
 }
