@@ -9,10 +9,12 @@ import {
   NotFoundException,
   Put,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { ServiceService } from './service.service';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
+import { GetServicesQueryDto } from './dto/get-services-query.dto';
 import { ObjectId } from 'mongodb';
 import { AuthGuard } from 'src/auth/auth.guard';
 
@@ -31,12 +33,12 @@ export class ServiceController {
   }
 
   @Get()
-  async findAll() {
-    const services = await this.serviceService.findAll();
+  async findAll(@Query() query: GetServicesQueryDto) {
+    const result = await this.serviceService.findAll(query);
 
     return {
       message: 'Fetch services successfully',
-      services,
+      ...result,
     };
   }
 

@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
+import { GetServicesQueryDto } from './dto/get-services-query.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Service, ServiceDocument } from './entities/service.entity';
@@ -33,9 +34,61 @@ export class ServiceService {
     }
   }
 
-  async findAll() {
+  async findAll(query: GetServicesQueryDto) {
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      is_active,
+      available_for_unlimited,
+      service_type_id,
+      pet_type_id,
+      size_category_id,
+      store_id,
+    } = query;
+
+    const filter: any = { isDeleted: false };
+
+    if (is_active !== undefined) {
+      filter.is_active = is_active;
+    }
+
+    if (available_for_unlimited !== undefined) {
+      filter.available_for_unlimited = available_for_unlimited;
+    }
+
+    if (service_type_id) {
+      filter.service_type_id = service_type_id;
+    }
+
+    if (pet_type_id) {
+      filter.pet_type_ids = pet_type_id;
+    }
+
+    if (size_category_id) {
+      filter.size_category_ids = size_category_id;
+    }
+
+    if (store_id) {
+      filter.available_store_ids = store_id;
+    }
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { code: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+    const total = await this.serviceModel.countDocuments(filter).exec();
+
     const services = await this.serviceModel
-      .find({ isDeleted: false })
+      .find(filter)
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 })
       .populate('service_type', 'name')
       .populate('size_categories', 'name')
       .populate('pet_types', 'name')
@@ -47,7 +100,15 @@ export class ServiceService {
       })
       .exec();
 
-    return services;
+    return {
+      services,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async findOne(id: ObjectId) {
