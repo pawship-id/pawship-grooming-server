@@ -1015,6 +1015,384 @@ Services support multi-size pricing (different prices for different pet sizes).
 
 ---
 
+## Store Daily Capacities
+
+Store daily capacity allows overriding the default store capacity for specific dates (e.g., holidays, special events).
+
+### 1. Create Store Daily Capacity
+
+**Endpoint:** `POST /store-daily-capacities`
+
+**Authentication:** Required (JWT)
+
+**Request Body:**
+
+```json
+{
+  "store_id": "MongoDB ObjectId (required)",
+  "date": "Date (required, format: YYYY-MM-DD)",
+  "total_capacity_minutes": "number (required, total minutes available for this date)",
+  "notes": "string (optional, e.g., 'Holiday reduced hours')",
+  "created_by": "MongoDB ObjectId (optional, auto-assigned from authenticated user)"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Create store daily capacity successfully"
+}
+```
+
+**Business Logic:**
+
+- Overrides the default store capacity for a specific date
+- System automatically assigns `created_by` from authenticated user
+- Used by booking system to validate capacity constraints
+- Date is normalized to UTC midnight for consistent querying
+
+---
+
+### 2. Get All Store Daily Capacities
+
+**Endpoint:** `GET /store-daily-capacities`
+
+**Authentication:** Required (JWT)
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch store daily capacities successfully",
+  "capacities": [
+    {
+      "_id": "507f1f77bcf86cd799439011",
+      "store_id": "507f1f77bcf86cd799439012",
+      "date": "2026-02-25T00:00:00.000Z",
+      "total_capacity_minutes": 600,
+      "notes": "Holiday reduced hours",
+      "created_by": "507f1f77bcf86cd799439013",
+      "createdAt": "2026-02-19T10:00:00.000Z",
+      "updatedAt": "2026-02-19T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### 3. Get Store Daily Capacity By ID
+
+**Endpoint:** `GET /store-daily-capacities/:id`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch store daily capacity successfully",
+  "capacity": { ... }
+}
+```
+
+**Error Responses:**
+
+- **404 Not Found:** Store daily capacity not found
+
+---
+
+### 4. Update Store Daily Capacity
+
+**Endpoint:** `PUT /store-daily-capacities/:id`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Request Body:** Same as Create Store Daily Capacity (all fields optional)
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Update store daily capacity successfully"
+}
+```
+
+---
+
+### 5. Delete Store Daily Capacity
+
+**Endpoint:** `DELETE /store-daily-capacities/:id`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Delete store daily capacity successfully"
+}
+```
+
+**Notes:**
+
+- This is a hard delete (permanently removes the record)
+- After deletion, booking system will use the default store capacity
+
+---
+
+## Guest Booking Flow
+
+Guest endpoints allow unauthenticated users to browse and create bookings without pre-registration.
+
+### 1. Get All Stores (Guest)
+
+**Endpoint:** `GET /guest/stores`
+
+**Authentication:** Not Required (Public)
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch stores successfully",
+  "stores": [
+    {
+      "_id": "507f1f77bcf86cd799439011",
+      "name": "Pawship Jakarta",
+      "address": { ... },
+      "capacity": {
+        "default_daily_capacity_minutes": 720,
+        "overbooking_limit_minutes": 120
+      },
+      "is_active": true
+    }
+  ]
+}
+```
+
+---
+
+### 2. Get Services (Guest)
+
+**Endpoint:** `GET /guest/services`
+
+**Authentication:** Not Required (Public)
+
+**Query Parameters:**
+
+- `store_id` (optional): Filter services by store
+- `type` (optional): Filter by service type ("grooming" or "addon")
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch services successfully",
+  "services": [
+    {
+      "_id": "507f1f77bcf86cd799439011",
+      "name": "Basic Grooming",
+      "description": "Full grooming service",
+      "prices": [
+        {
+          "size_category_id": "507f1f77bcf86cd799439012",
+          "price": 150000
+        }
+      ],
+      "duration": 60,
+      "is_active": true
+    }
+  ]
+}
+```
+
+---
+
+### 3. Check User By Phone
+
+**Endpoint:** `GET /guest/check-user/phone/:phone_number`
+
+**Authentication:** Not Required (Public)
+
+**Parameters:**
+
+- `phone_number` (path): User's phone number
+
+**Success Response (200):**
+
+If user exists:
+
+```json
+{
+  "message": "User found",
+  "exists": true,
+  "user": {
+    "_id": "507f1f77bcf86cd799439011",
+    "username": "john_doe",
+    "email": "john@example.com",
+    "phone_number": "+628123456789"
+  },
+  "pets": [
+    {
+      "_id": "507f1f77bcf86cd799439012",
+      "name": "Buddy",
+      "pet_type_id": "507f1f77bcf86cd799439013",
+      "size_category_id": "507f1f77bcf86cd799439014"
+    }
+  ]
+}
+```
+
+If user not found:
+
+```json
+{
+  "message": "User not found, please register",
+  "exists": false
+}
+```
+
+---
+
+### 4. Register Guest User
+
+**Endpoint:** `POST /guest/register`
+
+**Authentication:** Not Required (Public)
+
+**Request Body:**
+
+```json
+{
+  "username": "string (required)",
+  "email": "string (required, valid email format)",
+  "phone_number": "string (required)",
+  "address": "string (optional)",
+  "pet_name": "string (required)",
+  "pet_type_id": "MongoDB ObjectId (required)",
+  "size_category_id": "MongoDB ObjectId (required)",
+  "breed_category_id": "MongoDB ObjectId (required)"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "User and pet registered successfully. Welcome email has been sent.",
+  "user": {
+    "_id": "507f1f77bcf86cd799439011",
+    "username": "john_doe",
+    "email": "john@example.com",
+    "phone_number": "+628123456789"
+  },
+  "pet": {
+    "_id": "507f1f77bcf86cd799439012",
+    "name": "Buddy",
+    "customer_id": "507f1f77bcf86cd799439011"
+  }
+}
+```
+
+**Business Logic:**
+
+- Creates new user with default password "pawship123"
+- Password is hashed with bcrypt
+- Automatically creates first pet for the user
+- Assigns default role "customer"
+
+---
+
+### 5. Create Pet For Guest
+
+**Endpoint:** `POST /guest/pets`
+
+**Authentication:** Not Required (Public)
+
+**Request Body:**
+
+```json
+{
+  "customer_id": "MongoDB ObjectId (required)",
+  "name": "string (required)",
+  "pet_type_id": "MongoDB ObjectId (required)",
+  "size_category_id": "MongoDB ObjectId (required)",
+  "breed_category_id": "MongoDB ObjectId (required)",
+  "weight": "number (optional)",
+  "birthday": "Date (optional)"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Pet created successfully",
+  "pet": {
+    "_id": "507f1f77bcf86cd799439012",
+    "name": "Max",
+    "customer_id": "507f1f77bcf86cd799439011"
+  }
+}
+```
+
+---
+
+### 6. Create Guest Booking
+
+**Endpoint:** `POST /guest/bookings`
+
+**Authentication:** Not Required (Public)
+
+**Request Body:**
+
+```json
+{
+  "customer_id": "MongoDB ObjectId (required)",
+  "pet_id": "MongoDB ObjectId (required)",
+  "store_id": "MongoDB ObjectId (required for in store type)",
+  "date": "Date (required, format: YYYY-MM-DD)",
+  "time_range": "string (required, format: HH:mm - HH:mm)",
+  "type": "in home | in store (required)",
+  "service_id": "MongoDB ObjectId (required)",
+  "service_addon_ids": ["MongoDB ObjectId"] (optional array),
+  "travel_fee": "number (optional)",
+  "note": "string (optional)"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Guest booking created successfully"
+}
+```
+
+**Business Logic:**
+
+- Same capacity validation as authenticated booking
+- If capacity exceeded beyond overbooking limit, booking is created as WAITLIST
+- System automatically calculates pricing based on pet size
+- Creates pet_snapshot automatically
+- Initial booking_status is "requested"
+
+---
+
 ## Bookings
 
 ### 1. Get All Bookings
@@ -1058,7 +1436,42 @@ Services support multi-size pricing (different prices for different pet sizes).
       "sub_total_service": 150000,
       "total_price": 200000,
       "discount_ids": [],
-      "assigned_groomer_ids": ["507f1f77bcf86cd799439017"],
+      "assigned_groomers": [
+        {
+          "task": "washing",
+          "groomer_id": "507f1f77bcf86cd799439017"
+        },
+        {
+          "task": "drying",
+          "groomer_id": "507f1f77bcf86cd799439018"
+        }
+      ],
+      "sessions": [
+        {
+          "_id": "507f1f77bcf86cd799439020",
+          "type": "washing",
+          "groomer_id": "507f1f77bcf86cd799439017",
+          "status": "in progress",
+          "started_at": "2026-02-25T10:30:00.000Z",
+          "finished_at": null,
+          "notes": null,
+          "internal_note": null,
+          "order": 0,
+          "media": []
+        },
+        {
+          "_id": "507f1f77bcf86cd799439021",
+          "type": "drying",
+          "groomer_id": "507f1f77bcf86cd799439018",
+          "status": "not started",
+          "started_at": null,
+          "finished_at": null,
+          "notes": null,
+          "internal_note": null,
+          "order": 1,
+          "media": []
+        }
+      ],
       "referal_code": "FRIEND20",
       "note": "Please be gentle, first time grooming",
       "payment_method": "cash",
@@ -1147,9 +1560,16 @@ Services support multi-size pricing (different prices for different pet sizes).
 **Business Logic:**
 
 - System automatically creates `pet_snapshot` from pet data
-- System calculates pricing based on service and pet size
+- System calculates pricing based on service and pet size (including addons)
 - Initial `booking_status` is "requested"
 - Creates initial status log entry
+- **Capacity Management:**
+  - Validates against store's daily capacity (checks StoreDailyCapacity override or uses default)
+  - Atomically increments StoreDailyUsage for the date
+  - If capacity exceeded beyond overbooking_limit_minutes, creates WAITLIST booking
+  - If within overbooking limit, creates CONFIRMED booking with overbooked note
+  - Uses MongoDB transactions to ensure data consistency
+- All operations are atomic - if any step fails, entire transaction is rolled back
 
 ---
 
@@ -1161,7 +1581,7 @@ Services support multi-size pricing (different prices for different pet sizes).
 
 - `id` (path): MongoDB ObjectId
 
-**Request Body:** Same as Create Booking (all fields optional except customer_id and status_logs)
+**Request Body:** Same as Create Booking (all fields optional)
 
 **Success Response (200):**
 
@@ -1171,10 +1591,33 @@ Services support multi-size pricing (different prices for different pet sizes).
 }
 ```
 
-**Notes:**
+**Business Logic:**
 
-- Cannot update `customer_id` and `status_logs` through this endpoint
+- Cannot update `customer_id` through this endpoint
+- **Capacity Tracking on Update:**
+  - If date or service/addons changed, capacity is recalculated
+  - Rolls back old capacity usage (decrements old date's usage)
+  - Increments new capacity usage (validates against new date's limit)
+  - If new capacity would be exceeded, update is rejected with error
+  - All capacity operations use MongoDB transactions for atomicity
+- **Session Synchronization:**
+  - If `assigned_groomers` array is updated, sessions are automatically synchronized
+  - Sessions are matched by order/index with assigned groomers
+  - Existing sessions are updated, new sessions are created as needed
+- Status logs are automatically appended when `booking_status` changes
 - Use specific endpoints for status updates
+
+**Error Responses:**
+
+- **400 Bad Request:** Capacity exceeded for the new date
+
+```json
+{
+  "statusCode": 400,
+  "message": "Cannot update booking: capacity exceeded for 2026-02-25. Available capacity: 720 minutes, would be used: 800 minutes.",
+  "error": "Bad Request"
+}
+```
 
 ---
 
@@ -1208,7 +1651,12 @@ Services support multi-size pricing (different prices for different pet sizes).
 
 ```json
 {
-  "assigned_groomer_ids": ["MongoDB ObjectId"] (required array)
+  "assigned_groomers": [
+    {
+      "task": "string (required, e.g., 'washing', 'drying', 'cutting')",
+      "groomer_id": "MongoDB ObjectId (required)"
+    }
+  ] (required array)
 }
 ```
 
@@ -1222,8 +1670,14 @@ Services support multi-size pricing (different prices for different pet sizes).
 
 **Business Logic:**
 
-- Assigns groomers to the booking
-- Initializes grooming_session object
+- Assigns groomers to the booking with specific tasks
+- Automatically creates/syncs sessions array based on assigned_groomers
+- Each groomer assignment creates a corresponding session with:
+  - `order`: Matches the index in assigned_groomers array
+  - `type`: The task assigned to the groomer
+  - `status`: NOT_STARTED initially
+  - `groomer_id`: The assigned groomer
+- Sessions are synchronized by order/index when groomers are updated
 
 ---
 
@@ -1269,7 +1723,195 @@ Services support multi-size pricing (different prices for different pet sizes).
 
 ## Grooming Sessions
 
-Grooming sessions track the actual grooming process workflow.
+Grooming sessions track individual grooming tasks within a booking. Sessions are automatically created when groomers are assigned to a booking, with each session representing one groomer's task.
+
+### Session Lifecycle
+
+- **Creation**: Sessions are auto-created when groomers are assigned via PATCH `/bookings/assign-groomer/:id`
+- **Synchronization**: Sessions sync with `assigned_groomers` by order/index
+- **States**: NOT_STARTED → IN_PROGRESS → FINISHED
+
+### 1. Update Session
+
+**Endpoint:** `PATCH /bookings/:bookingId/session/:sessionId`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `bookingId` (path): Booking MongoDB ObjectId
+- `sessionId` (path): Session MongoDB ObjectId
+
+**Request Body:**
+
+```json
+{
+  "notes": "string (optional)",
+  "internal_note": "string (optional)"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Session updated successfully"
+}
+```
+
+---
+
+### 2. Start Session
+
+**Endpoint:** `PATCH /bookings/:bookingId/session/:sessionId/start`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `bookingId` (path): Booking MongoDB ObjectId
+- `sessionId` (path): Session MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Session started successfully"
+}
+```
+
+**Business Logic:**
+
+- Updates session `status` to "in progress"
+- Sets `started_at` to current timestamp
+- Records user who started the session
+
+---
+
+### 3. Finish Session
+
+**Endpoint:** `PATCH /bookings/:bookingId/session/:sessionId/finish`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `bookingId` (path): Booking MongoDB ObjectId
+- `sessionId` (path): Session MongoDB ObjectId
+
+**Request Body:**
+
+```json
+{
+  "notes": "string (optional, grooming notes)"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Session finished successfully"
+}
+```
+
+**Business Logic:**
+
+- Updates session `status` to "finished"
+- Sets `finished_at` to current timestamp
+- Optionally updates notes
+- Records user who finished the session
+
+---
+
+### 4. Delete Session
+
+**Endpoint:** `DELETE /bookings/:bookingId/session/:sessionId`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `bookingId` (path): Booking MongoDB ObjectId
+- `sessionId` (path): Session MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Session deleted successfully"
+}
+```
+
+**Business Logic:**
+
+- Removes the session from the booking's sessions array
+- Use with caution - ensure groomer assignment is also updated
+
+---
+
+### 5. Upload Session Media
+
+**Endpoint:** `POST /bookings/:bookingId/session/:sessionId/media`
+
+**Content-Type:** `multipart/form-data`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `bookingId` (path): Booking MongoDB ObjectId
+- `sessionId` (path): Session MongoDB ObjectId
+
+**Request Body (Form-Data):**
+
+- `image`: File (required) - Image file to upload
+- `type`: "before" | "after" (required)
+- `note`: string (optional) - Additional note about the image
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Media uploaded successfully"
+}
+```
+
+**Business Logic:**
+
+- Uploads image to Cloudinary (folder: grooming-session)
+- Stores media info in session's `media` array
+- Automatically captures uploader info from authenticated user
+- Each session can have multiple before/after photos
+
+**Example Form-Data in Postman:**
+
+```
+Key: image         | Type: File | Value: [Select file]
+Key: type          | Type: Text | Value: before
+Key: note          | Type: Text | Value: Pet condition before washing
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Missing required fields or file
+
+```json
+{
+  "statusCode": 400,
+  "message": "image file is required",
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** Booking or session not found
+- **500 Internal Server Error:** Cloudinary upload failed
+
+---
+
+## Legacy Grooming Session Endpoints (Deprecated)
+
+The following endpoints are maintained for backward compatibility but are deprecated. Use the new session endpoints above instead.
 
 ### 1. Groomer Arrived (For In-Home Service)
 
@@ -1422,6 +2064,14 @@ Key: note          | Type: Text | Value: Pet condition before grooming
 
 ## Enums Reference
 
+### SessionStatus
+
+```typescript
+NOT_STARTED = 'not started';
+IN_PROGRESS = 'in progress';
+FINISHED = 'finished';
+```
+
 ### BookingStatus
 
 ```typescript
@@ -1544,8 +2194,25 @@ PORT=3000
 8. **Grooming Workflow**:
    - For In-Home: Requested → Confirmed → Arrived → In Progress → Finished
    - For In-Store: Requested → Confirmed → In Progress → Finished
+9. **Capacity Management**:
+   - Bookings validate against store daily capacity (default or override)
+   - When capacity exceeded within overbooking limit: booking is CONFIRMED with note
+   - When capacity exceeded beyond limit: booking is WAITLIST status
+   - Use StoreDailyCapacity API to override default capacity for specific dates
+10. **Guest Booking Flow**:
+    - Check if user exists by phone → If not, register → Create pet → Create booking
+    - All guest endpoints are public (no authentication required)
+    - Default password "pawship123" assigned to new users
+11. **Sessions vs Grooming Session**:
+    - New: `sessions` array - multiple sessions per booking (one per groomer task)
+    - Legacy: `grooming_session` object - single session per booking (deprecated)
+    - Sessions are auto-created and synced when assigning groomers
+12. **Transaction Safety**:
+    - Booking create/update use MongoDB transactions for atomic operations
+    - Capacity tracking is atomic - prevents race conditions
+    - If any validation fails, entire transaction is rolled back
 
 ---
 
-**Last Updated:** February 19, 2026
+**Last Updated:** February 26, 2026
 **API Version:** 1.0.0
