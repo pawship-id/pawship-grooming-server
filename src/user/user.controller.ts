@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   NotFoundException,
+  UnauthorizedException,
   Get,
   Param,
   Post,
@@ -13,13 +14,13 @@ import {
   Patch,
   UseGuards,
   Query,
+  Req,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { ObjectId } from 'mongodb';
 import {
   CreateUserDto,
   UpdateUserDto,
-  UserRole,
   GetUsersQueryDto,
   ToggleUserStatusDto,
 } from './user.dto';
@@ -38,6 +39,36 @@ export class UserController {
     return {
       message: 'Fetch users successfully',
       ...result,
+    };
+  }
+  @Get('me')
+  @HttpCode(HttpStatus.OK)
+  async getCurrentUser(@Req() request: any) {
+    const userId = request.user?._id;
+
+    if (!userId) {
+      throw new UnauthorizedException('User not authenticated');
+    }
+
+    const _id = new ObjectId(userId);
+    const user = await this.userService.findById(_id);
+
+    if (!user || user.isDeleted) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Remove password from response
+    const {
+      password,
+      deletedAt,
+      is_active,
+      isDeleted,
+      ...userWithoutPassword
+    } = user.toObject();
+
+    return {
+      message: 'Fetch current user successfully',
+      user: userWithoutPassword,
     };
   }
 

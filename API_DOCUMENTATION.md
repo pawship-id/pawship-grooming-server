@@ -174,7 +174,68 @@ GET /users?page=2&limit=20&search=john&role=customer&is_active=true
 
 ---
 
-### 2. Get User By ID
+### 2. Get Current User (Me)
+
+**Endpoint:** `GET /users/me`
+
+**Authentication:** Required (JWT Token)
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch current user successfully",
+  "user": {
+    "_id": "507f1f77bcf86cd799439011",
+    "username": "john_doe",
+    "email": "john@example.com",
+    "phone_number": "+628123456789",
+    "role": "customer",
+    "is_active": true,
+    "isDeleted": false,
+    "createdAt": "2026-02-19T10:00:00.000Z",
+    "updatedAt": "2026-02-20T15:30:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- **401 Unauthorized:** Missing or invalid token
+
+```json
+{
+  "statusCode": 401,
+  "message": "User not authenticated",
+  "error": "Unauthorized"
+}
+```
+
+- **404 Not Found:** User not found or deleted
+
+```json
+{
+  "statusCode": 404,
+  "message": "User not found",
+  "error": "Not Found"
+}
+```
+
+**Notes:**
+
+- This endpoint retrieves information about the currently authenticated user based on JWT token
+- Password field is excluded from the response
+- Useful for profile pages or checking current user permissions
+
+---
+
+### 3. Get User By ID
 
 **Endpoint:** `GET /users/:id`
 
@@ -222,7 +283,7 @@ GET /users?page=2&limit=20&search=john&role=customer&is_active=true
 
 ---
 
-### 3. Create User
+### 4. Create User
 
 **Endpoint:** `POST /users`
 
@@ -249,7 +310,7 @@ GET /users?page=2&limit=20&search=john&role=customer&is_active=true
 
 ---
 
-### 4. Update User
+### 5. Update User
 
 **Endpoint:** `PUT /users/:id`
 
@@ -284,7 +345,7 @@ GET /users?page=2&limit=20&search=john&role=customer&is_active=true
 
 ---
 
-### 5. Toggle User Status (Activate/Deactivate)
+### 6. Toggle User Status (Activate/Deactivate)
 
 **Endpoint:** `PATCH /users/toggle-status/:id`
 
@@ -348,7 +409,7 @@ When deactivating user:
 
 ---
 
-### 6. Delete User (Soft Delete)
+### 7. Delete User (Soft Delete)
 
 **Endpoint:** `DELETE /users/:id`
 
