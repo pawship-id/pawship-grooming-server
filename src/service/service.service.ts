@@ -32,7 +32,7 @@ export class ServiceService {
       // If available_store_ids not provided or empty, default to all active stores
       if (!body.available_store_ids || body.available_store_ids.length === 0) {
         const allStores = await this.storeModel
-          .find({ isDeleted: false })
+          .find({ isDeleted: false, is_active: true })
           .select('_id')
           .exec();
         body.available_store_ids = allStores.map((store) =>
@@ -47,7 +47,11 @@ export class ServiceService {
         console.log('jaaa');
 
         const allSizeCategories = await this.optionModel
-          .find({ isDeleted: false, category_options: 'size category' })
+          .find({
+            isDeleted: false,
+            is_active: true,
+            category_options: 'size category',
+          })
           .select('_id')
           .exec();
         body.size_category_ids = allSizeCategories.map((cat) =>
@@ -58,7 +62,11 @@ export class ServiceService {
       // If pet_type_ids not provided or empty, default to all active pet types
       if (!body.pet_type_ids || body.pet_type_ids.length === 0) {
         const allPetTypes = await this.optionModel
-          .find({ isDeleted: false, category_options: 'pet type' })
+          .find({
+            isDeleted: false,
+            is_active: true,
+            category_options: 'pet type',
+          })
           .select('_id')
           .exec();
         body.pet_type_ids = allPetTypes.map((type) => type._id.toString());
@@ -67,7 +75,11 @@ export class ServiceService {
       // If prices not provided or empty, default to all active size categories with price 0
       if (!body.prices || body.prices.length === 0) {
         const allSizeCategories = await this.optionModel
-          .find({ isDeleted: false, category_options: 'size category' })
+          .find({
+            isDeleted: false,
+            is_active: true,
+            category_options: 'size category',
+          })
           .select('_id')
           .exec();
         body.prices = allSizeCategories.map((cat) => ({
@@ -193,7 +205,7 @@ export class ServiceService {
         body.available_store_ids.length === 0
       ) {
         const allStores = await this.storeModel
-          .find({ isDeleted: false })
+          .find({ isDeleted: false, is_active: true })
           .select('_id')
           .exec();
         body.available_store_ids = allStores.map((store) =>
@@ -207,7 +219,11 @@ export class ServiceService {
         body.size_category_ids.length === 0
       ) {
         const allSizeCategories = await this.optionModel
-          .find({ isDeleted: false, category_options: 'size category' })
+          .find({
+            isDeleted: false,
+            is_active: true,
+            category_options: 'size category',
+          })
           .select('_id')
           .exec();
         body.size_category_ids = allSizeCategories.map((cat) =>
@@ -218,7 +234,11 @@ export class ServiceService {
       // If pet_type_ids is provided but empty, default to all active pet types
       if (body.pet_type_ids !== undefined && body.pet_type_ids.length === 0) {
         const allPetTypes = await this.optionModel
-          .find({ isDeleted: false, category_options: 'pet type' })
+          .find({
+            isDeleted: false,
+            is_active: true,
+            category_options: 'pet type',
+          })
           .select('_id')
           .exec();
         body.pet_type_ids = allPetTypes.map((type) => type._id.toString());
@@ -227,7 +247,11 @@ export class ServiceService {
       // If prices is provided but empty, default to all active size categories with price 0
       if (body.prices !== undefined && body.prices.length === 0) {
         const allSizeCategories = await this.optionModel
-          .find({ isDeleted: false, category_options: 'size category' })
+          .find({
+            isDeleted: false,
+            is_active: true,
+            category_options: 'size category',
+          })
           .select('_id')
           .exec();
         body.prices = allSizeCategories.map((cat) => ({
