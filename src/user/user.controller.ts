@@ -11,10 +11,16 @@ import {
   Put,
   Delete,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { ObjectId } from 'mongodb';
-import { CreateUserDto, UpdateUserDto, UserRole } from './user.dto';
+import {
+  CreateUserDto,
+  UpdateUserDto,
+  UserRole,
+  GetUsersQueryDto,
+} from './user.dto';
 import { AuthGuard } from 'src/auth/auth.guard';
 
 @Controller('users')
@@ -24,12 +30,12 @@ export class UserController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
-  async getAllUser() {
-    const users = await this.userService.getUsers();
+  async getAllUser(@Query() query: GetUsersQueryDto) {
+    const result = await this.userService.getUsers(query);
 
     return {
       message: 'Fetch users successfully',
-      users,
+      ...result,
     };
   }
 

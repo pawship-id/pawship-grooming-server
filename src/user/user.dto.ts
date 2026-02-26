@@ -6,7 +6,11 @@ import {
   IsNotEmpty,
   IsOptional,
   MinLength,
+  IsString,
+  IsInt,
+  Min,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export enum UserRole {
   ADMIN = 'admin',
@@ -42,3 +46,32 @@ export class CreateUserDto {
 }
 
 export class UpdateUserDto extends PartialType(CreateUserDto) {}
+
+export class GetUsersQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number = 10;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
+  @IsEnum(UserRole, {
+    message: 'role must be admin | ops | groomer | customer',
+  })
+  role?: UserRole;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  is_active?: boolean;
+}

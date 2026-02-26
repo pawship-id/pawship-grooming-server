@@ -4,7 +4,7 @@ import { ObjectId } from 'mongodb';
 import { Model } from 'mongoose';
 import { hashPassword } from 'src/helpers/bcrypt';
 import { User, UserDocument } from './user.model';
-import { CreateUserDto, UpdateUserDto } from './user.dto';
+import { CreateUserDto, UpdateUserDto, GetUsersQueryDto } from './user.dto';
 
 @Injectable()
 export class UserService {
@@ -12,9 +12,54 @@ export class UserService {
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
   ) {}
 
-  async getUsers() {
-    const users = await this.userModel.find({ isDeleted: false }).exec();
-    return users;
+  async getUsers(query: GetUsersQueryDto) {
+    const { page = 1, limit = 10, search, role, is_active } = query;
+
+    // Build filter object
+    const filter: any = { isDeleted: false };
+
+    // Add role filter if provided
+    if (role) {
+      filter.role = role;
+    }
+
+    // Add is_active filter if provided
+    if (is_active !== undefined) {
+      filter.is_active = is_active;
+    }
+
+    // Add search filter if provided (search in username, email, phone_number)
+    if (search) {
+      filter.$or = [
+        { username: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { phone_number: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    // Calculate skip for pagination
+    const skip = (page - 1) * limit;
+
+    // Get total count for pagination metadata
+    const total = await this.userModel.countDocuments(filter).exec();
+
+    // Fetch users with filters, pagination, and sorting
+    const users = await this.userModel
+      .find(filter)
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 })
+      .exec();
+
+    return {
+      users,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async findById(id: ObjectId) {
