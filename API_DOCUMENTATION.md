@@ -630,6 +630,37 @@ Options are master data categories like pet types, sizes, breeds, etc.
 
 **Endpoint:** `GET /stores`
 
+**Query Parameters:**
+
+- `page` (optional, number): Page number for pagination (default: 1, min: 1)
+- `limit` (optional, number): Number of items per page (default: 10, min: 1)
+- `search` (optional, string): Search keyword to filter stores by name, code, description, or address (case-insensitive)
+- `is_active` (optional, boolean): Filter by active status (true/false)
+- `city` (optional, string): Filter by city name (case-insensitive)
+- `province` (optional, string): Filter by province name (case-insensitive)
+
+**Example Requests:**
+
+```bash
+# Basic pagination
+GET /stores?page=1&limit=10
+
+# Search stores
+GET /stores?search=jakarta
+
+# Filter by active status
+GET /stores?is_active=true
+
+# Filter by city
+GET /stores?city=jakarta
+
+# Filter by province
+GET /stores?province=DKI Jakarta
+
+# Combined filters
+GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
+```
+
 **Success Response (200):**
 
 ```json
@@ -673,9 +704,23 @@ Options are master data categories like pet types, sizes, breeds, etc.
       },
       "is_active": true
     }
-  ]
+  ],
+  "pagination": {
+    "total": 25,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 3
+  }
 }
 ```
+
+**Notes:**
+
+- All query parameters are optional
+- Search performs case-insensitive pattern matching across name, code, description, and address fields
+- Results are sorted by creation date (newest first)
+- Stores with `isDeleted: true` are excluded from results
+- The `capacity.default_daily_capacity_minutes` value may be overridden by today's `StoreDailyCapacity` if configured
 
 ---
 

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto } from './dto/update-store.dto';
+import { GetStoresQueryDto } from './dto/get-stores-query.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Store, StoreDocument } from './entities/store.entity';
 import { Model } from 'mongoose';
@@ -33,8 +34,50 @@ export class StoreService {
     }
   }
 
-  async findAll() {
-    const stores = await this.storeModel.find({ isDeleted: false }).lean();
+  async findAll(query: GetStoresQueryDto) {
+    const { page = 1, limit = 10, search, is_active, city, province } = query;
+
+    // Build filter object
+    const filter: any = { isDeleted: false };
+
+    // Add is_active filter if provided
+    if (is_active !== undefined) {
+      filter.is_active = is_active;
+    }
+
+    // Add city filter if provided
+    if (city) {
+      filter['location.city'] = { $regex: city, $options: 'i' };
+    }
+
+    // Add province filter if provided
+    if (province) {
+      filter['location.province'] = { $regex: province, $options: 'i' };
+    }
+
+    // Add search filter if provided (search in name, code, description, address)
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { code: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { 'location.address': { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    // Calculate skip for pagination
+    const skip = (page - 1) * limit;
+
+    // Get total count for pagination metadata
+    const total = await this.storeModel.countDocuments(filter).exec();
+
+    // Fetch stores with filters, pagination, and sorting
+    const stores = await this.storeModel
+      .find(filter)
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 })
+      .lean();
 
     // Get today's date normalized to UTC midnight
     const today = new Date();
@@ -69,7 +112,16 @@ export class StoreService {
           store.capacity?.default_daily_capacity_minutes,
       },
     }));
-    return storesWithCapacity;
+
+    return {
+      stores: storesWithCapacity,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async findOne(id: ObjectId) {
