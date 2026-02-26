@@ -75,3 +75,9 @@ export class GetUsersQueryDto {
   @IsBoolean()
   is_active?: boolean;
 }
+
+export class ToggleUserStatusDto {
+  @IsNotEmpty({ message: 'is_active is required' })
+  @IsBoolean({ message: 'is_active must be a boolean' })
+  is_active: boolean;
+}

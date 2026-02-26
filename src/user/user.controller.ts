@@ -10,6 +10,7 @@ import {
   Post,
   Put,
   Delete,
+  Patch,
   UseGuards,
   Query,
 } from '@nestjs/common';
@@ -20,6 +21,7 @@ import {
   UpdateUserDto,
   UserRole,
   GetUsersQueryDto,
+  ToggleUserStatusDto,
 } from './user.dto';
 import { AuthGuard } from 'src/auth/auth.guard';
 
@@ -77,6 +79,27 @@ export class UserController {
 
     return {
       message: 'Update user successfully',
+    };
+  }
+
+  @Patch('toggle-status/:id')
+  @HttpCode(HttpStatus.OK)
+  async toggleUserStatus(
+    @Param('id') id: string,
+    @Body() body: ToggleUserStatusDto,
+  ) {
+    if (!id) throw new BadRequestException('id is required');
+
+    const _id = new ObjectId(id);
+    const user = await this.userService.findById(_id);
+    if (!user || user.isDeleted) throw new NotFoundException('data not found');
+
+    await this.userService.toggleStatus(_id, body.is_active);
+
+    const status = body.is_active ? 'activated' : 'deactivated';
+
+    return {
+      message: `User ${status} successfully`,
     };
   }
 

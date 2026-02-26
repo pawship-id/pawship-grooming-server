@@ -112,6 +112,16 @@ export class UserService {
     }
   }
 
+  async toggleStatus(id: ObjectId, is_active: boolean) {
+    const user = await this.userModel.findByIdAndUpdate(
+      id,
+      { is_active },
+      { new: true },
+    );
+
+    return user;
+  }
+
   async delete(id: ObjectId) {
     const user = await this.userModel.findByIdAndUpdate(id, {
       isDeleted: true,

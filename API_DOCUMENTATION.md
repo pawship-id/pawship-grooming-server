@@ -284,7 +284,71 @@ GET /users?page=2&limit=20&search=john&role=customer&is_active=true
 
 ---
 
-### 5. Delete User (Soft Delete)
+### 5. Toggle User Status (Activate/Deactivate)
+
+**Endpoint:** `PATCH /users/toggle-status/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Request Body:**
+
+```json
+{
+  "is_active": "boolean (required)"
+}
+```
+
+**Success Response (200):**
+
+When activating user:
+
+```json
+{
+  "message": "User activated successfully"
+}
+```
+
+When deactivating user:
+
+```json
+{
+  "message": "User deactivated successfully"
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Missing or invalid fields
+
+```json
+{
+  "statusCode": 400,
+  "message": ["is_active is required", "is_active must be a boolean"],
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** User not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "data not found",
+  "error": "Not Found"
+}
+```
+
+**Notes:**
+
+- Use this endpoint to activate or deactivate user accounts
+- When `is_active` is `false`, the user account is deactivated but not deleted
+- Deactivated users can be reactivated by setting `is_active` to `true`
+
+---
+
+### 6. Delete User (Soft Delete)
 
 **Endpoint:** `DELETE /users/:id`
 
