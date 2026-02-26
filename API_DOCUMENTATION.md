@@ -1266,6 +1266,18 @@ Services support multi-size pricing (different prices for different pet sizes). 
 
 - `Authorization: Bearer {access_token}` (required)
 
+**Query Parameters (optional):**
+
+- `page` (number, default: 1)
+- `limit` (number, default: 10)
+- `search` (string) — search by `name`, `code`, or `description`
+- `is_active` (boolean)
+- `available_for_unlimited` (boolean)
+- `service_type_id` (MongoDB ObjectId)
+- `pet_type_id` (MongoDB ObjectId)
+- `size_category_id` (MongoDB ObjectId)
+- `store_id` (MongoDB ObjectId)
+
 **Success Response (200):**
 
 ```json
@@ -1328,7 +1340,13 @@ Services support multi-size pricing (different prices for different pet sizes). 
       "createdAt": "2026-01-15T10:30:00.000Z",
       "updatedAt": "2026-01-15T10:30:00.000Z"
     }
-  ]
+  ],
+  "pagination": {
+    "total": 2,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 1
+  }
 }
 ```
 
@@ -1337,6 +1355,7 @@ Services support multi-size pricing (different prices for different pet sizes). 
 - Returns only non-deleted services (`isDeleted: false`)
 - All relationships are populated with their respective names
 - Service names are automatically capitalized
+- Use query parameters to filter and paginate results
 
 ---
 
