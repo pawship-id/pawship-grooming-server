@@ -8,13 +8,16 @@ import {
   BadRequestException,
   NotFoundException,
   Put,
+  UseGuards,
 } from '@nestjs/common';
 import { ServiceService } from './service.service';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { ObjectId } from 'mongodb';
+import { AuthGuard } from 'src/auth/auth.guard';
 
 @Controller('services')
+@UseGuards(AuthGuard)
 export class ServiceController {
   constructor(private readonly serviceService: ServiceService) {}
 

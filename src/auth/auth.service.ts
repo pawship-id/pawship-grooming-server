@@ -52,7 +52,12 @@ export class AuthService {
     const isMatch = await comparePassword(password, findUser.password);
     if (!isMatch) throw new UnauthorizedException('invalid email or password');
 
-    const payload = { _id: findUser._id, email: findUser.email };
+    const payload = {
+      _id: findUser._id,
+      email: findUser.email,
+      username: findUser.username,
+      role: findUser.role,
+    };
 
     const token = await this.jwtService.signAsync(payload);
 

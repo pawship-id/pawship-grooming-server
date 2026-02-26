@@ -1,7 +1,6 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
-  IsDateString,
   IsEnum,
   IsMongoId,
   IsNotEmpty,
@@ -9,7 +8,7 @@ import {
   IsString,
   ValidateNested,
 } from 'class-validator';
-import { BookingStatus, GroomingType, MediaType } from './booking.dto';
+import { BookingStatus, GroomingType, ServiceType } from './booking.dto';
 
 export class PetSnapshotDto {
   @IsOptional()
@@ -33,7 +32,19 @@ export class BookingStatusLogDto {
   note?: string;
 }
 
+export class AssignedGroomerDto {
+  @IsString()
+  task: string;
+
+  @IsMongoId({ message: 'groomer_id must be a valid Mongo ID' })
+  groomer_id: string;
+}
+
 export class CreateBookingDto {
+  @IsOptional()
+  @IsEnum(ServiceType)
+  service_type?: ServiceType;
+
   @IsMongoId({ message: 'customer must be a valid ID' })
   @IsNotEmpty({ message: 'customer is required' })
   customer_id: string;
@@ -44,11 +55,11 @@ export class CreateBookingDto {
 
   @ValidateNested()
   @Type(() => PetSnapshotDto)
-  pet_snapshot: PetSnapshotDto;
+  pet_snapshot?: PetSnapshotDto;
 
   @IsOptional()
   @IsMongoId({ message: 'store must be a valid ID' })
-  store_id?: string;
+  store_id: string;
 
   @IsNotEmpty({ message: 'date booking is required' })
   date: Date;
@@ -88,8 +99,9 @@ export class CreateBookingDto {
 
   @IsOptional()
   @IsArray()
-  @IsMongoId({ each: true, message: 'Each groomer on must be a valid ID' })
-  assigned_groomer_ids?: string[];
+  @ValidateNested({ each: true })
+  @Type(() => AssignedGroomerDto)
+  assigned_groomers?: AssignedGroomerDto[];
 
   @IsOptional()
   @IsString()

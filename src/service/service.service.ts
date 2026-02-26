@@ -98,7 +98,7 @@ export class ServiceService {
   async getServiceForBooking(serviceId: ObjectId, sizeCategoryId: ObjectId) {
     const service = await this.serviceModel
       .findById(serviceId)
-      .select('code name prices size_category_id isDeleted')
+      .select('code name prices size_category_id isDeleted duration')
       .lean();
 
     if (!service || service.isDeleted) {
@@ -114,6 +114,52 @@ export class ServiceService {
       code: service.code,
       name: service.name,
       price: priceItem?.price ?? 0,
+      duration: service.duration,
     };
+  }
+
+  async findAllForGuest(storeId?: string, type?: string) {
+    const filter: any = { isDeleted: false };
+
+    // Filter by service type if provided
+    if (type) {
+      // Assuming 'grooming' or 'addon' is stored in service_type or a separate field
+      // You may need to adjust this based on your actual schema
+      // For now, we'll filter by a field called 'type' or you can populate service_type
+      filter.service_type_id = type;
+    }
+
+    let services = await this.serviceModel
+      .find(filter)
+      .populate('service_type', 'name')
+      .populate('size_categories', 'name')
+      .populate('pet_types', 'name')
+      .populate('avaiable_store', 'name')
+      .populate({
+        path: 'prices.size_id',
+        model: 'Option',
+        select: 'name',
+      })
+      // .lean()
+      .exec();
+
+    // Filter by store if provided
+    if (storeId) {
+      services = services.filter((service: any) => {
+        // If available_store_ids is empty, service is available at all stores
+        if (
+          !service.available_store_ids ||
+          service.available_store_ids.length === 0
+        ) {
+          return true;
+        }
+        // Otherwise, check if storeId is in available_store_ids
+        return service.available_store_ids.some(
+          (id: any) => id.toString() === storeId,
+        );
+      });
+    }
+
+    return services;
   }
 }

@@ -1,48 +1,32 @@
 import {
-  IsArray,
-  IsDateString,
   IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
-  ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
-import { GroomingSessionStatus, MediaType } from './booking.dto';
-import { GroomingMediaDto } from './grooming-media.dto';
+import { MediaType } from './booking.dto';
 
-export class CreateGroomingSessionDto {
-  @IsOptional()
-  @IsEnum(GroomingSessionStatus)
-  status: GroomingSessionStatus;
+// DTO for media within a session
+export class SessionMediaDto {
+  @IsEnum(MediaType)
+  @IsNotEmpty()
+  type: MediaType;
 
-  @IsOptional()
-  @IsDateString()
-  arrived_at?: string;
+  @IsString()
+  @IsNotEmpty()
+  secure_url: string;
 
-  @IsOptional()
-  @IsDateString()
-  started_at?: string;
-
-  @IsOptional()
-  @IsDateString()
-  finished_at?: string;
+  @IsString()
+  @IsNotEmpty()
+  public_id: string;
 
   @IsOptional()
   @IsString()
-  pre_conditions?: string;
+  note?: string;
 
-  @IsOptional()
-  @IsString()
-  notes?: string;
-
-  @IsOptional()
-  @IsString()
-  internal_note?: string;
-
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => GroomingMediaDto)
-  media?: GroomingMediaDto[];
+  @IsNotEmpty()
+  created_by: {
+    user_id: string;
+    name_snapshot: string;
+  };
 }

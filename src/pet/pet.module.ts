@@ -5,6 +5,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Option, OptionSchema } from 'src/option/entities/option.entity';
 import { Pet, PetSchema } from './entities/pet.entity';
 import { User, UserSchema } from 'src/user/user.model';
+import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { User, UserSchema } from 'src/user/user.model';
       { name: Option.name, schema: OptionSchema },
       { name: User.name, schema: UserSchema },
     ]),
+    AuthModule,
   ],
   controllers: [PetController],
   providers: [PetService],
