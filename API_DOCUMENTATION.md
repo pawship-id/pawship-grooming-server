@@ -111,6 +111,34 @@ Base URL: `http://localhost:3000`
 
 **Endpoint:** `GET /users`
 
+**Query Parameters:**
+
+- `page` (optional, number): Page number for pagination (default: 1, min: 1)
+- `limit` (optional, number): Number of items per page (default: 10, min: 1)
+- `search` (optional, string): Search keyword to filter users by username, email, or phone_number (case-insensitive)
+- `role` (optional, enum): Filter by user role
+  - `admin` | `ops` | `groomer` | `customer`
+- `is_active` (optional, boolean): Filter by active status (true/false)
+
+**Example Requests:**
+
+```bash
+# Basic pagination
+GET /users?page=1&limit=10
+
+# Search users
+GET /users?search=john
+
+# Filter by role
+GET /users?role=admin
+
+# Filter by active status
+GET /users?is_active=true
+
+# Combined filters
+GET /users?page=2&limit=20&search=john&role=customer&is_active=true
+```
+
 **Success Response (200):**
 
 ```json
@@ -127,9 +155,22 @@ Base URL: `http://localhost:3000`
       "createdAt": "2026-02-19T10:00:00.000Z",
       "updatedAt": "2026-02-19T10:00:00.000Z"
     }
-  ]
+  ],
+  "pagination": {
+    "total": 100,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 10
+  }
 }
 ```
+
+**Notes:**
+
+- All query parameters are optional
+- Search performs case-insensitive pattern matching across username, email, and phone_number fields
+- Results are sorted by creation date (newest first)
+- Users with `isDeleted: true` are excluded from results
 
 ---
 
