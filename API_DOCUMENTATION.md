@@ -698,11 +698,12 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
         "timezone": "Asia/Jakarta"
       },
       "capacity": {
-        "max_booking_per_day": 20,
-        "max_booking_per_slot": 5,
-        "slot_duration_minutes": 60
+        "default_daily_capacity_minutes": 480,
+        "overbooking_limit_minutes": 60
       },
-      "is_active": true
+      "is_active": true,
+      "createdAt": "2024-01-15T08:00:00.000Z",
+      "updatedAt": "2024-01-15T08:00:00.000Z"
     }
   ],
   "pagination": {
@@ -741,12 +742,39 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
     "_id": "507f1f77bcf86cd799439011",
     "code": "STR001",
     "name": "Pawship Store Jakarta",
-    "description": "Main store",
-    "location": { ... },
-    "contact": { ... },
-    "operational": { ... },
-    "capacity": { ... },
-    "is_active": true
+    "description": "Main store in Jakarta",
+    "location": {
+      "address": "Jl. Sudirman No. 123",
+      "city": "Jakarta",
+      "province": "DKI Jakarta",
+      "postal_code": "12345",
+      "latitude": -6.2088,
+      "longitude": 106.8456
+    },
+    "contact": {
+      "phone_number": "+628123456789",
+      "whatsapp": "+628123456789",
+      "email": "jakarta@pawship.com"
+    },
+    "operational": {
+      "opening_time": "09:00",
+      "closing_time": "18:00",
+      "operational_days": [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday"
+      ],
+      "timezone": "Asia/Jakarta"
+    },
+    "capacity": {
+      "default_daily_capacity_minutes": 480,
+      "overbooking_limit_minutes": 60
+    },
+    "is_active": true,
+    "createdAt": "2024-01-15T08:00:00.000Z",
+    "updatedAt": "2024-01-15T08:00:00.000Z"
   }
 }
 ```
@@ -788,9 +816,8 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
     "timezone": "string (optional, default: Asia/Jakarta)"
   },
   "capacity": {
-    "max_booking_per_day": "number (optional)",
-    "max_booking_per_slot": "number (optional)",
-    "slot_duration_minutes": "number (optional)"
+    "default_daily_capacity_minutes": "number (required)",
+    "overbooking_limit_minutes": "number (required)"
   },
   "is_active": "boolean (optional, default: true)"
 }
@@ -803,6 +830,14 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
   "message": "Create store successfully"
 }
 ```
+
+**Notes:**
+
+- `code`: Must be unique (e.g., STR001, STR002)
+- `name`: Store name
+- `capacity.default_daily_capacity_minutes`: Total minutes available per day (e.g., 480 for 8 hours)
+- `capacity.overbooking_limit_minutes`: Additional minutes allowed beyond default capacity (e.g., 60 for up to 1 hour overbooking)
+- `operational_days`: Valid values are Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday
 
 ---
 
