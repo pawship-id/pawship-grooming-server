@@ -23,6 +23,7 @@ import {
   UpdateUserDto,
   GetUsersQueryDto,
   ToggleUserStatusDto,
+  UpdatePasswordDto,
 } from './user.dto';
 import { AuthGuard } from 'src/auth/auth.guard';
 
@@ -110,6 +111,25 @@ export class UserController {
 
     return {
       message: 'Update user successfully',
+    };
+  }
+
+  @Patch('update-password/:id')
+  @HttpCode(HttpStatus.OK)
+  async updatePassword(
+    @Param('id') id: string,
+    @Body() body: UpdatePasswordDto,
+  ) {
+    if (!id) throw new BadRequestException('id is required');
+
+    const _id = new ObjectId(id);
+    const user = await this.userService.findById(_id);
+    if (!user || user.isDeleted) throw new NotFoundException('data not found');
+
+    await this.userService.updatePassword(_id, body.password);
+
+    return {
+      message: 'Update password successfully',
     };
   }
 

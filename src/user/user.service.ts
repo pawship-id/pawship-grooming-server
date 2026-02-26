@@ -125,6 +125,18 @@ export class UserService {
     return user;
   }
 
+  async updatePassword(id: ObjectId, password: string) {
+    const hash = await hashPassword(password);
+
+    const user = await this.userModel.findByIdAndUpdate(
+      id,
+      { $set: { password: hash } },
+      { new: true },
+    );
+
+    return user;
+  }
+
   async delete(id: ObjectId) {
     const user = await this.userModel.findByIdAndUpdate(id, {
       isDeleted: true,

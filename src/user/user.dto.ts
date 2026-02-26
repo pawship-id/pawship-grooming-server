@@ -85,3 +85,9 @@ export class ToggleUserStatusDto {
   @IsBoolean({ message: 'is_active must be a boolean' })
   is_active: boolean;
 }
+
+export class UpdatePasswordDto {
+  @MinLength(6, { message: 'Password must be at least 6 characters' })
+  @IsNotEmpty({ message: 'password is required' })
+  password: string;
+}

@@ -325,7 +325,6 @@ Authorization: Bearer <jwt_token>
   "username": "string",
   "email": "string",
   "phone_number": "string",
-  "password": "string",
   "role": "admin | ops | groomer | customer",
   "is_active": "boolean"
 }
@@ -343,9 +342,67 @@ Authorization: Bearer <jwt_token>
 
 - **404 Not Found:** User not found
 
+**Notes:**
+
+- Password cannot be updated through this endpoint. Use the Update Password endpoint instead.
+
 ---
 
-### 6. Toggle User Status (Activate/Deactivate)
+### 6. Update User Password
+
+**Endpoint:** `PATCH /users/update-password/:id`
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Request Body:**
+
+```json
+{
+  "password": "string (required, min 6 characters)"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Update password successfully"
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Missing or invalid password
+
+```json
+{
+  "statusCode": 400,
+  "message": ["password is required", "Password must be at least 6 characters"],
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** User not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "data not found",
+  "error": "Not Found"
+}
+```
+
+**Notes:**
+
+- This endpoint is specifically for updating user passwords
+- Password is hashed before storing in database
+- Minimum password length is 6 characters
+
+---
+
+### 7. Toggle User Status (Activate/Deactivate)
 
 **Endpoint:** `PATCH /users/toggle-status/:id`
 
@@ -409,7 +466,7 @@ When deactivating user:
 
 ---
 
-### 7. Delete User (Soft Delete)
+### 8. Delete User (Soft Delete)
 
 **Endpoint:** `DELETE /users/:id`
 
