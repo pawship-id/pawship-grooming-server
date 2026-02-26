@@ -97,9 +97,12 @@ export class UserService {
 
   async update(id: ObjectId, body: UpdateUserDto) {
     try {
+      // Exclude password from update
+      const { password, ...updateData } = body;
+
       const user = await this.userModel.findByIdAndUpdate(
         id,
-        { $set: body },
+        { $set: updateData },
         { new: true },
       );
 
