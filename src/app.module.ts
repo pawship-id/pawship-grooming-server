@@ -13,6 +13,7 @@ import { PetModule } from './pet/pet.module';
 import { BookingModule } from './booking/booking.module';
 import { GuestModule } from './guest/guest.module';
 import { StoreDailyCapacityModule } from './store-daily-capacity/store-daily-capacity.module';
+import { ServiceTypeModule } from './service-type/service-type.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 
 @Module({
@@ -37,6 +38,7 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
     BookingModule,
     GuestModule,
     StoreDailyCapacityModule,
+    ServiceTypeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

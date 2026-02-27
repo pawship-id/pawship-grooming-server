@@ -11,10 +11,11 @@ Base URL: `http://localhost:3000`
 3. [Options](#options)
 4. [Stores](#stores)
 5. [Services](#services)
-6. [Pets](#pets)
-7. [Memberships](#memberships)
-8. [Bookings](#bookings)
-9. [Grooming Sessions](#grooming-sessions)
+6. [Service Types](#service-types)
+7. [Pets](#pets)
+8. [Memberships](#memberships)
+9. [Bookings](#bookings)
+10. [Grooming Sessions](#grooming-sessions)
 
 ---
 
@@ -729,7 +730,6 @@ Options are master data categories like pet types, sizes, breeds, etc.
   - `member category`
   - `customer category`
   - `pet type`
-  - `service type`
 
 **Success Response (200):**
 
@@ -787,7 +787,7 @@ Options are master data categories like pet types, sizes, breeds, etc.
 ```json
 {
   "name": "string (required)",
-  "category_options": "hair category | size category | breed category | member category | customer category | pet type | service type (required)",
+  "category_options": "hair category | size category | breed category | member category | customer category | pet type (required)",
   "is_active": "boolean (optional)"
 }
 ```
@@ -1670,6 +1670,233 @@ Services support multi-size pricing (different prices for different pet sizes). 
 - This is a soft delete operation
 - Service is marked with `isDeleted: true` and `deletedAt` timestamp
 - Deleted services are excluded from GET endpoints
+
+---
+
+## Service Types
+
+Service Types represent the categories of grooming/hotel/addon services offered (e.g., Grooming, Hotel, Addon).
+
+### 1. Get All Service Types
+
+**Endpoint:** `GET /service-types`
+
+**Headers:**
+
+- `Authorization: Bearer {access_token}` (required)
+
+**Query Parameters (optional):**
+
+- `page` (number, default: 1)
+- `limit` (number, default: 10)
+- `search` (string) — search by `title` or `desc`
+- `is_active` (boolean)
+- `show_in_homepage` (boolean)
+
+**Example Requests:**
+
+```bash
+GET /service-types?page=1&limit=10
+GET /service-types?search=grooming
+GET /service-types?is_active=true
+GET /service-types?show_in_homepage=true
+GET /service-types?search=grooming&is_active=true&page=1&limit=5
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch service types successfully",
+  "serviceTypes": [
+    {
+      "_id": "507f1f77bcf86cd799439011",
+      "title": "Grooming",
+      "desc": "Full grooming service for pets",
+      "image_url": "pawship-grooming/service-types/grooming",
+      "secure_url": "https://res.cloudinary.com/example/image/upload/v1/service-types/grooming.jpg",
+      "is_active": true,
+      "show_in_homepage": true,
+      "isDeleted": false,
+      "createdAt": "2026-02-19T10:00:00.000Z",
+      "updatedAt": "2026-02-19T10:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "total": 3,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 1
+  }
+}
+```
+
+---
+
+### 2. Get Service Type By ID
+
+**Endpoint:** `GET /service-types/:id`
+
+**Headers:**
+
+- `Authorization: Bearer {access_token}` (required)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch service type successfully",
+  "serviceType": {
+    "_id": "507f1f77bcf86cd799439011",
+    "title": "Grooming",
+    "desc": "Full grooming service for pets",
+    "image_url": "https://res.cloudinary.com/example/image/upload/v1/service-types/grooming.jpg",
+    "secure_url": "https://res.cloudinary.com/example/image/upload/v1/service-types/grooming.jpg",
+    "is_active": true,
+    "show_in_homepage": true,
+    "isDeleted": false,
+    "createdAt": "2026-02-19T10:00:00.000Z",
+    "updatedAt": "2026-02-19T10:00:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- **404 Not Found:** Service type not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "data not found",
+  "error": "Not Found"
+}
+```
+
+---
+
+### 3. Create Service Type
+
+**Endpoint:** `POST /service-types`
+
+**Content-Type:** `multipart/form-data`
+
+**Headers:**
+
+- `Authorization: Bearer {access_token}` (required)
+
+**Request Body (Form-Data):**
+
+- `title`: string (required)
+- `desc`: string (optional)
+- `image`: File (optional) — image to upload to Cloudinary
+- `is_active`: boolean string `"true"` or `"false"` (optional, default: `false`)
+- `show_in_homepage`: boolean string `"true"` or `"false"` (optional, default: `false`)
+
+**Example Form-Data in Postman:**
+
+```
+Key: title            | Type: Text | Value: Grooming
+Key: desc             | Type: Text | Value: Full grooming service for pets
+Key: image            | Type: File | Value: [Select file]
+Key: is_active        | Type: Text | Value: true
+Key: show_in_homepage | Type: Text | Value: false
+```
+
+**Success Response (201):**
+
+```json
+{
+  "message": "Create service type successfully"
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Validation error
+
+```json
+{
+  "statusCode": 400,
+  "message": ["title is required"],
+  "error": "Bad Request"
+}
+```
+
+- **500 Internal Server Error:** Cloudinary upload failed
+
+---
+
+### 4. Update Service Type
+
+**Endpoint:** `PUT /service-types/:id`
+
+**Content-Type:** `multipart/form-data`
+
+**Headers:**
+
+- `Authorization: Bearer {access_token}` (required)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Request Body (Form-Data):** (All fields optional)
+
+- `title`: string
+- `desc`: string
+- `image`: File — new image to upload (replaces `image_url` and `secure_url`)
+- `is_active`: boolean string `"true"` or `"false"`
+- `show_in_homepage`: boolean string `"true"` or `"false"`
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Update service type successfully"
+}
+```
+
+**Error Responses:**
+
+- **404 Not Found:** Service type not found
+- **500 Internal Server Error:** Cloudinary upload failed
+
+---
+
+### 5. Delete Service Type
+
+**Endpoint:** `DELETE /service-types/:id`
+
+**Headers:**
+
+- `Authorization: Bearer {access_token}` (required)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Delete service type successfully"
+}
+```
+
+**Error Responses:**
+
+- **404 Not Found:** Service type not found
+
+**Notes:**
+
+- This is a soft delete operation
+- Service type is marked with `isDeleted: true` and `deletedAt` timestamp
+- Deleted service types are excluded from GET endpoints
 
 ---
 
@@ -3173,7 +3400,6 @@ BREED = 'breed category';
 MEMBER = 'member category';
 CUSTOMER = 'customer category';
 PET_TYPE = 'pet type';
-SERVICE_TYPE = 'service type';
 ```
 
 ---
