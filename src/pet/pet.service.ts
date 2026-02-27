@@ -27,9 +27,9 @@ export class PetService {
       customer_id: new Types.ObjectId(body.customer_id),
     };
 
-    if (body.feather_category_id) {
-      petData.feather_category_id = new Types.ObjectId(
-        body.feather_category_id,
+    if (body.hair_category_id) {
+      petData.hair_category_id = new Types.ObjectId(
+        body.hair_category_id,
       );
     }
 
@@ -110,7 +110,7 @@ export class PetService {
       .limit(limit)
       .sort({ createdAt: -1 })
       .populate('pet_type', 'name')
-      .populate('feather', 'name')
+      .populate('hair', 'name')
       .populate('size', 'name')
       .populate('breed', 'name')
       .populate('member_category', 'name')
@@ -132,7 +132,7 @@ export class PetService {
     const pet = await this.petModel
       .findById(id)
       .populate('pet_type', 'name')
-      .populate('feather', 'name')
+      .populate('hair', 'name')
       .populate('size', 'name')
       .populate('breed', 'name')
       .populate('member_category', 'name')
@@ -155,7 +155,7 @@ export class PetService {
       'size_category_id',
       'breed_category_id',
       'customer_id',
-      'feather_category_id',
+      'hair_category_id',
       'member_category_id',
     ];
 

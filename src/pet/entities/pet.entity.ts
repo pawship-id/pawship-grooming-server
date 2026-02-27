@@ -34,7 +34,7 @@ const MembershipItemSchema = SchemaFactory.createForClass(MembershipItem);
       delete ret.id;
       delete ret.__v;
       delete ret.pet_type_id;
-      delete ret.feather_category_id;
+      delete ret.hair_category_id;
       delete ret.size_category_id;
       delete ret.breed_category_id;
       delete ret.member_category_id;
@@ -78,7 +78,7 @@ export class Pet {
     type: Types.ObjectId,
     ref: 'Option',
   })
-  feather_category_id: Types.ObjectId;
+  hair_category_id: Types.ObjectId;
 
   @Prop()
   birthday: Date;
@@ -140,9 +140,9 @@ PetSchema.virtual('pet_type', {
   justOne: true,
 });
 
-PetSchema.virtual('feather', {
+PetSchema.virtual('hair', {
   ref: 'Option',
-  localField: 'feather_category_id',
+  localField: 'hair_category_id',
   foreignField: '_id',
   justOne: true,
 });

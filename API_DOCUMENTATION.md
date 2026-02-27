@@ -321,7 +321,7 @@ For customer users:
             "_id": "698bf0d362f5760ac021c595",
             "name": "Cat"
         },
-        "feather": null,
+        "hair": null,
         "size": {
             "_id": "698bf0e462f5760ac021c597",
             "name": "Small"
@@ -366,7 +366,7 @@ For customer users:
 - This endpoint retrieves information about the currently authenticated user based on JWT token
 - Sensitive fields (`password`, `refresh_token`, `refresh_token_expires_at`) are automatically excluded from response
 - If user role is `customer`, the response includes a `pets` array with all their pets (non-deleted only)
-- Pets are populated with their relationships: pet_type, feather_category, size_category, breed_category, and member_category
+- Pets are populated with their relationships: pet_type, hair_category, size_category, breed_category, and member_category
 - Useful for profile pages or checking current user permissions
 
 ---
@@ -437,7 +437,7 @@ For customer users:
           "_id": "507f1f77bcf86cd799439012",
           "name": "Dog"
         },
-        "feather": {
+        "hair": {
           "_id": "507f1f77bcf86cd799439013",
           "name": "Short"
         },
@@ -503,7 +503,7 @@ For customer users:
 
 - Sensitive fields (`password`, `refresh_token`, `refresh_token_expires_at`) are automatically excluded from response
 - If user role is `customer`, the response includes a `pets` array with all their pets (non-deleted only)
-- Pets are populated with their relationships: pet_type, feather, size, breed, and member_category
+- Pets are populated with their relationships: pet_type, hair, size, breed, and member_category
 
 ---
 
@@ -723,7 +723,7 @@ Options are master data categories like pet types, sizes, breeds, etc.
 **Query Parameters:**
 
 - `category` (optional): Filter by category
-  - `feather category`
+  - `hair category`
   - `size category`
   - `breed category`
   - `member category`
@@ -787,7 +787,7 @@ Options are master data categories like pet types, sizes, breeds, etc.
 ```json
 {
   "name": "string (required)",
-  "category_options": "feather category | size category | breed category | member category | customer category | pet type | service type (required)",
+  "category_options": "hair category | size category | breed category | member category | customer category | pet type | service type (required)",
   "is_active": "boolean (optional)"
 }
 ```
@@ -1714,7 +1714,7 @@ Services support multi-size pricing (different prices for different pet sizes). 
         "_id": "507f1f77bcf86cd799439012",
         "name": "Dog"
       },
-      "feather": {
+      "hair": {
         "_id": "507f1f77bcf86cd799439013",
         "name": "Short"
       },
@@ -1801,7 +1801,7 @@ Services support multi-size pricing (different prices for different pet sizes). 
       "_id": "507f1f77bcf86cd799439012",
       "name": "Dog"
     },
-    "feather": {
+    "hair": {
       "_id": "507f1f77bcf86cd799439013",
       "name": "Short"
     },
@@ -1878,7 +1878,7 @@ Services support multi-size pricing (different prices for different pet sizes). 
     "public_id": "string (optional)"
   },
   "pet_type_id": "MongoDB ObjectId (required)",
-  "feather_category_id": "MongoDB ObjectId (optional)",
+  "hair_category_id": "MongoDB ObjectId (optional)",
   "birthday": "Date (optional)",
   "size_category_id": "MongoDB ObjectId (required)",
   "breed_category_id": "MongoDB ObjectId (required)",
@@ -3167,7 +3167,7 @@ CUSTOMER = 'customer';
 ### CategoryOption
 
 ```typescript
-FEATHER = 'feather category';
+HAIR = 'hair category';
 SIZE = 'size category';
 BREED = 'breed category';
 MEMBER = 'member category';

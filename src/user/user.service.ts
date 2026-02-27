@@ -76,7 +76,7 @@ export class UserService {
       const pets = await this.petModel
         .find({ customer_id: id, isDeleted: false })
         .populate('pet_type', 'name')
-        .populate('feather', 'name')
+        .populate('hair', 'name')
         .populate('size', 'name')
         .populate('breed', 'name')
         .populate('member_category', 'name')

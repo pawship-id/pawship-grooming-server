@@ -58,9 +58,9 @@ export class CreatePetDto {
   @IsNotEmpty({ message: 'pet type is required' })
   pet_type_id: string;
 
-  @IsMongoId({ message: 'feather category must be a valid ID' })
+  @IsMongoId({ message: 'hair category must be a valid ID' })
   @IsOptional()
-  feather_category_id?: string;
+  hair_category_id?: string;
 
   @IsOptional()
   birthday?: Date;
