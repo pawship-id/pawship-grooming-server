@@ -10,7 +10,10 @@ import {
   Put,
   UseGuards,
   Query,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ServiceService } from './service.service';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
@@ -24,8 +27,12 @@ export class ServiceController {
   constructor(private readonly serviceService: ServiceService) {}
 
   @Post()
-  async create(@Body() body: CreateServiceDto) {
-    await this.serviceService.create(body);
+  @UseInterceptors(FileInterceptor('image'))
+  async create(
+    @Body() body: CreateServiceDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    await this.serviceService.create(body, file);
 
     return {
       message: 'Create service successfully',
@@ -58,7 +65,12 @@ export class ServiceController {
   }
 
   @Put(':id')
-  async update(@Param('id') id: string, @Body() body: UpdateServiceDto) {
+  @UseInterceptors(FileInterceptor('image'))
+  async update(
+    @Param('id') id: string,
+    @Body() body: UpdateServiceDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
     if (!id) throw new BadRequestException('id is required');
 
     const _id = new ObjectId(id);
@@ -66,7 +78,7 @@ export class ServiceController {
     if (!service || service.isDeleted)
       throw new NotFoundException('data not found');
 
-    await this.serviceService.update(_id, body);
+    await this.serviceService.update(_id, body, file);
 
     return {
       message: 'Update service successfully',

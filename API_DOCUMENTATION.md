@@ -1256,7 +1256,7 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
 
 ## Services
 
-Services support multi-size pricing (different prices for different pet sizes). All responses include populated relationships for service_type, size_categories, pet_types, available_store, and price size names.
+Services support multi-size pricing (different prices for different pet sizes). All responses include populated relationships for service_type, size_categories, pet_types, available_store, addons, and price size names.
 
 ### 1. Get All Services
 
@@ -1329,12 +1329,23 @@ Services support multi-size pricing (different prices for different pet sizes). 
       ],
       "duration": 60,
       "available_for_unlimited": false,
+      "image_url": "https://res.cloudinary.com/example/image/upload/v1/services/basic-grooming.jpg",
+      "public_id": "pawship-grooming/services/basic-grooming",
       "avaiable_store": [
         {
           "_id": "507f1f77bcf86cd799439016",
           "name": "Store Jakarta Pusat"
         }
       ],
+      "addons": [
+        {
+          "_id": "507f1f77bcf86cd799439022",
+          "code": "ADD001",
+          "name": "Ear Cleaning",
+          "image_url": "https://res.cloudinary.com/example/image/upload/v1/services/ear-cleaning.jpg"
+        }
+      ],
+      "include": ["Bath", "Nail Trim", "Ear Cleaning"],
       "is_active": true,
       "isDeleted": false,
       "createdAt": "2026-01-15T10:30:00.000Z",
@@ -1388,6 +1399,8 @@ Services support multi-size pricing (different prices for different pet sizes). 
     "createdAt": "2026-02-12T03:24:24.372Z",
     "updatedAt": "2026-02-17T13:23:16.199Z",
     "available_for_unlimited": true,
+    "image_url": "https://res.cloudinary.com/example/image/upload/v1/services/full-grooming.jpg",
+    "public_id": "pawship-grooming/services/full-grooming",
     "prices": [
       {
         "size_id": "698bf0e462f5760ac021c597",
@@ -1434,7 +1447,16 @@ Services support multi-size pricing (different prices for different pet sizes). 
         "_id": "698be0cd80c319b74fe2f073",
         "name": "Pawship.id"
       }
-    ]
+    ],
+    "addons": [
+      {
+        "_id": "507f1f77bcf86cd799439022",
+        "code": "ADD001",
+        "name": "Ear Cleaning",
+        "image_url": "https://res.cloudinary.com/example/image/upload/v1/services/ear-cleaning.jpg"
+      }
+    ],
+    "include": ["Bath", "Nail Trim", "Ear Cleaning"]
   }
 }
 ```
@@ -1457,52 +1479,67 @@ Services support multi-size pricing (different prices for different pet sizes). 
 
 **Endpoint:** `POST /services`
 
+**Content-Type:** `multipart/form-data`
+
 **Headers:**
 
 - `Authorization: Bearer {access_token}` (required)
 
-**Request Body:**
+**Request Body (Form-Data):**
 
-```json
-{
-  "code": "SVC001",
-  "name": "basic grooming",
-  "description": "Basic grooming package",
-  "service_type_id": "507f1f77bcf86cd799439012",
-  "pet_type_ids": ["507f1f77bcf86cd799439013"],
-  "size_category_ids": ["507f1f77bcf86cd799439014", "507f1f77bcf86cd799439015"],
-  "prices": [
-    {
-      "size_id": "507f1f77bcf86cd799439014",
-      "price": 100000
-    },
-    {
-      "size_id": "507f1f77bcf86cd799439015",
-      "price": 150000
-    }
-  ],
-  "duration": 60,
-  "available_for_unlimited": false,
-  "available_store_ids": ["507f1f77bcf86cd799439016"],
-  "is_active": true
-}
+- `code`: string (required) — unique service code
+- `name`: string (required) — will be auto-capitalized
+- `description`: string (optional)
+- `image`: File (optional) — image uploaded to Cloudinary
+- `service_type_id`: MongoDB ObjectId (required)
+- `pet_type_ids[]`: MongoDB ObjectId (optional, repeatable) — default: all active pet types
+- `size_category_ids[]`: MongoDB ObjectId (optional, repeatable) — default: all active size categories
+- `prices`: JSON string (optional) — e.g. `[{"size_id":"...","price":100000}]`, default: all sizes with price 0
+- `duration`: number (required, min: 1) — duration in minutes
+- `available_for_unlimited`: `"true"` or `"false"` (optional)
+- `available_store_ids[]`: MongoDB ObjectId (optional, repeatable) — default: all active stores
+- `addon_ids[]`: MongoDB ObjectId (optional, repeatable) — references to other services as add-ons
+- `include[]`: string (optional, repeatable) — list of what is included in the service (e.g. "Bath", "Nail Trim")
+- `is_active`: `"true"` or `"false"` (optional, default: `"true"`)
+
+**Example Form-Data in Postman:**
+
+```
+Key: code                  | Type: Text | Value: SVC001
+Key: name                  | Type: Text | Value: basic grooming
+Key: description           | Type: Text | Value: Basic grooming package
+Key: image                 | Type: File | Value: [Select file]
+Key: service_type_id       | Type: Text | Value: 507f1f77bcf86cd799439012
+Key: pet_type_ids[]        | Type: Text | Value: 507f1f77bcf86cd799439013
+Key: size_category_ids[]   | Type: Text | Value: 507f1f77bcf86cd799439014
+Key: size_category_ids[]   | Type: Text | Value: 507f1f77bcf86cd799439015
+Key: prices                | Type: Text | Value: [{"size_id":"507f1f77bcf86cd799439014","price":100000},{"size_id":"507f1f77bcf86cd799439015","price":150000}]
+Key: duration              | Type: Text | Value: 60
+Key: available_for_unlimited | Type: Text | Value: false
+Key: available_store_ids[] | Type: Text | Value: 507f1f77bcf86cd799439016
+Key: addon_ids[]           | Type: Text | Value: 507f1f77bcf86cd799439022
+Key: include[]             | Type: Text | Value: Bath
+Key: include[]             | Type: Text | Value: Nail Trim
+Key: include[]             | Type: Text | Value: Ear Cleaning
+Key: is_active             | Type: Text | Value: true
 ```
 
 **Field Descriptions:**
 
 - `code`: Unique service code (required)
-- `name`: Service name - will be auto-capitalized (required)
+- `name`: Service name — will be auto-capitalized (required)
 - `description`: Service description (optional)
-- `service_type_id`: Reference to service type option (required)
-- `pet_type_ids`: Array of pet type references (optional, default: all active pet types if not provided or empty array)
-- `size_category_ids`: Array of size category references (required, default: all active size categories if not provided or empty array)
-- `prices`: Array of price objects matching size categories (required, default: all active size categories with price 0 if not provided or empty array)
-  - `size_id`: Size category reference (required)
-  - `price`: Price in smallest currency unit, minimum 0 (required)
-- `duration`: Service duration in minutes, minimum 1 (required)
+- `image`: Image file — uploaded to Cloudinary, stored as `image_url` and `public_id` (optional)
+- `service_type_id`: Reference to a Service Type document (required)
+- `pet_type_ids[]`: Array of pet type Option references (optional, default: all active pet types)
+- `size_category_ids[]`: Array of size category Option references (optional, default: all active size categories)
+- `prices`: JSON-encoded array of `{ size_id, price }` (optional, default: all sizes with price 0)
+- `duration`: Duration in minutes, minimum 1 (required)
 - `available_for_unlimited`: Whether available for unlimited membership (optional)
-- `available_store_ids`: Array of store references where service is available (optional, default: all active stores if not provided or empty array)
-- `is_active`: Service active status (optional, default: true)
+- `available_store_ids[]`: Stores where service is available (optional, default: all active stores)
+- `addon_ids[]`: Other service IDs available as add-ons to this service (optional)
+- `include[]`: List of what is included in the service — free-text strings (optional)
+- `is_active`: Active status (optional, default: true)
 
 **Success Response (201):**
 
@@ -1519,7 +1556,7 @@ Services support multi-size pricing (different prices for different pet sizes). 
 ```json
 {
   "statusCode": 400,
-  "message": "Service code already exists",
+  "message": "code already exists",
   "error": "Bad Request"
 }
 ```
@@ -1533,28 +1570,30 @@ Services support multi-size pricing (different prices for different pet sizes). 
     "code is required",
     "name service is required",
     "service type must be a valid ID",
-    "size category ids is required",
-    "prices is required",
     "Duration must be at least 1 minute"
   ],
   "error": "Bad Request"
 }
 ```
 
+- **500 Internal Server Error:** Cloudinary upload failed
+
 **Notes:**
 
 - Service name will be automatically capitalized (e.g., "basic grooming" → "Basic Grooming")
 - Code must be unique across all services
-- If `available_store_ids` is not provided or is an empty array, it defaults to all active stores (isDeleted: false)
-- If `size_category_ids` is not provided or is an empty array, it defaults to all active size categories (isDeleted: false)
-- If `pet_type_ids` is not provided or is an empty array, it defaults to all active pet types (isDeleted: false)
-- If `prices` is not provided or is an empty array, it defaults to all active size categories with price set to 0
+- If `available_store_ids` is not provided or empty, defaults to all active stores
+- If `size_category_ids` is not provided or empty, defaults to all active size categories
+- If `pet_type_ids` is not provided or empty, defaults to all active pet types
+- If `prices` is not provided or empty, defaults to all active size categories with price 0
 
 ---
 
 ### 4. Update Service
 
 **Endpoint:** `PUT /services/:id`
+
+**Content-Type:** `multipart/form-data`
 
 **Headers:**
 
@@ -1564,32 +1603,22 @@ Services support multi-size pricing (different prices for different pet sizes). 
 
 - `id` (path): MongoDB ObjectId
 
-**Request Body:** Same as Create Service (all fields optional)
+**Request Body (Form-Data):** (All fields optional — same keys as Create Service)
 
-```json
-{
-  "code": "SVC001",
-  "name": "premium grooming",
-  "description": "Updated description",
-  "service_type_id": "507f1f77bcf86cd799439012",
-  "pet_type_ids": ["507f1f77bcf86cd799439013"],
-  "size_category_ids": ["507f1f77bcf86cd799439014", "507f1f77bcf86cd799439015"],
-  "prices": [
-    {
-      "size_id": "507f1f77bcf86cd799439014",
-      "price": 120000
-    },
-    {
-      "size_id": "507f1f77bcf86cd799439015",
-      "price": 180000
-    }
-  ],
-  "duration": 90,
-  "available_for_unlimited": true,
-  "available_store_ids": ["507f1f77bcf86cd799439016"],
-  "is_active": true
-}
-```
+- `code`: string
+- `name`: string
+- `description`: string
+- `image`: File — uploads new image, overwrites existing `image_url` and `public_id`
+- `service_type_id`: MongoDB ObjectId
+- `pet_type_ids[]`: MongoDB ObjectId (repeatable)
+- `size_category_ids[]`: MongoDB ObjectId (repeatable)
+- `prices`: JSON string
+- `duration`: number
+- `available_for_unlimited`: `"true"` or `"false"`
+- `available_store_ids[]`: MongoDB ObjectId (repeatable)
+- `addon_ids[]`: MongoDB ObjectId (repeatable)
+- `include[]`: string (repeatable)
+- `is_active`: `"true"` or `"false"`
 
 **Success Response (200):**
 
@@ -1606,7 +1635,7 @@ Services support multi-size pricing (different prices for different pet sizes). 
 ```json
 {
   "statusCode": 400,
-  "message": "Service code already exists",
+  "message": "code already exists",
   "error": "Bad Request"
 }
 ```
@@ -1621,15 +1650,17 @@ Services support multi-size pricing (different prices for different pet sizes). 
 }
 ```
 
+- **500 Internal Server Error:** Cloudinary upload failed
+
 **Notes:**
 
-- All fields are optional - only send fields you want to update
+- All fields are optional — only send fields you want to update
 - Service name will be automatically capitalized
 - Code must remain unique if updated
-- If `available_store_ids` is updated with an empty array, it defaults to all active stores (isDeleted: false)
-- If `size_category_ids` is updated with an empty array, it defaults to all active size categories (isDeleted: false)
-- If `pet_type_ids` is updated with an empty array, it defaults to all active pet types (isDeleted: false)
-- If `prices` is updated with an empty array, it defaults to all active size categories with price set to 0
+- If `available_store_ids` is updated with an empty array, it defaults to all active stores
+- If `size_category_ids` is updated with an empty array, it defaults to all active size categories
+- If `pet_type_ids` is updated with an empty array, it defaults to all active pet types
+- If `prices` is updated with an empty array, it defaults to all active size categories with price 0
 
 ---
 

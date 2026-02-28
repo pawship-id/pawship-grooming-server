@@ -29,6 +29,7 @@ export const ServicePriceSchema = SchemaFactory.createForClass(ServicePrice);
       delete ret.service_type_id;
       delete ret.pet_type_ids;
       delete ret.available_store_ids;
+      delete ret.addon_ids;
 
       if (ret.prices?.length) {
         ret.prices = ret.prices.map((p) => ({
@@ -59,9 +60,15 @@ export class Service {
   @Prop()
   description: string;
 
+  @Prop()
+  image_url: string;
+
+  @Prop()
+  public_id: string;
+
   @Prop({
     type: Types.ObjectId,
-    ref: 'Option',
+    ref: 'ServiceType',
     required: true,
   })
   service_type_id: Types.ObjectId;
@@ -98,6 +105,15 @@ export class Service {
   })
   available_store_ids: Types.ObjectId[];
 
+  @Prop({
+    type: [{ type: Types.ObjectId, ref: 'Service' }],
+    default: [],
+  })
+  addon_ids: Types.ObjectId[];
+
+  @Prop({ type: [String], default: [] })
+  include: string[];
+
   @Prop({ default: true })
   is_active: boolean;
 
@@ -111,7 +127,7 @@ export class Service {
 export const ServiceSchema = SchemaFactory.createForClass(Service);
 
 ServiceSchema.virtual('service_type', {
-  ref: 'Option',
+  ref: 'ServiceType',
   localField: 'service_type_id',
   foreignField: '_id',
   justOne: true,
@@ -132,5 +148,11 @@ ServiceSchema.virtual('pet_types', {
 ServiceSchema.virtual('avaiable_store', {
   ref: 'Store',
   localField: 'available_store_ids',
+  foreignField: '_id',
+});
+
+ServiceSchema.virtual('addons', {
+  ref: 'Service',
+  localField: 'addon_ids',
   foreignField: '_id',
 });

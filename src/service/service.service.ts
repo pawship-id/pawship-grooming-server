@@ -13,6 +13,7 @@ import { ObjectId } from 'mongodb';
 import { capitalizeWords } from 'src/helpers/string.helper';
 import { Option, OptionDocument } from 'src/option/entities/option.entity';
 import { Store, StoreDocument } from 'src/store/entities/store.entity';
+import { uploadToCloudinary } from 'src/helpers/cloudinary';
 
 @Injectable()
 export class ServiceService {
@@ -25,7 +26,7 @@ export class ServiceService {
     private readonly storeModel: Model<StoreDocument>,
   ) {}
 
-  async create(body: CreateServiceDto) {
+  async create(body: CreateServiceDto, file?: Express.Multer.File) {
     try {
       body.name = capitalizeWords(body.name);
 
@@ -40,12 +41,8 @@ export class ServiceService {
         );
       }
 
-      console.log(body);
-
       // If size_category_ids not provided or empty, default to all active size categories
       if (!body.size_category_ids || body.size_category_ids.length === 0) {
-        console.log('jaaa');
-
         const allSizeCategories = await this.optionModel
           .find({
             isDeleted: false,
@@ -88,7 +85,16 @@ export class ServiceService {
         }));
       }
 
-      const user = new this.serviceModel(body);
+      const data: Record<string, any> = { ...body };
+
+      if (file) {
+        const base64Image = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+        const uploadResult = await uploadToCloudinary(base64Image, 'services');
+        data.image_url = uploadResult.secure_url;
+        data.public_id = uploadResult.public_id;
+      }
+
+      const user = new this.serviceModel(data);
 
       return await user.save();
     } catch (error) {
@@ -155,10 +161,11 @@ export class ServiceService {
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 })
-      .populate('service_type', 'name')
+      .populate('service_type', 'title')
       .populate('size_categories', 'name')
       .populate('pet_types', 'name')
       .populate('avaiable_store', 'name')
+      .populate('addons', 'code name image_url')
       .populate({
         path: 'prices.size_id',
         model: 'Option',
@@ -180,10 +187,11 @@ export class ServiceService {
   async findOne(id: ObjectId) {
     const service = await this.serviceModel
       .findById(id)
-      .populate('service_type', 'name')
+      .populate('service_type', 'title')
       .populate('size_categories', 'name')
       .populate('pet_types', 'name')
       .populate('avaiable_store', 'name')
+      .populate('addons', 'code name image_url')
       .populate({
         path: 'prices.size_id',
         model: 'Option',
@@ -193,7 +201,11 @@ export class ServiceService {
     return service;
   }
 
-  async update(id: ObjectId, body: UpdateServiceDto) {
+  async update(
+    id: ObjectId,
+    body: UpdateServiceDto,
+    file?: Express.Multer.File,
+  ) {
     try {
       if (body.name) {
         body.name = capitalizeWords(body.name);
@@ -260,9 +272,18 @@ export class ServiceService {
         }));
       }
 
+      const data: Record<string, any> = { ...body };
+
+      if (file) {
+        const base64Image = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+        const uploadResult = await uploadToCloudinary(base64Image, 'services');
+        data.image_url = uploadResult.secure_url;
+        data.public_id = uploadResult.public_id;
+      }
+
       const service = await this.serviceModel.findByIdAndUpdate(
         id,
-        { $set: body },
+        { $set: data },
         { new: true },
       );
 
