@@ -1007,16 +1007,26 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
         "description": "Gentle teeth cleaning to promote dental health and fresh breath. Uses pet-safe toothpaste.",
         "prices": [
           {
+            "pet_id": "698bf0e462f5760ac021c596",
+            "pet_name": "Dog",
             "size_id": "698bf0e462f5760ac021c597",
-            "name": "Small",
+            "size_name": "Small",
+            "hair_id": "698bf0e462f5760ac021c598",
+            "hair_name": "Short",
             "price": 40000
           },
           {
+            "pet_id": "698bf0e462f5760ac021c596",
+            "pet_name": "Dog",
             "size_id": "698bf0e862f5760ac021c599",
-            "name": "Medium",
+            "size_name": "Medium",
+            "hair_id": "698bf0e462f5760ac021c598",
+            "hair_name": "Short",
             "price": 40000
           },
           {
+            "pet_id": "698bf0e462f5760ac021c596",
+            "pet_name": "Dog",
             "size_id": "698bf0ea62f5760ac021c59b",
             "name": "Large",
             "price": 45000
@@ -1058,7 +1068,7 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
 
 - Returns store details along with all services available at this store
 - Only active and non-deleted services are returned
-- Service details include populated `service_type`, `pet_types`, `size_categories` and `prices.size_id` for easy display
+- Service details include populated `service_type`, `pet_types`, `size_categories` and `prices` fields (`pet_id`, `size_id`, `hair_id`) for easy display
 
 **Error Responses:**
 
@@ -1256,7 +1266,7 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
 
 ## Services
 
-Services support multi-size pricing (different prices for different pet sizes). All responses include populated relationships for service_type, size_categories, pet_types, available_store, addons, and price size names.
+Services support flexible pricing per entry with optional `pet_id`, `size_id`, and `hair_id` combination. All responses include populated relationships for service_type, size_categories, pet_types, available_store, addons, and price option names.
 
 ### 1. Get All Services
 
@@ -1311,20 +1321,22 @@ Services support multi-size pricing (different prices for different pet sizes). 
       ],
       "prices": [
         {
-          "size_id": {
-            "_id": "507f1f77bcf86cd799439014",
-            "name": "Small"
-          },
-          "price": 100000,
-          "_id": "507f1f77bcf86cd799439020"
+          "pet_id": "507f1f77bcf86cd799439013",
+          "pet_name": "Dog",
+          "size_id": "507f1f77bcf86cd799439014",
+          "size_name": "Small",
+          "hair_id": "507f1f77bcf86cd799439017",
+          "hair_name": "Short",
+          "price": 100000
         },
         {
-          "size_id": {
-            "_id": "507f1f77bcf86cd799439015",
-            "name": "Medium"
-          },
-          "price": 150000,
-          "_id": "507f1f77bcf86cd799439021"
+          "pet_id": "507f1f77bcf86cd799439013",
+          "pet_name": "Dog",
+          "size_id": "507f1f77bcf86cd799439015",
+          "size_name": "Medium",
+          "hair_id": "507f1f77bcf86cd799439017",
+          "hair_name": "Short",
+          "price": 150000
         }
       ],
       "duration": 60,
@@ -1403,18 +1415,30 @@ Services support multi-size pricing (different prices for different pet sizes). 
     "public_id": "pawship-grooming/services/full-grooming",
     "prices": [
       {
+        "pet_id": "698bf0e462f5760ac021c596",
+        "pet_name": "Dog",
         "size_id": "698bf0e462f5760ac021c597",
-        "name": "Small",
+        "size_name": "Small",
+        "hair_id": "698bf0e462f5760ac021c598",
+        "hair_name": "Short",
         "price": 120000
       },
       {
+        "pet_id": "698bf0e462f5760ac021c596",
+        "pet_name": "Dog",
         "size_id": "698bf0e862f5760ac021c599",
-        "name": "Medium",
+        "size_name": "Medium",
+        "hair_id": "698bf0e462f5760ac021c598",
+        "hair_name": "Short",
         "price": 150000
       },
       {
+        "pet_id": "698bf0e462f5760ac021c596",
+        "pet_name": "Dog",
         "size_id": "698bf0ea62f5760ac021c59b",
-        "name": "Large",
+        "size_name": "Large",
+        "hair_id": "698bf0e462f5760ac021c598",
+        "hair_name": "Short",
         "price": 170000
       }
     ],
@@ -1494,7 +1518,7 @@ Services support multi-size pricing (different prices for different pet sizes). 
 - `service_type_id`: MongoDB ObjectId (required)
 - `pet_type_ids[]`: MongoDB ObjectId (optional, repeatable) — default: all active pet types
 - `size_category_ids[]`: MongoDB ObjectId (optional, repeatable) — default: all active size categories
-- `prices`: JSON string (optional) — e.g. `[{"size_id":"...","price":100000}]`, default: all sizes with price 0
+- `prices`: JSON string (optional) — e.g. `[{"pet_id":"...","size_id":"...","hair_id":"...","price":100000}]`, default: `[]`
 - `duration`: number (required, min: 1) — duration in minutes
 - `available_for_unlimited`: `"true"` or `"false"` (optional)
 - `available_store_ids[]`: MongoDB ObjectId (optional, repeatable) — default: all active stores
@@ -1513,7 +1537,7 @@ Key: service_type_id       | Type: Text | Value: 507f1f77bcf86cd799439012
 Key: pet_type_ids[]        | Type: Text | Value: 507f1f77bcf86cd799439013
 Key: size_category_ids[]   | Type: Text | Value: 507f1f77bcf86cd799439014
 Key: size_category_ids[]   | Type: Text | Value: 507f1f77bcf86cd799439015
-Key: prices                | Type: Text | Value: [{"size_id":"507f1f77bcf86cd799439014","price":100000},{"size_id":"507f1f77bcf86cd799439015","price":150000}]
+Key: prices                | Type: Text | Value: [{"pet_id":"507f1f77bcf86cd799439013","size_id":"507f1f77bcf86cd799439014","hair_id":"507f1f77bcf86cd799439017","price":100000},{"pet_id":"507f1f77bcf86cd799439013","size_id":"507f1f77bcf86cd799439015","hair_id":"507f1f77bcf86cd799439017","price":150000}]
 Key: duration              | Type: Text | Value: 60
 Key: available_for_unlimited | Type: Text | Value: false
 Key: available_store_ids[] | Type: Text | Value: 507f1f77bcf86cd799439016
@@ -1533,7 +1557,7 @@ Key: is_active             | Type: Text | Value: true
 - `service_type_id`: Reference to a Service Type document (required)
 - `pet_type_ids[]`: Array of pet type Option references (optional, default: all active pet types)
 - `size_category_ids[]`: Array of size category Option references (optional, default: all active size categories)
-- `prices`: JSON-encoded array of `{ size_id, price }` (optional, default: all sizes with price 0)
+- `prices`: JSON-encoded array of `{ pet_id, size_id, hair_id, price }` — all three ID fields are optional per entry (optional, default: `[]`)
 - `duration`: Duration in minutes, minimum 1 (required)
 - `available_for_unlimited`: Whether available for unlimited membership (optional)
 - `available_store_ids[]`: Stores where service is available (optional, default: all active stores)
@@ -1585,7 +1609,7 @@ Key: is_active             | Type: Text | Value: true
 - If `available_store_ids` is not provided or empty, defaults to all active stores
 - If `size_category_ids` is not provided or empty, defaults to all active size categories
 - If `pet_type_ids` is not provided or empty, defaults to all active pet types
-- If `prices` is not provided or empty, defaults to all active size categories with price 0
+- If `prices` is not provided, defaults to `[]`
 
 ---
 

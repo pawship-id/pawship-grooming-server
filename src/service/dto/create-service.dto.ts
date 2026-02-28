@@ -12,9 +12,17 @@ import {
 } from 'class-validator';
 
 export class ServicePriceDto {
+  @IsOptional()
+  @IsMongoId({ message: 'pet must be a valid ID' })
+  pet_id?: string;
+
+  @IsOptional()
   @IsMongoId({ message: 'size must be a valid ID' })
-  @IsNotEmpty({ message: 'size is required' })
-  size_id: string;
+  size_id?: string;
+
+  @IsOptional()
+  @IsMongoId({ message: 'hair must be a valid ID' })
+  hair_id?: string;
 
   @Type(() => Number)
   @IsNumber({}, { message: 'price must be a number' })

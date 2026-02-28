@@ -69,22 +69,6 @@ export class ServiceService {
         body.pet_type_ids = allPetTypes.map((type) => type._id.toString());
       }
 
-      // If prices not provided or empty, default to all active size categories with price 0
-      if (!body.prices || body.prices.length === 0) {
-        const allSizeCategories = await this.optionModel
-          .find({
-            isDeleted: false,
-            is_active: true,
-            category_options: 'size category',
-          })
-          .select('_id')
-          .exec();
-        body.prices = allSizeCategories.map((cat) => ({
-          size_id: cat._id.toString(),
-          price: 0,
-        }));
-      }
-
       const data: Record<string, any> = { ...body };
 
       if (file) {
@@ -167,7 +151,17 @@ export class ServiceService {
       .populate('avaiable_store', 'name')
       .populate('addons', 'code name image_url')
       .populate({
+        path: 'prices.pet_id',
+        model: 'Option',
+        select: 'name',
+      })
+      .populate({
         path: 'prices.size_id',
+        model: 'Option',
+        select: 'name',
+      })
+      .populate({
+        path: 'prices.hair_id',
         model: 'Option',
         select: 'name',
       })
@@ -193,7 +187,17 @@ export class ServiceService {
       .populate('avaiable_store', 'name')
       .populate('addons', 'code name image_url')
       .populate({
+        path: 'prices.pet_id',
+        model: 'Option',
+        select: 'name',
+      })
+      .populate({
         path: 'prices.size_id',
+        model: 'Option',
+        select: 'name',
+      })
+      .populate({
+        path: 'prices.hair_id',
         model: 'Option',
         select: 'name',
       })
@@ -254,22 +258,6 @@ export class ServiceService {
           .select('_id')
           .exec();
         body.pet_type_ids = allPetTypes.map((type) => type._id.toString());
-      }
-
-      // If prices is provided but empty, default to all active size categories with price 0
-      if (body.prices !== undefined && body.prices.length === 0) {
-        const allSizeCategories = await this.optionModel
-          .find({
-            isDeleted: false,
-            is_active: true,
-            category_options: 'size category',
-          })
-          .select('_id')
-          .exec();
-        body.prices = allSizeCategories.map((cat) => ({
-          size_id: cat._id.toString(),
-          price: 0,
-        }));
       }
 
       const data: Record<string, any> = { ...body };
