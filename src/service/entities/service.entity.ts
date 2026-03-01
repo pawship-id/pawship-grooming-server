@@ -145,6 +145,9 @@ export class Service {
   @Prop({ default: 0 })
   order: number;
 
+  @Prop({ enum: ['in home', 'in store'], default: 'in store' })
+  service_location_type: string;
+
   @Prop({ default: true })
   is_active: boolean;
 

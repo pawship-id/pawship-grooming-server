@@ -1366,6 +1366,7 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
       "include": ["Bath", "Nail Trim", "Ear Cleaning"],
       "show_in_homepage": false,
       "order": 0,
+      "service_location_type": "in store",
       "is_active": true,
       "isDeleted": false,
       "createdAt": "2026-01-15T10:30:00.000Z",
@@ -1490,7 +1491,8 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
     ],
     "include": ["Bath", "Nail Trim", "Ear Cleaning"],
     "show_in_homepage": false,
-    "order": 0
+    "order": 0,
+    "service_location_type": "in_store"
   }
 }
 ```
@@ -1552,6 +1554,7 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
   "public_id": "pawship-grooming/services/basic-grooming",
   "show_in_homepage": false,
   "order": 0,
+  "service_location_type": "in_store",
   "is_active": true
 }
 ```
@@ -1574,6 +1577,7 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
 - `public_id`: Cloudinary public ID (optional) — set manually or via the upload endpoint
 - `show_in_homepage`: Whether to show this service on the homepage (optional, default: false)
 - `order`: Display order/sort priority (optional, default: 0)
+- `service_location_type`: Location where the service is performed — `in_home` or `in_store` (optional, default: `in_store`)
 - `is_active`: Active status (optional, default: true)
 
 **Success Response (201):**

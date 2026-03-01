@@ -2,6 +2,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsEnum,
   IsMongoId,
   IsNotEmpty,
   IsNumber,
@@ -105,6 +106,12 @@ export class CreateServiceDto {
   @IsOptional()
   @IsNumber({}, { message: 'order must be a number' })
   order?: number = 0;
+
+  @IsOptional()
+  @IsEnum(['in home', 'in store'], {
+    message: 'service location type must be either in home or in store',
+  })
+  service_location_type?: string = 'in store';
 
   @IsOptional()
   @IsBoolean()
