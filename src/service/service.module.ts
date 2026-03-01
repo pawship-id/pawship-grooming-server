@@ -6,7 +6,6 @@ import { Service, ServiceSchema } from './entities/service.entity';
 import { Option, OptionSchema } from 'src/option/entities/option.entity';
 import { Store, StoreSchema } from 'src/store/entities/store.entity';
 import { AuthModule } from 'src/auth/auth.module';
-import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -16,7 +15,6 @@ import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
       { name: Store.name, schema: StoreSchema },
     ]),
     AuthModule,
-    CloudinaryModule,
   ],
   controllers: [ServiceController],
   providers: [ServiceService],

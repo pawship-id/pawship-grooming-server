@@ -12,10 +12,11 @@ Base URL: `http://localhost:3000`
 4. [Stores](#stores)
 5. [Services](#services)
 6. [Service Types](#service-types)
-7. [Pets](#pets)
-8. [Memberships](#memberships)
-9. [Bookings](#bookings)
-10. [Grooming Sessions](#grooming-sessions)
+7. [Upload File](#upload-file)
+8. [Pets](#pets)
+9. [Memberships](#memberships)
+10. [Bookings](#bookings)
+11. [Grooming Sessions](#grooming-sessions)
 
 ---
 
@@ -1503,49 +1504,45 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
 
 **Endpoint:** `POST /services`
 
-**Content-Type:** `multipart/form-data`
+**Content-Type:** `application/json`
 
 **Headers:**
 
 - `Authorization: Bearer {access_token}` (required)
 
-**Request Body (Form-Data):**
+**Request Body (JSON):**
 
-- `code`: string (required) — unique service code
-- `name`: string (required) — will be auto-capitalized
-- `description`: string (optional)
-- `image`: File (optional) — image uploaded to Cloudinary
-- `service_type_id`: MongoDB ObjectId (required)
-- `pet_type_ids[]`: MongoDB ObjectId (optional, repeatable) — default: all active pet types
-- `size_category_ids[]`: MongoDB ObjectId (optional, repeatable) — default: all active size categories
-- `prices`: JSON string (optional) — e.g. `[{"pet_id":"...","size_id":"...","hair_id":"...","price":100000}]`, default: `[]`
-- `duration`: number (required, min: 1) — duration in minutes
-- `available_for_unlimited`: `"true"` or `"false"` (optional)
-- `available_store_ids[]`: MongoDB ObjectId (optional, repeatable) — default: all active stores
-- `addon_ids[]`: MongoDB ObjectId (optional, repeatable) — references to other services as add-ons
-- `include[]`: string (optional, repeatable) — list of what is included in the service (e.g. "Bath", "Nail Trim")
-- `is_active`: `"true"` or `"false"` (optional, default: `"true"`)
-
-**Example Form-Data in Postman:**
-
-```
-Key: code                  | Type: Text | Value: SVC001
-Key: name                  | Type: Text | Value: basic grooming
-Key: description           | Type: Text | Value: Basic grooming package
-Key: image                 | Type: File | Value: [Select file]
-Key: service_type_id       | Type: Text | Value: 507f1f77bcf86cd799439012
-Key: pet_type_ids[]        | Type: Text | Value: 507f1f77bcf86cd799439013
-Key: size_category_ids[]   | Type: Text | Value: 507f1f77bcf86cd799439014
-Key: size_category_ids[]   | Type: Text | Value: 507f1f77bcf86cd799439015
-Key: prices                | Type: Text | Value: [{"pet_id":"507f1f77bcf86cd799439013","size_id":"507f1f77bcf86cd799439014","hair_id":"507f1f77bcf86cd799439017","price":100000},{"pet_id":"507f1f77bcf86cd799439013","size_id":"507f1f77bcf86cd799439015","hair_id":"507f1f77bcf86cd799439017","price":150000}]
-Key: duration              | Type: Text | Value: 60
-Key: available_for_unlimited | Type: Text | Value: false
-Key: available_store_ids[] | Type: Text | Value: 507f1f77bcf86cd799439016
-Key: addon_ids[]           | Type: Text | Value: 507f1f77bcf86cd799439022
-Key: include[]             | Type: Text | Value: Bath
-Key: include[]             | Type: Text | Value: Nail Trim
-Key: include[]             | Type: Text | Value: Ear Cleaning
-Key: is_active             | Type: Text | Value: true
+```json
+{
+  "code": "SVC001",
+  "name": "basic grooming",
+  "description": "Basic grooming package",
+  "service_type_id": "507f1f77bcf86cd799439012",
+  "pet_type_ids": ["507f1f77bcf86cd799439013"],
+  "size_category_ids": ["507f1f77bcf86cd799439014", "507f1f77bcf86cd799439015"],
+  "prices": [
+    {
+      "pet_id": "507f1f77bcf86cd799439013",
+      "size_id": "507f1f77bcf86cd799439014",
+      "hair_id": "507f1f77bcf86cd799439017",
+      "price": 100000
+    },
+    {
+      "pet_id": "507f1f77bcf86cd799439013",
+      "size_id": "507f1f77bcf86cd799439015",
+      "hair_id": "507f1f77bcf86cd799439017",
+      "price": 150000
+    }
+  ],
+  "duration": 60,
+  "available_for_unlimited": false,
+  "available_store_ids": ["507f1f77bcf86cd799439016"],
+  "addon_ids": ["507f1f77bcf86cd799439022"],
+  "include": ["Bath", "Nail Trim", "Ear Cleaning"],
+  "image_url": "https://res.cloudinary.com/example/image/upload/v1/services/basic-grooming.jpg",
+  "public_id": "pawship-grooming/services/basic-grooming",
+  "is_active": true
+}
 ```
 
 **Field Descriptions:**
@@ -1553,16 +1550,17 @@ Key: is_active             | Type: Text | Value: true
 - `code`: Unique service code (required)
 - `name`: Service name — will be auto-capitalized (required)
 - `description`: Service description (optional)
-- `image`: Image file — uploaded to Cloudinary, stored as `image_url` and `public_id` (optional)
 - `service_type_id`: Reference to a Service Type document (required)
-- `pet_type_ids[]`: Array of pet type Option references (optional, default: all active pet types)
-- `size_category_ids[]`: Array of size category Option references (optional, default: all active size categories)
-- `prices`: JSON-encoded array of `{ pet_id, size_id, hair_id, price }` — all three ID fields are optional per entry (optional, default: `[]`)
+- `pet_type_ids`: Array of pet type Option IDs (optional, default: all active pet types)
+- `size_category_ids`: Array of size category Option IDs (optional, default: all active size categories)
+- `prices`: Array of `{ pet_id, size_id, hair_id, price }` — all three ID fields are optional per entry (optional, default: `[]`)
 - `duration`: Duration in minutes, minimum 1 (required)
 - `available_for_unlimited`: Whether available for unlimited membership (optional)
-- `available_store_ids[]`: Stores where service is available (optional, default: all active stores)
-- `addon_ids[]`: Other service IDs available as add-ons to this service (optional)
-- `include[]`: List of what is included in the service — free-text strings (optional)
+- `available_store_ids`: Stores where service is available (optional, default: all active stores)
+- `addon_ids`: Other service IDs available as add-ons to this service (optional)
+- `include`: List of what is included in the service — free-text strings (optional)
+- `image_url`: Cloudinary image URL (optional) — set manually or via the upload endpoint
+- `public_id`: Cloudinary public ID (optional) — set manually or via the upload endpoint
 - `is_active`: Active status (optional, default: true)
 
 **Success Response (201):**
@@ -1600,8 +1598,6 @@ Key: is_active             | Type: Text | Value: true
 }
 ```
 
-- **500 Internal Server Error:** Cloudinary upload failed
-
 **Notes:**
 
 - Service name will be automatically capitalized (e.g., "basic grooming" → "Basic Grooming")
@@ -1610,6 +1606,7 @@ Key: is_active             | Type: Text | Value: true
 - If `size_category_ids` is not provided or empty, defaults to all active size categories
 - If `pet_type_ids` is not provided or empty, defaults to all active pet types
 - If `prices` is not provided, defaults to `[]`
+- To upload an image, use the dedicated `POST /upload-file?folder=services` endpoint, then pass the returned `image_url` and `public_id` into the request body
 
 ---
 
@@ -1617,7 +1614,7 @@ Key: is_active             | Type: Text | Value: true
 
 **Endpoint:** `PUT /services/:id`
 
-**Content-Type:** `multipart/form-data`
+**Content-Type:** `application/json`
 
 **Headers:**
 
@@ -1627,22 +1624,24 @@ Key: is_active             | Type: Text | Value: true
 
 - `id` (path): MongoDB ObjectId
 
-**Request Body (Form-Data):** (All fields optional — same keys as Create Service)
+**Request Body (JSON):** (All fields optional — same structure as Create Service)
 
-- `code`: string
-- `name`: string
-- `description`: string
-- `image`: File — uploads new image, overwrites existing `image_url` and `public_id`
-- `service_type_id`: MongoDB ObjectId
-- `pet_type_ids[]`: MongoDB ObjectId (repeatable)
-- `size_category_ids[]`: MongoDB ObjectId (repeatable)
-- `prices`: JSON string
-- `duration`: number
-- `available_for_unlimited`: `"true"` or `"false"`
-- `available_store_ids[]`: MongoDB ObjectId (repeatable)
-- `addon_ids[]`: MongoDB ObjectId (repeatable)
-- `include[]`: string (repeatable)
-- `is_active`: `"true"` or `"false"`
+```json
+{
+  "name": "Full Grooming Package",
+  "description": "Updated description",
+  "image_url": "https://res.cloudinary.com/example/image/upload/v1/services/full-grooming.jpg",
+  "public_id": "pawship-grooming/services/full-grooming",
+  "prices": [
+    {
+      "pet_id": "507f1f77bcf86cd799439013",
+      "size_id": "507f1f77bcf86cd799439014",
+      "price": 120000
+    }
+  ],
+  "is_active": true
+}
+```
 
 **Success Response (200):**
 
@@ -1674,8 +1673,6 @@ Key: is_active             | Type: Text | Value: true
 }
 ```
 
-- **500 Internal Server Error:** Cloudinary upload failed
-
 **Notes:**
 
 - All fields are optional — only send fields you want to update
@@ -1684,7 +1681,7 @@ Key: is_active             | Type: Text | Value: true
 - If `available_store_ids` is updated with an empty array, it defaults to all active stores
 - If `size_category_ids` is updated with an empty array, it defaults to all active size categories
 - If `pet_type_ids` is updated with an empty array, it defaults to all active pet types
-- If `prices` is updated with an empty array, it defaults to all active size categories with price 0
+- To update the image, use `POST /upload-file?folder=services`, then pass the returned `image_url` and `public_id` in this request body
 
 ---
 
@@ -1952,6 +1949,68 @@ Key: show_in_homepage | Type: Text | Value: false
 - This is a soft delete operation
 - Service type is marked with `isDeleted: true` and `deletedAt` timestamp
 - Deleted service types are excluded from GET endpoints
+
+---
+
+## Upload File
+
+A standalone, reusable endpoint for uploading images to Cloudinary. Use this to get back `image_url` and `public_id`, then pass them into any Create/Update request body that accepts those fields.
+
+### 1. Upload Image
+
+**Endpoint:** `POST /upload-file`
+
+**Content-Type:** `multipart/form-data`
+
+**Headers:**
+
+- `Authorization: Bearer {access_token}` (required)
+
+**Query Parameters:**
+
+- `folder` (string, optional) — Cloudinary subfolder name. Defaults to `general` if not provided. Example: `?folder=services`
+
+**Request Body (Form-Data):**
+
+- `image`: File (required) — image to upload
+
+**Example Form-Data in Postman:**
+
+```
+POST /upload-file?folder=services
+
+Key: image | Type: File | Value: [Select file]
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Upload image successfully",
+  "image_url": "https://res.cloudinary.com/example/image/upload/v1/pawship-grooming/services/abc123.jpg",
+  "public_id": "pawship-grooming/services/abc123"
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Missing image file
+
+```json
+{
+  "statusCode": 400,
+  "message": "image file is required",
+  "error": "Bad Request"
+}
+```
+
+- **500 Internal Server Error:** Cloudinary upload failed
+
+**Notes:**
+
+- Use `?folder=` to dynamically control which Cloudinary subfolder the image is stored in (e.g. `?folder=services`, `?folder=service-types`, `?folder=grooming-sessions`)
+- After uploading, use the returned `image_url` and `public_id` in any Create or Update request body
+- Default folder is `general` when no `folder` query param is provided
 
 ---
 

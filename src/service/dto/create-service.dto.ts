@@ -48,22 +48,17 @@ export class CreateServiceDto {
   @IsOptional()
   @IsArray()
   @IsMongoId({ each: true, message: 'Each pet type must be a valid ID' })
-  @Transform(({ value }) => (typeof value === 'string' ? [value] : value))
   pet_type_ids?: string[];
 
   @IsOptional()
   @IsArray()
   @IsMongoId({ each: true, message: 'Each size category must be a valid ID' })
-  @Transform(({ value }) => (typeof value === 'string' ? [value] : value))
   size_category_ids?: string[];
 
   @IsOptional()
   @IsArray({ message: 'prices must be an array' })
   @ValidateNested({ each: true })
   @Type(() => ServicePriceDto)
-  @Transform(({ value }) =>
-    typeof value === 'string' ? JSON.parse(value) : value,
-  )
   prices?: ServicePriceDto[];
 
   @Type(() => Number)
@@ -83,19 +78,24 @@ export class CreateServiceDto {
   @IsOptional()
   @IsArray()
   @IsMongoId({ each: true, message: 'Each store must be a valid ID' })
-  @Transform(({ value }) => (typeof value === 'string' ? [value] : value))
   available_store_ids?: string[];
 
   @IsOptional()
   @IsArray()
   @IsMongoId({ each: true, message: 'Each addon must be a valid service ID' })
-  @Transform(({ value }) => (typeof value === 'string' ? [value] : value))
   addon_ids?: string[];
+
+  @IsOptional()
+  @IsString()
+  image_url?: string;
+
+  @IsOptional()
+  @IsString()
+  public_id?: string;
 
   @IsOptional()
   @IsArray()
   @IsString({ each: true, message: 'Each include item must be a string' })
-  @Transform(({ value }) => (typeof value === 'string' ? [value] : value))
   include?: string[];
 
   @IsOptional()
