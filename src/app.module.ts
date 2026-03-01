@@ -15,6 +15,7 @@ import { GuestModule } from './guest/guest.module';
 import { StoreDailyCapacityModule } from './store-daily-capacity/store-daily-capacity.module';
 import { ServiceTypeModule } from './service-type/service-type.module';
 import { UploadFileModule } from './upload-file/upload-file.module';
+import { ZoneModule } from './zone/zone.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 
 @Module({
@@ -41,6 +42,7 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
     StoreDailyCapacityModule,
     ServiceTypeModule,
     UploadFileModule,
+    ZoneModule,
   ],
   controllers: [AppController],
   providers: [AppService],
