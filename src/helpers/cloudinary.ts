@@ -14,7 +14,7 @@ export interface CloudinaryUploadResult {
  */
 export async function uploadToCloudinary(
   file: string,
-  folder?: string,
+  folder: string,
 ): Promise<CloudinaryUploadResult> {
   try {
     const result = await cloudinary.uploader.upload(file, {
