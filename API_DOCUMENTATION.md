@@ -1363,6 +1363,8 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
         }
       ],
       "include": ["Bath", "Nail Trim", "Ear Cleaning"],
+      "show_in_homepage": false,
+      "order": 0,
       "is_active": true,
       "isDeleted": false,
       "createdAt": "2026-01-15T10:30:00.000Z",
@@ -1485,7 +1487,9 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
         "image_url": "https://res.cloudinary.com/example/image/upload/v1/services/ear-cleaning.jpg"
       }
     ],
-    "include": ["Bath", "Nail Trim", "Ear Cleaning"]
+    "include": ["Bath", "Nail Trim", "Ear Cleaning"],
+    "show_in_homepage": false,
+    "order": 0
   }
 }
 ```
@@ -1545,6 +1549,8 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
   "include": ["Bath", "Nail Trim", "Ear Cleaning"],
   "image_url": "https://res.cloudinary.com/example/image/upload/v1/services/basic-grooming.jpg",
   "public_id": "pawship-grooming/services/basic-grooming",
+  "show_in_homepage": false,
+  "order": 0,
   "is_active": true
 }
 ```
@@ -1565,6 +1571,8 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
 - `include`: List of what is included in the service — free-text strings (optional)
 - `image_url`: Cloudinary image URL (optional) — set manually or via the upload endpoint
 - `public_id`: Cloudinary public ID (optional) — set manually or via the upload endpoint
+- `show_in_homepage`: Whether to show this service on the homepage (optional, default: false)
+- `order`: Display order/sort priority (optional, default: 0)
 - `is_active`: Active status (optional, default: true)
 
 **Success Response (201):**
@@ -1643,6 +1651,8 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
       "price": 120000
     }
   ],
+  "show_in_homepage": true,
+  "order": 1,
   "is_active": true
 }
 ```

@@ -100,6 +100,14 @@ export class CreateServiceDto {
 
   @IsOptional()
   @IsBoolean()
+  show_in_homepage?: boolean = false;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'order must be a number' })
+  order?: number = 0;
+
+  @IsOptional()
+  @IsBoolean()
   @Transform(({ value }) => {
     if (value === 'true') return true;
     if (value === 'false') return false;

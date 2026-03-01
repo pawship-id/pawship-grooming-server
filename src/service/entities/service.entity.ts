@@ -139,6 +139,12 @@ export class Service {
   @Prop({ type: [String], default: [] })
   include: string[];
 
+  @Prop({ default: false })
+  show_in_homepage: boolean;
+
+  @Prop({ default: 0 })
+  order: number;
+
   @Prop({ default: true })
   is_active: boolean;
 
