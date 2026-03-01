@@ -1,7 +1,9 @@
 import {
+  IsArray,
   IsBoolean,
   IsNotEmpty,
   IsOptional,
+  IsString,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -41,6 +43,11 @@ export class CreateStoreDto {
   @ValidateNested()
   @Type(() => CapacityDto)
   capacity?: CapacityDto;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  sessions?: string[] = [];
 
   @IsOptional()
   @IsBoolean()

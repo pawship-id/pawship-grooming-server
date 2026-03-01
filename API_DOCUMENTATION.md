@@ -926,6 +926,7 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
         "default_daily_capacity_minutes": 480,
         "overbooking_limit_minutes": 60
       },
+      "sessions": [],
       "is_active": true,
       "createdAt": "2024-01-15T08:00:00.000Z",
       "updatedAt": "2024-01-15T08:00:00.000Z"
@@ -997,6 +998,7 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
       "default_daily_capacity_minutes": 480,
       "overbooking_limit_minutes": 60
     },
+    "session": [],
     "is_active": true,
     "createdAt": "2024-01-15T08:00:00.000Z",
     "updatedAt": "2024-01-15T08:00:00.000Z",
@@ -1111,6 +1113,7 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
     "default_daily_capacity_minutes": "number (required)",
     "overbooking_limit_minutes": "number (required)"
   },
+  "session": ["string"] ,
   "is_active": "boolean (optional, default: true)"
 }
 ```
@@ -1183,6 +1186,7 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
     "default_daily_capacity_minutes": "number (optional)",
     "overbooking_limit_minutes": "number (optional)"
   },
+  "session": ["string"],
   "is_active": "boolean (optional)"
 }
 ```

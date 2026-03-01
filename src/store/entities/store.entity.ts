@@ -76,6 +76,9 @@ export class Store {
     overbooking_limit_minutes: number;
   };
 
+  @Prop({ type: [String], default: [] })
+  sessions: string[];
+
   @Prop({ default: true })
   is_active: boolean;
 
