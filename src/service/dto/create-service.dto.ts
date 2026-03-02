@@ -14,8 +14,8 @@ import {
 
 export class ServicePriceDto {
   @IsOptional()
-  @IsMongoId({ message: 'pet must be a valid ID' })
-  pet_id?: string;
+  @IsMongoId({ message: 'pet type must be a valid ID' })
+  pet_type_id?: string;
 
   @IsOptional()
   @IsMongoId({ message: 'size must be a valid ID' })

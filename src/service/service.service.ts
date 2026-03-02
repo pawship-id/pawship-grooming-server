@@ -143,7 +143,7 @@ export class ServiceService {
       .populate('avaiable_store', 'name')
       .populate('addons', 'code name image_url')
       .populate({
-        path: 'prices.pet_id',
+        path: 'prices.pet_type_id',
         model: 'Option',
         select: 'name',
       })
@@ -179,7 +179,7 @@ export class ServiceService {
       .populate('avaiable_store', 'name')
       .populate('addons', 'code name image_url')
       .populate({
-        path: 'prices.pet_id',
+        path: 'prices.pet_type_id',
         model: 'Option',
         select: 'name',
       })

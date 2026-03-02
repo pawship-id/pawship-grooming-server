@@ -9,7 +9,7 @@ export class ServicePrice {
     type: Types.ObjectId,
     ref: 'Option',
   })
-  pet_id?: Types.ObjectId;
+  pet_type_id?: Types.ObjectId;
 
   @Prop({
     type: Types.ObjectId,
@@ -44,11 +44,13 @@ export const ServicePriceSchema = SchemaFactory.createForClass(ServicePrice);
 
       if (ret.prices?.length) {
         ret.prices = ret.prices.map((p) => ({
-          pet_id:
-            p.pet_id && typeof p.pet_id === 'object' ? p.pet_id._id : p.pet_id,
+          pet_type_id:
+            p.pet_type_id && typeof p.pet_type_id === 'object'
+              ? p.pet_type_id._id
+              : p.pet_type_id,
           pet_name:
-            p.pet_id && typeof p.pet_id === 'object'
-              ? p.pet_id.name
+            p.pet_type_id && typeof p.pet_type_id === 'object'
+              ? p.pet_type_id.name
               : undefined,
           size_id:
             p.size_id && typeof p.size_id === 'object'
