@@ -16,7 +16,7 @@ Base URL: `http://localhost:3000`
 8. [Upload File](#upload-file)
 9. [Pets](#pets)
 10. [Memberships](#memberships)
-11. [Bookings](#bookings)
+11. [Bookings](#bookings) _(includes public/guest endpoints)_
 12. [Grooming Sessions](#grooming-sessions)
 
 ---
@@ -2846,15 +2846,21 @@ Store daily capacity allows overriding the default store capacity for specific d
 
 ---
 
-## Guest Booking Flow
+## Bookings
 
-Guest endpoints allow unauthenticated users to browse and create bookings without pre-registration.
+Base route: `/bookings`
 
-### 1. Get All Stores (Guest)
+> **Public endpoints** (no authentication required) are available under `/bookings/public/*` for guest/unauthenticated users.
 
-**Endpoint:** `GET /guest/stores`
+---
 
-**Authentication:** Not Required (Public)
+### Public (Guest) Endpoints
+
+#### 1. Get All Stores (Public)
+
+**Endpoint:** `GET /bookings/public/stores`
+
+**Authentication:** Not Required
 
 **Success Response (200):**
 
@@ -2865,7 +2871,6 @@ Guest endpoints allow unauthenticated users to browse and create bookings withou
     {
       "_id": "507f1f77bcf86cd799439011",
       "name": "Pawship Jakarta",
-      "address": { ... },
       "capacity": {
         "default_daily_capacity_minutes": 720,
         "overbooking_limit_minutes": 120
@@ -2878,16 +2883,16 @@ Guest endpoints allow unauthenticated users to browse and create bookings withou
 
 ---
 
-### 2. Get Services (Guest)
+#### 2. Get Services (Public)
 
-**Endpoint:** `GET /guest/services`
+**Endpoint:** `GET /bookings/public/services`
 
-**Authentication:** Not Required (Public)
+**Authentication:** Not Required
 
 **Query Parameters:**
 
 - `store_id` (optional): Filter services by store
-- `type` (optional): Filter by service type ("grooming" or "addon")
+- `type` (optional): Filter by service type (`grooming` or `addon`)
 
 **Success Response (200):**
 
@@ -2914,11 +2919,11 @@ Guest endpoints allow unauthenticated users to browse and create bookings withou
 
 ---
 
-### 3. Check User By Phone
+#### 3. Check User By Phone (Public)
 
-**Endpoint:** `GET /guest/check-user/phone/:phone_number`
+**Endpoint:** `GET /bookings/public/check-user/phone/:phone_number`
 
-**Authentication:** Not Required (Public)
+**Authentication:** Not Required
 
 **Parameters:**
 
@@ -2954,17 +2959,19 @@ If user not found:
 ```json
 {
   "message": "User not found, please register",
-  "exists": false
+  "exists": false,
+  "user": null,
+  "pets": []
 }
 ```
 
 ---
 
-### 4. Register Guest User
+#### 4. Register Guest User (Public)
 
-**Endpoint:** `POST /guest/register`
+**Endpoint:** `POST /bookings/public/register`
 
-**Authentication:** Not Required (Public)
+**Authentication:** Not Required
 
 **Request Body:**
 
@@ -2973,15 +2980,16 @@ If user not found:
   "username": "string (required)",
   "email": "string (required, valid email format)",
   "phone_number": "string (required)",
-  "address": "string (optional)",
-  "pet_name": "string (required)",
-  "pet_type_id": "MongoDB ObjectId (required)",
-  "size_category_id": "MongoDB ObjectId (required)",
-  "breed_category_id": "MongoDB ObjectId (required)"
+  "pet": {
+    "name": "string (required)",
+    "pet_type_id": "MongoDB ObjectId (required)",
+    "breed_category_id": "MongoDB ObjectId (required)",
+    "size_category_id": "MongoDB ObjectId (required)"
+  }
 }
 ```
 
-**Success Response (200):**
+**Success Response (201):**
 
 ```json
 {
@@ -2990,46 +2998,52 @@ If user not found:
     "_id": "507f1f77bcf86cd799439011",
     "username": "john_doe",
     "email": "john@example.com",
-    "phone_number": "+628123456789"
+    "phone_number": "+628123456789",
+    "role": "customer"
   },
   "pet": {
     "_id": "507f1f77bcf86cd799439012",
-    "name": "Buddy",
-    "customer_id": "507f1f77bcf86cd799439011"
+    "name": "Buddy"
+  },
+  "credentials": {
+    "email": "john@example.com",
+    "password": "pawship123"
   }
 }
 ```
 
 **Business Logic:**
 
-- Creates new user with default password "pawship123"
+- Creates new user with default password `pawship123`
 - Password is hashed with bcrypt
 - Automatically creates first pet for the user
-- Assigns default role "customer"
+- Assigns default role `customer`
+
+**Error Responses:**
+
+- **400 Bad Request:** Email or phone already registered
 
 ---
 
-### 5. Create Pet For Guest
+#### 5. Create Pet For Guest (Public)
 
-**Endpoint:** `POST /guest/pets`
+**Endpoint:** `POST /bookings/public/pets`
 
-**Authentication:** Not Required (Public)
+**Authentication:** Not Required
 
 **Request Body:**
 
 ```json
 {
-  "customer_id": "MongoDB ObjectId (required)",
-  "name": "string (required)",
+  "phone_number": "string (required)",
+  "pet_name": "string (required)",
   "pet_type_id": "MongoDB ObjectId (required)",
-  "size_category_id": "MongoDB ObjectId (required)",
   "breed_category_id": "MongoDB ObjectId (required)",
-  "weight": "number (optional)",
-  "birthday": "Date (optional)"
+  "size_category_id": "MongoDB ObjectId (required)"
 }
 ```
 
-**Success Response (200):**
+**Success Response (201):**
 
 ```json
 {
@@ -3037,18 +3051,30 @@ If user not found:
   "pet": {
     "_id": "507f1f77bcf86cd799439012",
     "name": "Max",
-    "customer_id": "507f1f77bcf86cd799439011"
+    "pet_type_id": "507f1f77bcf86cd799439013",
+    "size_category_id": "507f1f77bcf86cd799439014",
+    "breed_category_id": "507f1f77bcf86cd799439015"
+  },
+  "customer": {
+    "_id": "507f1f77bcf86cd799439011",
+    "username": "john_doe",
+    "email": "john@example.com",
+    "phone_number": "+628123456789"
   }
 }
 ```
 
+**Error Responses:**
+
+- **404 Not Found:** User not found with this phone number
+
 ---
 
-### 6. Create Guest Booking
+#### 6. Create Guest Booking (Public)
 
-**Endpoint:** `POST /guest/bookings`
+**Endpoint:** `POST /bookings/public`
 
-**Authentication:** Not Required (Public)
+**Authentication:** Not Required
 
 **Request Body:**
 
@@ -3061,13 +3087,13 @@ If user not found:
   "time_range": "string (required, format: HH:mm - HH:mm)",
   "type": "in home | in store (required)",
   "service_id": "MongoDB ObjectId (required)",
-  "service_addon_ids": ["MongoDB ObjectId"] (optional array),
+  "service_addon_ids": ["MongoDB ObjectId"],
   "travel_fee": "number (optional)",
   "note": "string (optional)"
 }
 ```
 
-**Success Response (200):**
+**Success Response (201):**
 
 ```json
 {
@@ -3080,14 +3106,14 @@ If user not found:
 - Same capacity validation as authenticated booking
 - If capacity exceeded beyond overbooking limit, booking is created as WAITLIST
 - System automatically calculates pricing based on pet size
-- Creates pet_snapshot automatically
-- Initial booking_status is "requested"
+- Creates `pet_snapshot` automatically
+- Initial `booking_status` is `requested`
 
 ---
 
-## Bookings
+### Admin Endpoints
 
-### 1. Get All Bookings
+#### 1. Get All Bookings
 
 **Endpoint:** `GET /bookings`
 
@@ -3890,10 +3916,10 @@ PORT=3000
    - When capacity exceeded within overbooking limit: booking is CONFIRMED with note
    - When capacity exceeded beyond limit: booking is WAITLIST status
    - Use StoreDailyCapacity API to override default capacity for specific dates
-10. **Guest Booking Flow**:
+10. **Guest Booking Flow** (public endpoints under `/bookings/public/*`):
     - Check if user exists by phone → If not, register → Create pet → Create booking
     - All guest endpoints are public (no authentication required)
-    - Default password "pawship123" assigned to new users
+    - Default password `pawship123` assigned to new users
 11. **Sessions vs Grooming Session**:
     - New: `sessions` array - multiple sessions per booking (one per groomer task)
     - Legacy: `grooming_session` object - single session per booking (deprecated)

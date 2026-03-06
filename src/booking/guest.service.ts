@@ -37,7 +37,6 @@ export class GuestService {
       };
     }
 
-    // Get user's pets
     const pets = await this.petModel
       .find({
         customer_id: user._id,
@@ -57,7 +56,6 @@ export class GuestService {
   }
 
   async registerGuestUser(dto: RegisterGuestDto) {
-    // Check if email or phone already exists
     const existingUser = await this.userModel.findOne({
       $or: [{ email: dto.email }, { phone_number: dto.phone_number }],
       isDeleted: false,
@@ -72,7 +70,6 @@ export class GuestService {
       }
     }
 
-    // Create user with default password
     const defaultPassword = 'pawship123';
     const hashedPassword = await hashPassword(defaultPassword);
 
@@ -87,7 +84,6 @@ export class GuestService {
 
     const savedUser = await newUser.save();
 
-    // Create pet for this user
     const newPet = new this.petModel({
       name: dto.pet.name,
       pet_type_id: new ObjectId(dto.pet.pet_type_id),
@@ -126,7 +122,6 @@ export class GuestService {
   }
 
   async createPetForGuest(dto: CreateGuestPetDto) {
-    // Find user by phone number
     const user = await this.userModel
       .findOne({
         phone_number: dto.phone_number,
@@ -139,7 +134,6 @@ export class GuestService {
       throw new NotFoundException('User not found with this phone number');
     }
 
-    // Create new pet for this user
     const newPet = new this.petModel({
       name: dto.pet_name,
       pet_type_id: new ObjectId(dto.pet_type_id),
@@ -151,7 +145,6 @@ export class GuestService {
 
     const savedPet = await newPet.save();
 
-    // Return pet with populated fields
     const populatedPet = await this.petModel
       .findById(savedPet._id)
       .select('_id name size_category_id breed_category_id pet_type_id')

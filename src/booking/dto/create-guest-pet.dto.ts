@@ -1,10 +1,4 @@
-import { Type } from 'class-transformer';
-import {
-  IsMongoId,
-  IsNotEmpty,
-  IsString,
-  ValidateNested,
-} from 'class-validator';
+import { IsMongoId, IsNotEmpty, IsString } from 'class-validator';
 
 export class CreateGuestPetDto {
   @IsNotEmpty()

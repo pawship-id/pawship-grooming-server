@@ -11,7 +11,6 @@ import { ServiceModule } from './service/service.module';
 import { MembershipModule } from './membership/membership.module';
 import { PetModule } from './pet/pet.module';
 import { BookingModule } from './booking/booking.module';
-import { GuestModule } from './guest/guest.module';
 import { StoreDailyCapacityModule } from './store-daily-capacity/store-daily-capacity.module';
 import { ServiceTypeModule } from './service-type/service-type.module';
 import { UploadFileModule } from './upload-file/upload-file.module';
@@ -38,7 +37,6 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
     MembershipModule,
     PetModule,
     BookingModule,
-    GuestModule,
     StoreDailyCapacityModule,
     ServiceTypeModule,
     UploadFileModule,

@@ -10,6 +10,7 @@ import { Service, ServiceSchema } from 'src/service/entities/service.entity';
 import { Booking, BookingSchema } from './entities/booking.entity';
 import { PetModule } from 'src/pet/pet.module';
 import { ServiceModule } from 'src/service/service.module';
+import { StoreModule } from 'src/store/store.module';
 import { Store, StoreSchema } from 'src/store/entities/store.entity';
 import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 import { AuthModule } from 'src/auth/auth.module';
@@ -21,6 +22,7 @@ import {
   StoreDailyCapacity,
   StoreDailyCapacitySchema,
 } from 'src/store-daily-capacity/entities/store-daily-capacity.entity';
+import { GuestService } from './guest.service';
 
 @Module({
   imports: [
@@ -35,11 +37,12 @@ import {
     ]),
     PetModule,
     ServiceModule,
+    StoreModule,
     CloudinaryModule,
     AuthModule,
   ],
   controllers: [BookingController, SessionController],
-  providers: [BookingService, SessionService],
+  providers: [BookingService, SessionService, GuestService],
   exports: [BookingService],
 })
 export class BookingModule {}

@@ -3,7 +3,6 @@ import {
   IsEmail,
   IsMongoId,
   IsNotEmpty,
-  IsOptional,
   IsString,
   ValidateNested,
 } from 'class-validator';
@@ -15,7 +14,7 @@ export class GuestPetDto {
 
   @IsMongoId()
   @IsNotEmpty()
-  pet_type_id: string; // pet_type_id (dog or cat option id)
+  pet_type_id: string;
 
   @IsMongoId()
   @IsNotEmpty()
