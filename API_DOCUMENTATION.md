@@ -2934,7 +2934,7 @@ Base route: `/bookings`
 **Query Parameters:**
 
 - `store_id` (optional): Filter services by store
-- `type` (optional): Filter by service type (`grooming` or `addon`)
+- `service_type_id` (optional): Filter by service type (`grooming` or `addon`)
 
 **Success Response (200):**
 
@@ -2943,17 +2943,94 @@ Base route: `/bookings`
   "message": "Fetch services successfully",
   "services": [
     {
-      "_id": "507f1f77bcf86cd799439011",
+      "_id": "69a45774ecf65d9a74d53fe6",
+      "code": "SVC-0001",
       "name": "Basic Grooming",
-      "description": "Full grooming service",
+      "description": "Perawatan dasar yang bikin pawfriends bersih, wangi, dan nyaman lagi. Cocok untuk rutin supaya tetap fresh dan sehat.",
+      "image_url": "https://res.cloudinary.com/do1uyohvw/image/upload/v1772357877/pawship-grooming/services/nait3ft2mnkjvjojq7j1.jpg",
+      "public_id": "pawship-grooming/services/nait3ft2mnkjvjojq7j1",
       "prices": [
         {
-          "size_category_id": "507f1f77bcf86cd799439012",
-          "price": 150000
+          "pet_type_id": "698bf0d362f5760ac021c595",
+          "pet_name": "Cat",
+          "size_id": "698bf0e462f5760ac021c597",
+          "size_name": "Small",
+          "hair_id": "698bed63aac98e7b92a3e31d",
+          "hair_name": "Sort Hair",
+          "price": 69000
+        },
+        {
+          "pet_type_id": "698bf0d362f5760ac021c595",
+          "pet_name": "Cat",
+          "size_id": "698bf0e462f5760ac021c597",
+          "size_name": "Small",
+          "hair_id": "698bf05c62f5760ac021c590",
+          "hair_name": "Long Hair",
+          "price": 89000
+        },
+        {
+          "pet_type_id": "698bf0d362f5760ac021c595",
+          "pet_name": "Cat",
+          "size_id": "698bf0e862f5760ac021c599",
+          "size_name": "Medium",
+          "hair_id": "698bed63aac98e7b92a3e31d",
+          "hair_name": "Sort Hair",
+          "price": 89000
+        },
+        {
+          "pet_type_id": "698bf0d362f5760ac021c595",
+          "pet_name": "Cat",
+          "size_id": "698bf0e862f5760ac021c599",
+          "size_name": "Medium",
+          "hair_id": "698bf05c62f5760ac021c590",
+          "hair_name": "Long Hair",
+          "price": 109000
+        },
+        {
+          "pet_type_id": "698bf0d362f5760ac021c595",
+          "pet_name": "Cat",
+          "size_id": "698bf0ea62f5760ac021c59b",
+          "size_name": "Large",
+          "hair_id": "698bed63aac98e7b92a3e31d",
+          "hair_name": "Sort Hair",
+          "price": 109000
+        },
+        {
+          "pet_type_id": "698bf0d362f5760ac021c595",
+          "pet_name": "Cat",
+          "size_id": "698bf0ea62f5760ac021c59b",
+          "size_name": "Large",
+          "hair_id": "698bf05c62f5760ac021c590",
+          "hair_name": "Long Hair",
+          "price": 129000
         }
       ],
       "duration": 60,
-      "is_active": true
+      "available_for_unlimited": true,
+      "include": [
+        "Mandi bersih dengan shampoo gentle khusus anabul",
+        "Blow dry sampai kering dan fluffy",
+        "Gunting kuku & bersihin telinga",
+        "Pembersihan telinga",
+        "Cukur area paw (bawah kaki)",
+        "Parfum pet friendly"
+      ],
+      "show_in_homepage": false,
+      "order": 0,
+      "is_active": true,
+      "isDeleted": false,
+      "deletedAt": null,
+      "createdAt": "2026-03-01T15:12:52.848Z",
+      "updatedAt": "2026-03-02T00:32:08.957Z",
+      "service_location_type": "in store",
+      "service_type": {
+        "_id": "69a22d75a9d735a33014cc8b",
+        "title": "Grooming"
+      },
+      "size_categories": [],
+      "pet_types": [],
+      "avaiable_store": [],
+      "addons": []
     }
   ]
 }

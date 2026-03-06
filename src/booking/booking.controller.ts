@@ -55,9 +55,12 @@ export class BookingController {
   @Get('public/services')
   async getPublicServices(
     @Query('store_id') storeId?: string,
-    @Query('type') type?: string,
+    @Query('service_type_id') service_type_id?: string,
   ) {
-    const services = await this.serviceService.findAllForGuest(storeId, type);
+    const services = await this.serviceService.findAllForGuest(
+      storeId,
+      service_type_id,
+    );
     return {
       message: 'Fetch services successfully',
       services,

@@ -274,6 +274,7 @@ export class ServiceService {
     return service;
   }
 
+  // method to retrieve service duration and price based on service id
   async getServiceForBooking(serviceId: ObjectId, sizeCategoryId: ObjectId) {
     const service = await this.serviceModel
       .findById(serviceId)
@@ -297,25 +298,37 @@ export class ServiceService {
     };
   }
 
-  async findAllForGuest(storeId?: string, type?: string) {
+  // method to retrieve service based on service type and store
+  async findAllForGuest(storeId?: string, service_type_id?: string) {
     const filter: any = { isDeleted: false };
 
     // Filter by service type if provided
-    if (type) {
+    if (service_type_id) {
       // Assuming 'grooming' or 'addon' is stored in service_type or a separate field
       // You may need to adjust this based on your actual schema
       // For now, we'll filter by a field called 'type' or you can populate service_type
-      filter.service_type_id = type;
+      filter.service_type_id = service_type_id;
     }
 
     let services = await this.serviceModel
       .find(filter)
-      .populate('service_type', 'name')
+      .populate('service_type', 'title')
       .populate('size_categories', 'name')
       .populate('pet_types', 'name')
       .populate('avaiable_store', 'name')
+      .populate('addons', 'code name image_url')
+      .populate({
+        path: 'prices.pet_type_id',
+        model: 'Option',
+        select: 'name',
+      })
       .populate({
         path: 'prices.size_id',
+        model: 'Option',
+        select: 'name',
+      })
+      .populate({
+        path: 'prices.hair_id',
         model: 'Option',
         select: 'name',
       })
