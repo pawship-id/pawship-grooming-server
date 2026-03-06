@@ -894,43 +894,38 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
   "message": "Fetch stores successfully",
   "stores": [
     {
-      "_id": "507f1f77bcf86cd799439011",
-      "code": "STR001",
-      "name": "Pawship Store Jakarta",
-      "description": "Main store in Jakarta",
+      "_id": "698be0cd80c319b74fe2f073",
+      "code": "PW-0001",
+      "name": "Pawship.id",
+      "description": "Cabang pertama di Surabaya",
       "location": {
-        "address": "Jl. Sudirman No. 123",
-        "city": "Jakarta",
-        "province": "DKI Jakarta",
-        "postal_code": "12345",
-        "latitude": -6.2088,
-        "longitude": 106.8456
+        "address": "Jl. Klampis Jaya No.A6",
+        "city": "Surabaya",
+        "province": "Jawa Timur",
+        "postal_code": "60284"
       },
       "contact": {
-        "phone_number": "+628123456789",
-        "whatsapp": "+628123456789",
-        "email": "jakarta@pawship.com"
+        "phone_number": "080987654321",
+        "whatsapp": "080987654321",
+        "email": "pawshipid@gmail.com"
       },
       "operational": {
-        "opening_time": "09:00",
-        "closing_time": "18:00",
-        "operational_days": [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday"
-        ],
+        "opening_time": "09.00",
+        "closing_time": "18.00",
+        "operational_days": ["Monday", "Tuesday", "Sunday"],
         "timezone": "Asia/Jakarta"
       },
       "capacity": {
-        "default_daily_capacity_minutes": 480,
-        "overbooking_limit_minutes": 60
+        "default_daily_capacity_minutes": 960,
+        "overbooking_limit_minutes": 120
       },
-      "sessions": [],
       "is_active": true,
-      "createdAt": "2024-01-15T08:00:00.000Z",
-      "updatedAt": "2024-01-15T08:00:00.000Z"
+      "isDeleted": false,
+      "deletedAt": null,
+      "createdAt": "2026-02-11T01:52:13.002Z",
+      "updatedAt": "2026-03-06T04:54:14.821Z",
+      "__v": 0,
+      "sessions": ["09.00 - 12.00", "13.00 - 16.00", "17.00 - 20.00"]
     }
   ],
   "pagination": {
@@ -2871,39 +2866,37 @@ Base route: `/bookings`
   "message": "Fetch stores successfully",
   "stores": [
     {
-      "sessions": [],
-      "_id": "69a04fbf5b6e81b3fc6580cc",
-      "code": "TOKO-JKT-001",
-      "name": "Pawship Jakarta",
-      "description": "Ini adalah pawship pertama di Jakarta",
+      "_id": "698be0cd80c319b74fe2f073",
+      "code": "PW-0001",
+      "name": "Pawship.id",
+      "description": "Cabang pertama di Surabaya",
       "location": {
-        "address": "Jl. Sudirman",
-        "city": "Jakarta Selatan",
-        "province": "DKI Jakarta",
-        "postal_code": "11223",
-        "latitude": -6.175446,
-        "longitude": 106.827171
+        "address": "Jl. Klampis Jaya No.A6",
+        "city": "Surabaya",
+        "province": "Jawa Timur",
+        "postal_code": "60284"
       },
       "contact": {
-        "phone_number": "081234567890",
-        "whatsapp": "081234567890",
-        "email": "pawshipjkt@pawship.com"
+        "phone_number": "080987654321",
+        "whatsapp": "080987654321",
+        "email": "pawshipid@gmail.com"
       },
       "operational": {
-        "opening_time": "09:00",
-        "closing_time": "18:00",
-        "operational_days": ["Saturday", "Sunday"],
+        "opening_time": "09.00",
+        "closing_time": "18.00",
+        "operational_days": ["Monday", "Tuesday", "Sunday"],
         "timezone": "Asia/Jakarta"
       },
       "capacity": {
-        "default_daily_capacity_minutes": 600,
+        "default_daily_capacity_minutes": 960,
         "overbooking_limit_minutes": 120
       },
       "is_active": true,
       "isDeleted": false,
       "deletedAt": null,
-      "createdAt": "2026-02-26T13:50:55.573Z",
-      "updatedAt": "2026-02-27T01:39:56.409Z",
+      "createdAt": "2026-02-11T01:52:13.002Z",
+      "updatedAt": "2026-03-06T04:54:14.821Z",
+      "sessions": ["09.00 - 12.00", "13.00 - 16.00", "17.00 - 20.00"],
       "serviceTypes": [
         {
           "_id": "69a22d75a9d735a33014cc8b",
