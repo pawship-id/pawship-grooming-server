@@ -127,6 +127,23 @@ export class StoreService {
     };
   }
 
+  async findAllWithServiceTypes() {
+    const stores = await this.storeModel
+      .find({ isDeleted: false, is_active: true })
+      .populate({
+        path: 'serviceTypes',
+        select: 'title description image_url',
+        match: {
+          isDeleted: false,
+          is_active: true,
+        },
+      })
+      .sort({ createdAt: -1 })
+      .exec();
+
+    return { stores };
+  }
+
   async findOne(id: ObjectId) {
     const store = await this.storeModel.findById(id).lean();
 

@@ -2862,6 +2862,8 @@ Base route: `/bookings`
 
 **Authentication:** Not Required
 
+**Description:** Mengambil semua store aktif beserta service types yang tersedia di masing-masing store.
+
 **Success Response (200):**
 
 ```json
@@ -2869,13 +2871,53 @@ Base route: `/bookings`
   "message": "Fetch stores successfully",
   "stores": [
     {
-      "_id": "507f1f77bcf86cd799439011",
+      "sessions": [],
+      "_id": "69a04fbf5b6e81b3fc6580cc",
+      "code": "TOKO-JKT-001",
       "name": "Pawship Jakarta",
+      "description": "Ini adalah pawship pertama di Jakarta",
+      "location": {
+        "address": "Jl. Sudirman",
+        "city": "Jakarta Selatan",
+        "province": "DKI Jakarta",
+        "postal_code": "11223",
+        "latitude": -6.175446,
+        "longitude": 106.827171
+      },
+      "contact": {
+        "phone_number": "081234567890",
+        "whatsapp": "081234567890",
+        "email": "pawshipjkt@pawship.com"
+      },
+      "operational": {
+        "opening_time": "09:00",
+        "closing_time": "18:00",
+        "operational_days": ["Saturday", "Sunday"],
+        "timezone": "Asia/Jakarta"
+      },
       "capacity": {
-        "default_daily_capacity_minutes": 720,
+        "default_daily_capacity_minutes": 600,
         "overbooking_limit_minutes": 120
       },
-      "is_active": true
+      "is_active": true,
+      "isDeleted": false,
+      "deletedAt": null,
+      "createdAt": "2026-02-26T13:50:55.573Z",
+      "updatedAt": "2026-02-27T01:39:56.409Z",
+      "serviceTypes": [
+        {
+          "_id": "69a22d75a9d735a33014cc8b",
+          "title": "Grooming",
+          "description": "Perawatan lengkap untuk hewan peliharaan meliputi mandi, potong bulu, potong kuku, dan pembersihan telinga agar tetap bersih, sehat, dan nyaman.",
+          "image_url": "pawship-grooming/service-types/wv36relrkxfa3afhggaq"
+        },
+        {
+          "_id": "69a23091fc6d99c2f08252f1",
+          "title": "Addons",
+          "description": "Layanan tambahan yang dapat dipilih pelanggan untuk melengkapi layanan utama",
+          "image_url": "pawship-grooming/service-types/eoivdfvisqxjddarv0ie"
+        }
+      ]
     }
   ]
 }

@@ -3,7 +3,17 @@ import { HydratedDocument } from 'mongoose';
 
 export type StoreDocument = HydratedDocument<Store>;
 
-@Schema({ timestamps: true })
+@Schema({
+  timestamps: true,
+  toObject: { virtuals: true },
+  toJSON: {
+    virtuals: true,
+    transform: (_: any, ret: any) => {
+      delete ret.id;
+      delete ret.__v;
+    },
+  },
+})
 export class Store {
   @Prop({ required: true, unique: true })
   code: string;
@@ -90,3 +100,9 @@ export class Store {
 }
 
 export const StoreSchema = SchemaFactory.createForClass(Store);
+
+StoreSchema.virtual('serviceTypes', {
+  ref: 'ServiceType',
+  localField: '_id',
+  foreignField: 'store_ids',
+});

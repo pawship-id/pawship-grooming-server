@@ -39,11 +39,11 @@ export class BookingController {
 
   // ─── Public (Guest) Endpoints ──────────────────────────────────────────────
 
-  // Get all stores (public)
+  // Get all stores with service types (public)
   @Public()
   @Get('public/stores')
   async getPublicStores() {
-    const result = await this.storeService.findAll({});
+    const result = await this.storeService.findAllWithServiceTypes();
     return {
       message: 'Fetch stores successfully',
       ...result,
