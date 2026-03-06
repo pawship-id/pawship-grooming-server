@@ -1788,6 +1788,7 @@ GET /service-types?search=grooming&is_active=true&page=1&limit=5
       "secure_url": "https://res.cloudinary.com/example/image/upload/v1/service-types/grooming.jpg",
       "is_active": true,
       "show_in_homepage": true,
+      "store_ids": ["507f1f77bcf86cd799439020", "507f1f77bcf86cd799439021"],
       "isDeleted": false,
       "createdAt": "2026-02-19T10:00:00.000Z",
       "updatedAt": "2026-02-19T10:00:00.000Z"
@@ -1829,6 +1830,7 @@ GET /service-types?search=grooming&is_active=true&page=1&limit=5
     "secure_url": "https://res.cloudinary.com/example/image/upload/v1/service-types/grooming.jpg",
     "is_active": true,
     "show_in_homepage": true,
+    "store_ids": ["507f1f77bcf86cd799439020", "507f1f77bcf86cd799439021"],
     "isDeleted": false,
     "createdAt": "2026-02-19T10:00:00.000Z",
     "updatedAt": "2026-02-19T10:00:00.000Z"
@@ -1867,6 +1869,7 @@ GET /service-types?search=grooming&is_active=true&page=1&limit=5
 - `image`: File (optional) — image to upload to Cloudinary
 - `is_active`: boolean string `"true"` or `"false"` (optional, default: `false`)
 - `show_in_homepage`: boolean string `"true"` or `"false"` (optional, default: `false`)
+- `store_ids`: array of MongoDB ObjectId strings (optional) — list of stores where this service type is available
 
 **Example Form-Data in Postman:**
 
@@ -1876,6 +1879,8 @@ Key: desc             | Type: Text | Value: Full grooming service for pets
 Key: image            | Type: File | Value: [Select file]
 Key: is_active        | Type: Text | Value: true
 Key: show_in_homepage | Type: Text | Value: false
+Key: store_ids[0]     | Type: Text | Value: 507f1f77bcf86cd799439020
+Key: store_ids[1]     | Type: Text | Value: 507f1f77bcf86cd799439021
 ```
 
 **Success Response (201):**
@@ -1923,6 +1928,7 @@ Key: show_in_homepage | Type: Text | Value: false
 - `image`: File — new image to upload (replaces `image_url` and `secure_url`)
 - `is_active`: boolean string `"true"` or `"false"`
 - `show_in_homepage`: boolean string `"true"` or `"false"`
+- `store_ids`: array of MongoDB ObjectId strings — list of stores where this service type is available
 
 **Success Response (200):**
 

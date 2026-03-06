@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
+import { Types } from 'mongoose';
 
 export type ServiceTypeDocument = HydratedDocument<ServiceType>;
 
@@ -8,6 +9,7 @@ export type ServiceTypeDocument = HydratedDocument<ServiceType>;
   toJSON: {
     virtuals: true,
     transform: (_: any, ret: any) => {
+      delete ret.store_ids;
       delete ret.id;
       delete ret.__v;
       return ret;
@@ -34,6 +36,9 @@ export class ServiceType {
   @Prop({ default: false })
   show_in_homepage: boolean;
 
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Store' }], default: [] })
+  store_ids: Types.ObjectId[];
+
   @Prop({ default: false })
   isDeleted: boolean;
 
@@ -42,3 +47,9 @@ export class ServiceType {
 }
 
 export const ServiceTypeSchema = SchemaFactory.createForClass(ServiceType);
+
+ServiceTypeSchema.virtual('stores', {
+  ref: 'Store',
+  localField: 'store_ids',
+  foreignField: '_id',
+});

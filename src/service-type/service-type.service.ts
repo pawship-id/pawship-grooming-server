@@ -19,7 +19,10 @@ export class ServiceTypeService {
   ) {}
 
   async create(body: CreateServiceTypeDto, file?: Express.Multer.File) {
-    const data: Partial<ServiceType> = { ...body };
+    const data: Partial<ServiceType> = {
+      ...body,
+      store_ids: body.store_ids?.map((id) => new ObjectId(id)),
+    };
 
     if (file) {
       const base64Image = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
@@ -81,7 +84,10 @@ export class ServiceTypeService {
     body: UpdateServiceTypeDto,
     file?: Express.Multer.File,
   ) {
-    const data: Record<string, any> = { ...body };
+    const data: Partial<ServiceType> = {
+      ...body,
+      store_ids: body.store_ids?.map((id) => new ObjectId(id)),
+    };
 
     if (file) {
       const base64Image = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;

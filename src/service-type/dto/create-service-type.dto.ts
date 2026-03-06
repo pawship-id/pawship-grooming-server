@@ -1,5 +1,12 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsMongoId,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class CreateServiceTypeDto {
   @IsNotEmpty({ message: 'title is required' })
@@ -27,4 +34,9 @@ export class CreateServiceTypeDto {
     return value;
   })
   show_in_homepage?: boolean = false;
+
+  @IsOptional()
+  @IsArray()
+  @IsMongoId({ each: true })
+  store_ids?: string[];
 }
