@@ -18,6 +18,14 @@ export class CreateServiceTypeDto {
   description?: string;
 
   @IsOptional()
+  @IsString()
+  image_url: string;
+
+  @IsOptional()
+  @IsString()
+  secure_url: string;
+
+  @IsOptional()
   @IsBoolean()
   @Transform(({ value }) => {
     if (value === 'true') return true;

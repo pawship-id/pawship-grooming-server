@@ -9,7 +9,6 @@ import {
 import { CreateServiceTypeDto } from './dto/create-service-type.dto';
 import { UpdateServiceTypeDto } from './dto/update-service-type.dto';
 import { GetServiceTypesQueryDto } from './dto/get-service-types-query.dto';
-import { uploadToCloudinary } from 'src/helpers/cloudinary';
 
 @Injectable()
 export class ServiceTypeService {
@@ -18,21 +17,11 @@ export class ServiceTypeService {
     private readonly serviceTypeModel: Model<ServiceTypeDocument>,
   ) {}
 
-  async create(body: CreateServiceTypeDto, file?: Express.Multer.File) {
+  async create(body: CreateServiceTypeDto) {
     const data: Partial<ServiceType> = {
       ...body,
       store_ids: body.store_ids?.map((id) => new ObjectId(id)),
     };
-
-    if (file) {
-      const base64Image = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-      const uploadResult = await uploadToCloudinary(
-        base64Image,
-        'service-types',
-      );
-      data.image_url = uploadResult.public_id;
-      data.secure_url = uploadResult.secure_url;
-    }
 
     const serviceType = new this.serviceTypeModel(data);
     return await serviceType.save();
@@ -59,6 +48,7 @@ export class ServiceTypeService {
 
     const serviceTypes = await this.serviceTypeModel
       .find(filter)
+      .populate('stores', 'code name description')
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 })
@@ -79,25 +69,11 @@ export class ServiceTypeService {
     return await this.serviceTypeModel.findById(id).exec();
   }
 
-  async update(
-    id: ObjectId,
-    body: UpdateServiceTypeDto,
-    file?: Express.Multer.File,
-  ) {
+  async update(id: ObjectId, body: UpdateServiceTypeDto) {
     const data: Partial<ServiceType> = {
       ...body,
       store_ids: body.store_ids?.map((id) => new ObjectId(id)),
     };
-
-    if (file) {
-      const base64Image = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-      const uploadResult = await uploadToCloudinary(
-        base64Image,
-        'service-types',
-      );
-      data.image_url = uploadResult.public_id;
-      data.secure_url = uploadResult.secure_url;
-    }
 
     const serviceType = await this.serviceTypeModel.findByIdAndUpdate(
       id,

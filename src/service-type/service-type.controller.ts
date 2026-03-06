@@ -10,7 +10,6 @@ import {
   Put,
   UseGuards,
   UseInterceptors,
-  UploadedFile,
   Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -27,12 +26,8 @@ export class ServiceTypeController {
   constructor(private readonly serviceTypeService: ServiceTypeService) {}
 
   @Post()
-  @UseInterceptors(FileInterceptor('image'))
-  async create(
-    @Body() body: CreateServiceTypeDto,
-    @UploadedFile() file?: Express.Multer.File,
-  ) {
-    await this.serviceTypeService.create(body, file);
+  async create(@Body() body: CreateServiceTypeDto) {
+    await this.serviceTypeService.create(body);
 
     return {
       message: 'Create service type successfully',
@@ -65,12 +60,7 @@ export class ServiceTypeController {
   }
 
   @Put(':id')
-  @UseInterceptors(FileInterceptor('image'))
-  async update(
-    @Param('id') id: string,
-    @Body() body: UpdateServiceTypeDto,
-    @UploadedFile() file?: Express.Multer.File,
-  ) {
+  async update(@Param('id') id: string, @Body() body: UpdateServiceTypeDto) {
     if (!id) throw new BadRequestException('id is required');
 
     const _id = new ObjectId(id);
@@ -78,7 +68,7 @@ export class ServiceTypeController {
     if (!serviceType || serviceType.isDeleted)
       throw new NotFoundException('data not found');
 
-    await this.serviceTypeService.update(_id, body, file);
+    await this.serviceTypeService.update(_id, body);
 
     return {
       message: 'Update service type successfully',

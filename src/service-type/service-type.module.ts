@@ -4,7 +4,6 @@ import { ServiceTypeService } from './service-type.service';
 import { ServiceTypeController } from './service-type.controller';
 import { ServiceType, ServiceTypeSchema } from './entities/service-type.entity';
 import { AuthModule } from 'src/auth/auth.module';
-import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -12,7 +11,6 @@ import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
       { name: ServiceType.name, schema: ServiceTypeSchema },
     ]),
     AuthModule,
-    CloudinaryModule,
   ],
   controllers: [ServiceTypeController],
   providers: [ServiceTypeService],
