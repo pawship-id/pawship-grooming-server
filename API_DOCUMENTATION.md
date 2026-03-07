@@ -2015,15 +2015,24 @@ GET /service-types?search=grooming&is_active=true&page=1&limit=5
 
 - `Authorization: Bearer {access_token}` (required)
 
-**Request Body (Form-Data):**
+**Request Body (JSON):**
 
-- `title`: string (required)
-- `desc`: string (optional)
-- `image_url`: string (optional) — image url from Cloudinary
-- `public_id`: string (optional) — public id from Cloudinary
-- `is_active`: boolean string `"true"` or `"false"` (optional, default: `false`)
-- `show_in_homepage`: boolean string `"true"` or `"false"` (optional, default: `false`)
-- `store_ids`: array of MongoDB ObjectId strings (optional) — list of stores where this service type is available
+```json
+{
+  "title": "Addons",
+  "description": "Layanan tambahan yang dapat dipilih pelanggan untuk melengkapi layanan utama",
+  "image_url": "https://res.cloudinary.com/do1uyohvw/image/upload/v1772236945/pawship-grooming/service-types/eoivdfvisqxjddarv0ie.jpg",
+  "public_id": "pawship-grooming/service-types/eoivdfvisqxjddarv0ie",
+  "is_active": false,
+  "show_in_homepage": false,
+  "store_ids": [
+    "69a04fbf5b6e81b3fc6580cc",
+    "69a048055b6e81b3fc65808d",
+    "699a589b9f9402b88230c66a",
+    "698be0cd80c319b74fe2f073"
+  ]
+}
+```
 
 **Success Response (201):**
 
@@ -2051,8 +2060,6 @@ GET /service-types?search=grooming&is_active=true&page=1&limit=5
 
 **Endpoint:** `PUT /service-types/:id`
 
-**Content-Type:** `multipart/form-data`
-
 **Headers:**
 
 - `Authorization: Bearer {access_token}` (required)
@@ -2061,15 +2068,24 @@ GET /service-types?search=grooming&is_active=true&page=1&limit=5
 
 - `id` (path): MongoDB ObjectId
 
-**Request Body (Form-Data):** (All fields optional)
+**Request Body {JSON}:** (All fields optional)
 
-- `title`: string
-- `desc`: string
-- `image_url`: string (optional) — image url from Cloudinary
-- `public_id`: string (optional) — public id from Cloudinary
-- `is_active`: boolean string `"true"` or `"false"`
-- `show_in_homepage`: boolean string `"true"` or `"false"`
-- `store_ids`: array of MongoDB ObjectId strings — list of stores where this service type is available
+```json
+{
+  "title": "Addons",
+  "description": "Layanan tambahan yang dapat dipilih pelanggan untuk melengkapi layanan utama",
+  "image_url": "https://res.cloudinary.com/do1uyohvw/image/upload/v1772236945/pawship-grooming/service-types/eoivdfvisqxjddarv0ie.jpg",
+  "public_id": "pawship-grooming/service-types/eoivdfvisqxjddarv0ie",
+  "is_active": false,
+  "show_in_homepage": false,
+  "store_ids": [
+    "69a04fbf5b6e81b3fc6580cc",
+    "69a048055b6e81b3fc65808d",
+    "699a589b9f9402b88230c66a",
+    "698be0cd80c319b74fe2f073"
+  ]
+}
+```
 
 **Success Response (200):**
 
