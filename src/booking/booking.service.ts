@@ -58,6 +58,17 @@ export class BookingService {
         member_type: pet.member_type,
       };
 
+      body.service_snapshot = (await this.serviceService.getServiceSnapshot(
+        new ObjectId(body.service_id),
+        pet.pet_type_id ? new ObjectId(pet.pet_type_id as any) : undefined,
+        pet.size_category_id
+          ? new ObjectId(pet.size_category_id as any)
+          : undefined,
+        pet.hair_category_id
+          ? new ObjectId(pet.hair_category_id as any)
+          : undefined,
+      )) as any;
+
       // 1️⃣ Ambil Store dengan session
       const store = await this.storeModel
         .findById(body.store_id)
@@ -301,6 +312,17 @@ export class BookingService {
         name: pet.name,
         member_type: pet.member_type,
       };
+
+      body.service_snapshot = (await this.serviceService.getServiceSnapshot(
+        new ObjectId(body.service_id),
+        pet.pet_type_id ? new ObjectId(pet.pet_type_id as any) : undefined,
+        pet.size_category_id
+          ? new ObjectId(pet.size_category_id as any)
+          : undefined,
+        pet.hair_category_id
+          ? new ObjectId(pet.hair_category_id as any)
+          : undefined,
+      )) as any;
 
       // handle service
       let service = await this.serviceService.getServiceForBooking(

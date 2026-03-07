@@ -28,9 +28,7 @@ export class PetService {
     };
 
     if (body.hair_category_id) {
-      petData.hair_category_id = new Types.ObjectId(
-        body.hair_category_id,
-      );
+      petData.hair_category_id = new Types.ObjectId(body.hair_category_id);
     }
 
     if (body.member_category_id) {
@@ -198,7 +196,9 @@ export class PetService {
   async getPetSnapshot(petId: ObjectId) {
     const pet = await this.petModel
       .findById(petId)
-      .select('name isDeleted member_category_id size_category_id')
+      .select(
+        'name isDeleted member_category_id size_category_id pet_type_id hair_category_id',
+      )
       .populate('member_category', 'name')
       .exec();
 
@@ -210,6 +210,8 @@ export class PetService {
       name: pet.name,
       member_type: (pet as any).member_category?.name ?? null,
       size_category_id: pet.size_category_id,
+      pet_type_id: pet.pet_type_id,
+      hair_category_id: pet.hair_category_id,
     };
   }
 }

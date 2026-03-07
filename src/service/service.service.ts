@@ -298,6 +298,92 @@ export class ServiceService {
     };
   }
 
+  // method to build a service snapshot matched to pet's pet_type, size, and hair
+  async getServiceSnapshot(
+    serviceId: ObjectId,
+    petTypeId?: ObjectId,
+    sizeCategoryId?: ObjectId,
+    hairCategoryId?: ObjectId,
+  ) {
+    const service = await this.serviceModel
+      .findById(serviceId)
+      .select('code name description service_type_id prices duration isDeleted')
+      .populate('service_type', 'title')
+      .lean();
+
+    if (!service || service.isDeleted) {
+      throw new NotFoundException('service not found');
+    }
+
+    const prices = (service as any).prices || [];
+
+    // Best-match: score based on matching pet_type, size, hair fields
+    let bestPrice: any = null;
+    let bestScore = -1;
+
+    for (const p of prices) {
+      let score = 0;
+      if (
+        petTypeId &&
+        p.pet_type_id &&
+        p.pet_type_id.toString() === petTypeId.toString()
+      )
+        score++;
+      if (
+        sizeCategoryId &&
+        p.size_id &&
+        p.size_id.toString() === sizeCategoryId.toString()
+      )
+        score++;
+      if (
+        hairCategoryId &&
+        p.hair_id &&
+        p.hair_id.toString() === hairCategoryId.toString()
+      )
+        score++;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestPrice = p;
+      }
+    }
+
+    // Look up option names for the matched price entry
+    const [petTypeOption, sizeOption, hairOption] = await Promise.all([
+      bestPrice?.pet_type_id
+        ? this.optionModel.findById(bestPrice.pet_type_id).select('name').lean()
+        : null,
+      bestPrice?.size_id
+        ? this.optionModel.findById(bestPrice.size_id).select('name').lean()
+        : null,
+      bestPrice?.hair_id
+        ? this.optionModel.findById(bestPrice.hair_id).select('name').lean()
+        : null,
+    ]);
+
+    const serviceType = (service as any).service_type;
+
+    return {
+      code: service.code,
+      name: service.name,
+      description: (service as any).description ?? null,
+      service_type: serviceType
+        ? { _id: serviceType._id, title: serviceType.title }
+        : null,
+      price: bestPrice?.price ?? 0,
+      pet_type: petTypeOption
+        ? { _id: bestPrice.pet_type_id, name: (petTypeOption as any).name }
+        : null,
+      size: sizeOption
+        ? { _id: bestPrice.size_id, name: (sizeOption as any).name }
+        : null,
+      hair: hairOption
+        ? { _id: bestPrice.hair_id, name: (hairOption as any).name }
+        : null,
+      duration: (service as any).duration ?? 0,
+    };
+  }
+
   // method to retrieve service based on service type and store
   async findAllForGuest(storeId?: string, service_type_id?: string) {
     const filter: any = { isDeleted: false };

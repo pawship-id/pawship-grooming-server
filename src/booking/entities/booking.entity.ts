@@ -20,6 +20,52 @@ export class PetSnapshot {
 }
 
 @Schema({ _id: false })
+export class ServiceSnapshot {
+  @Prop()
+  code?: string;
+
+  @Prop()
+  name?: string;
+
+  @Prop()
+  description?: string;
+
+  @Prop({
+    type: { _id: { type: Types.ObjectId }, title: { type: String } },
+    _id: false,
+    default: null,
+  })
+  service_type?: { _id: Types.ObjectId; title: string };
+
+  @Prop({ default: 0 })
+  price?: number;
+
+  @Prop({
+    type: { _id: { type: Types.ObjectId }, name: { type: String } },
+    _id: false,
+    default: null,
+  })
+  pet_type?: { _id: Types.ObjectId; name: string };
+
+  @Prop({
+    type: { _id: { type: Types.ObjectId }, name: { type: String } },
+    _id: false,
+    default: null,
+  })
+  size?: { _id: Types.ObjectId; name: string };
+
+  @Prop({
+    type: { _id: { type: Types.ObjectId }, name: { type: String } },
+    _id: false,
+    default: null,
+  })
+  hair?: { _id: Types.ObjectId; name: string };
+
+  @Prop({ default: 0 })
+  duration?: number;
+}
+
+@Schema({ _id: false })
 export class SessionMedia {
   @Prop({
     enum: MediaType,
@@ -192,6 +238,9 @@ export class Booking {
   /* ===== Pet ===== */
   @Prop({ type: PetSnapshot, required: true })
   pet_snapshot: PetSnapshot;
+
+  @Prop({ type: ServiceSnapshot, default: null })
+  service_snapshot?: ServiceSnapshot;
 
   @Prop({ type: Types.ObjectId, ref: 'Pet', required: true })
   pet_id: Types.ObjectId;

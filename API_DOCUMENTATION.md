@@ -3661,7 +3661,8 @@ If user not found:
 - Same capacity validation as authenticated booking
 - If capacity exceeded beyond overbooking limit, booking is created as WAITLIST
 - System automatically calculates pricing based on pet size
-- Creates `pet_snapshot` automatically
+- Creates `pet_snapshot` automatically from pet data
+- Creates `service_snapshot` automatically — stores service code, name, description, service type, and the best-matched price based on the pet's pet type, size, and hair
 - Initial `booking_status` is `requested`
 
 ---
@@ -3684,6 +3685,29 @@ If user not found:
       "pet_snapshot": {
         "name": "Buddy",
         "member_type": "VIP"
+      },
+      "service_snapshot": {
+        "code": "GRM-001",
+        "name": "Basic Grooming",
+        "description": "Full grooming package including bath, dry, and trim",
+        "service_type": {
+          "_id": "507f1f77bcf86cd799439030",
+          "title": "Grooming"
+        },
+        "price": 150000,
+        "pet_type": {
+          "_id": "507f1f77bcf86cd799439031",
+          "name": "Dog"
+        },
+        "size": {
+          "_id": "507f1f77bcf86cd799439032",
+          "name": "Medium"
+        },
+        "hair": {
+          "_id": "507f1f77bcf86cd799439033",
+          "name": "Short"
+        },
+        "duration": 60
       },
       "pet_id": "507f1f77bcf86cd799439013",
       "store_id": "507f1f77bcf86cd799439014",
@@ -3804,6 +3828,17 @@ If user not found:
     "name": "string (optional)",
     "member_type": "string (optional)"
   },
+  "service_snapshot": {
+    "code": "string (optional, auto-populated by server)",
+    "name": "string (optional, auto-populated by server)",
+    "description": "string (optional)",
+    "service_type": { "_id": "string", "title": "string" },
+    "price": "number (optional)",
+    "pet_type": { "_id": "string", "name": "string" },
+    "size": { "_id": "string", "name": "string" },
+    "hair": { "_id": "string", "name": "string" },
+    "duration": "number (optional)"
+  },
   "store_id": "MongoDB ObjectId (optional, required for in store type)",
   "date": "Date (required)",
   "time_range": "string (required, format: HH:mm - HH:mm)",
@@ -3833,6 +3868,7 @@ If user not found:
 **Business Logic:**
 
 - System automatically creates `pet_snapshot` from pet data
+- System automatically creates `service_snapshot` — stores service code, name, description, service type, and the best-matched price entry based on the pet's pet type, size, and hair (highest specificity match wins)
 - System calculates pricing based on service and pet size (including addons)
 - Initial `booking_status` is "requested"
 - Creates initial status log entry

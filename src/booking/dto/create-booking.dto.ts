@@ -20,6 +20,38 @@ export class PetSnapshotDto {
   member_type?: string;
 }
 
+export class ServiceSnapshotDto {
+  @IsOptional()
+  @IsString()
+  code?: string;
+
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  service_type?: { _id: string; title: string };
+
+  @IsOptional()
+  price?: number;
+
+  @IsOptional()
+  pet_type?: { _id: string; name: string };
+
+  @IsOptional()
+  size?: { _id: string; name: string };
+
+  @IsOptional()
+  hair?: { _id: string; name: string };
+
+  @IsOptional()
+  duration?: number;
+}
+
 export class BookingStatusLogDto {
   @IsEnum(BookingStatus)
   status: BookingStatus;
@@ -56,6 +88,11 @@ export class CreateBookingDto {
   @ValidateNested()
   @Type(() => PetSnapshotDto)
   pet_snapshot?: PetSnapshotDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ServiceSnapshotDto)
+  service_snapshot?: ServiceSnapshotDto;
 
   @IsOptional()
   @IsMongoId({ message: 'store must be a valid ID' })
