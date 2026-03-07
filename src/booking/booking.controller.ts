@@ -90,7 +90,7 @@ export class BookingController {
     }
 
     return {
-      message: 'User not found, please register',
+      message: 'User found',
       ...result,
     };
   }

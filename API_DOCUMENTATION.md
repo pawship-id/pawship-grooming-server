@@ -3387,17 +3387,92 @@ If user exists:
   "message": "User found",
   "exists": true,
   "user": {
-    "_id": "507f1f77bcf86cd799439011",
-    "username": "john_doe",
-    "email": "john@example.com",
-    "phone_number": "+628123456789"
+    "_id": "699a6a5126091dfdcf0c7190",
+    "username": "Sintia",
+    "email": "sintia@gmail.com",
+    "phone_number": "089534267814",
+    "role": "customer"
   },
   "pets": [
     {
-      "_id": "507f1f77bcf86cd799439012",
-      "name": "Buddy",
-      "pet_type_id": "507f1f77bcf86cd799439013",
-      "size_category_id": "507f1f77bcf86cd799439014"
+      "_id": "699a6a5126091dfdcf0c7192",
+      "name": "chiko",
+      "pet_type": {
+        "_id": "698bf0d362f5760ac021c595",
+        "name": "Cat"
+      },
+      "hair": {
+        "_id": "698bf05c62f5760ac021c590",
+        "name": "Long Hair"
+      },
+      "size": {
+        "_id": "698bf0e862f5760ac021c599",
+        "name": "Medium"
+      },
+      "breed": {
+        "_id": "699a6a2726091dfdcf0c718d",
+        "name": "Ragdoll"
+      }
+    },
+    {
+      "_id": "699a6dda2aa0fc8159666d46",
+      "name": "Chaca",
+      "pet_type": {
+        "_id": "698d5573b70c2a3711e368dd",
+        "name": "Dog"
+      },
+      "hair": {
+        "_id": "698bf05c62f5760ac021c590",
+        "name": "Long Hair"
+      },
+      "size": {
+        "_id": "698bf0e462f5760ac021c597",
+        "name": "Small"
+      },
+      "breed": {
+        "_id": "698da2bb19b8a1bbac7aabb6",
+        "name": "Pom"
+      }
+    },
+    {
+      "_id": "699a70622d638099634e552f",
+      "name": "Gigi",
+      "pet_type": {
+        "_id": "698d5573b70c2a3711e368dd",
+        "name": "Dog"
+      },
+      "hair": {
+        "_id": "698bed63aac98e7b92a3e31d",
+        "name": "Sort Hair"
+      },
+      "size": {
+        "_id": "698bf0e462f5760ac021c597",
+        "name": "Small"
+      },
+      "breed": {
+        "_id": "698da2bb19b8a1bbac7aabb6",
+        "name": "Pom"
+      }
+    },
+    {
+      "_id": "699a72a1e0a1d4f8ef92a85b",
+      "name": "Gigo",
+      "pet_type": {
+        "_id": "698d5573b70c2a3711e368dd",
+        "name": "Dog"
+      },
+      "hair": {
+        "_id": "698bed63aac98e7b92a3e31d",
+        "name": "Sort Hair"
+      },
+      "size": {
+        "_id": "698bf0e462f5760ac021c597",
+        "name": "Small"
+      },
+      "breed": {
+        "_id": "698da2bb19b8a1bbac7aabb6",
+        "name": "Pom"
+      }
     }
   ]
 }
