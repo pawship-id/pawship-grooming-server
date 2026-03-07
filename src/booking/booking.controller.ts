@@ -84,8 +84,13 @@ export class BookingController {
       throw new BadRequestException('phone number is required');
 
     const result = await this.guestService.checkUserByPhone(phone_number);
+
+    if (!result.exists) {
+      throw new NotFoundException('data not found');
+    }
+
     return {
-      message: result.exists ? 'User found' : 'User not found, please register',
+      message: 'User not found, please register',
       ...result,
     };
   }

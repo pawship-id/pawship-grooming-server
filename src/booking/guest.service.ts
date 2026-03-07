@@ -42,9 +42,12 @@ export class GuestService {
         customer_id: user._id,
         isDeleted: false,
       })
-      .select('_id name size_category_id breed_category_id pet_type_id')
+      .select(
+        '_id name size_category_id breed_category_id pet_type_id hair_category_id',
+      )
       .populate('size', 'name')
       .populate('breed', 'name')
+      .populate('hair', 'name')
       .populate('pet_type', 'name')
       .exec();
 
