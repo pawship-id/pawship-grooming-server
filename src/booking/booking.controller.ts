@@ -71,7 +71,7 @@ export class BookingController {
 
   // Check if user exists by phone number (public)
   @Public()
-  @Get('public/option')
+  @Get('public/options')
   async getPublicOptions(@Query('category') category?: string) {
     const options = await this.optionService.findAll(category);
     return { message: 'Fetch options successfully', options };

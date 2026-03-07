@@ -3338,7 +3338,7 @@ Base route: `/bookings`
 
 #### 3. Get All Options (Public)
 
-**Endpoint:** `GET /bookings/public/option`
+**Endpoint:** `GET /bookings/public/options`
 
 **Authentication:** Not Required
 
