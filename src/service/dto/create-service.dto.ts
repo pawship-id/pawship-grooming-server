@@ -57,6 +57,11 @@ export class CreateServiceDto {
   size_category_ids?: string[];
 
   @IsOptional()
+  @IsArray()
+  @IsMongoId({ each: true, message: 'Each hair category must be a valid ID' })
+  hair_category_ids?: string[];
+
+  @IsOptional()
   @IsArray({ message: 'prices must be an array' })
   @ValidateNested({ each: true })
   @Type(() => ServicePriceDto)

@@ -37,6 +37,7 @@ export const ServicePriceSchema = SchemaFactory.createForClass(ServicePrice);
       delete ret.id;
       delete ret.__v;
       delete ret.size_category_ids;
+      delete ret.hair_category_ids;
       delete ret.service_type_id;
       delete ret.pet_type_ids;
       delete ret.available_store_ids;
@@ -114,6 +115,13 @@ export class Service {
   size_category_ids: Types.ObjectId[];
 
   @Prop({
+    type: [{ type: Types.ObjectId, ref: 'Option' }],
+    required: true,
+    default: [],
+  })
+  hair_category_ids: Types.ObjectId[];
+
+  @Prop({
     type: [ServicePriceSchema],
     required: true,
     default: [],
@@ -178,6 +186,12 @@ ServiceSchema.virtual('size_categories', {
 ServiceSchema.virtual('pet_types', {
   ref: 'Option',
   localField: 'pet_type_ids',
+  foreignField: '_id',
+});
+
+ServiceSchema.virtual('hair', {
+  ref: 'Option',
+  localField: 'hair_category_ids',
   foreignField: '_id',
 });
 

@@ -29,47 +29,6 @@ export class ServiceService {
     try {
       body.name = capitalizeWords(body.name);
 
-      // If available_store_ids not provided or empty, default to all active stores
-      // if (!body.available_store_ids || body.available_store_ids.length === 0) {
-      //   const allStores = await this.storeModel
-      //     .find({ isDeleted: false, is_active: true })
-      //     .select('_id')
-      //     .exec();
-      //   body.available_store_ids = allStores.map((store) =>
-      //     store._id.toString(),
-      //   );
-      // }
-
-      // If size_category_ids not provided or empty, default to all active size categories
-      // if (!body.size_category_ids || body.size_category_ids.length === 0) {
-      //   const allSizeCategories = await this.optionModel
-      //     .find({
-      //       isDeleted: false,
-      //       is_active: true,
-      //       category_options: 'size category',
-      //     })
-      //     .select('_id')
-      //     .exec();
-      //   body.size_category_ids = allSizeCategories.map((cat) =>
-      //     cat._id.toString(),
-      //   );
-      // }
-
-      // If pet_type_ids not provided or empty, default to all active pet types
-      // if (!body.pet_type_ids || body.pet_type_ids.length === 0) {
-      //   const allPetTypes = await this.optionModel
-      //     .find({
-      //       isDeleted: false,
-      //       is_active: true,
-      //       category_options: 'pet type',
-      //     })
-      //     .select('_id')
-      //     .exec();
-      //   body.pet_type_ids = allPetTypes.map((type) => type._id.toString());
-      // }
-
-      // const data: Record<string, any> = { ...body };
-
       const user = new this.serviceModel(body);
 
       return await user.save();
@@ -140,6 +99,7 @@ export class ServiceService {
       .populate('service_type', 'title')
       .populate('size_categories', 'name')
       .populate('pet_types', 'name')
+      .populate('hair', 'name')
       .populate('avaiable_store', 'name')
       .populate('addons', 'code name image_url')
       .populate({
@@ -176,6 +136,7 @@ export class ServiceService {
       .populate('service_type', 'title')
       .populate('size_categories', 'name')
       .populate('pet_types', 'name')
+      .populate('hair', 'name')
       .populate('avaiable_store', 'name')
       .populate('addons', 'code name image_url')
       .populate({
@@ -202,53 +163,6 @@ export class ServiceService {
       if (body.name) {
         body.name = capitalizeWords(body.name);
       }
-
-      // If available_store_ids is provided but empty, default to all active stores
-      // if (
-      //   body.available_store_ids !== undefined &&
-      //   body.available_store_ids.length === 0
-      // ) {
-      //   const allStores = await this.storeModel
-      //     .find({ isDeleted: false, is_active: true })
-      //     .select('_id')
-      //     .exec();
-      //   body.available_store_ids = allStores.map((store) =>
-      //     store._id.toString(),
-      //   );
-      // }
-
-      // If size_category_ids is provided but empty, default to all active size categories
-      // if (
-      //   body.size_category_ids !== undefined &&
-      //   body.size_category_ids.length === 0
-      // ) {
-      //   const allSizeCategories = await this.optionModel
-      //     .find({
-      //       isDeleted: false,
-      //       is_active: true,
-      //       category_options: 'size category',
-      //     })
-      //     .select('_id')
-      //     .exec();
-      //   body.size_category_ids = allSizeCategories.map((cat) =>
-      //     cat._id.toString(),
-      //   );
-      // }
-
-      // If pet_type_ids is provided but empty, default to all active pet types
-      // if (body.pet_type_ids !== undefined && body.pet_type_ids.length === 0) {
-      //   const allPetTypes = await this.optionModel
-      //     .find({
-      //       isDeleted: false,
-      //       is_active: true,
-      //       category_options: 'pet type',
-      //     })
-      //     .select('_id')
-      //     .exec();
-      //   body.pet_type_ids = allPetTypes.map((type) => type._id.toString());
-      // }
-
-      // const data: Record<string, any> = { ...body };
 
       const service = await this.serviceModel.findByIdAndUpdate(
         id,

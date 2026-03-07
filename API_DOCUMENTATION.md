@@ -1297,76 +1297,137 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
   "message": "Fetch services successfully",
   "services": [
     {
-      "_id": "507f1f77bcf86cd799439011",
-      "code": "SVC001",
+      "_id": "69a45774ecf65d9a74d53fe6",
+      "code": "SVC-0001",
       "name": "Basic Grooming",
-      "description": "Basic grooming package",
-      "service_type": {
-        "_id": "507f1f77bcf86cd799439012",
-        "name": "Grooming"
-      },
-      "pet_types": [
-        {
-          "_id": "507f1f77bcf86cd799439013",
-          "name": "Dog"
-        }
-      ],
-      "size_categories": [
-        {
-          "_id": "507f1f77bcf86cd799439014",
-          "name": "Small"
-        },
-        {
-          "_id": "507f1f77bcf86cd799439015",
-          "name": "Medium"
-        }
-      ],
+      "description": "Perawatan dasar yang bikin pawfriends bersih, wangi, dan nyaman lagi. Cocok untuk rutin supaya tetap fresh dan sehat.",
+      "image_url": "https://res.cloudinary.com/do1uyohvw/image/upload/v1772357877/pawship-grooming/services/nait3ft2mnkjvjojq7j1.jpg",
+      "public_id": "pawship-grooming/services/nait3ft2mnkjvjojq7j1",
       "prices": [
         {
-          "pet_id": "507f1f77bcf86cd799439013",
-          "pet_name": "Dog",
-          "size_id": "507f1f77bcf86cd799439014",
+          "pet_type_id": "698bf0d362f5760ac021c595",
+          "pet_name": "Cat",
+          "size_id": "698bf0e462f5760ac021c597",
           "size_name": "Small",
-          "hair_id": "507f1f77bcf86cd799439017",
-          "hair_name": "Short",
-          "price": 100000
+          "hair_id": "698bed63aac98e7b92a3e31d",
+          "hair_name": "Sort Hair",
+          "price": 69000
         },
         {
-          "pet_id": "507f1f77bcf86cd799439013",
-          "pet_name": "Dog",
-          "size_id": "507f1f77bcf86cd799439015",
+          "pet_type_id": "698bf0d362f5760ac021c595",
+          "pet_name": "Cat",
+          "size_id": "698bf0e462f5760ac021c597",
+          "size_name": "Small",
+          "hair_id": "698bf05c62f5760ac021c590",
+          "hair_name": "Long Hair",
+          "price": 89000
+        },
+        {
+          "pet_type_id": "698bf0d362f5760ac021c595",
+          "pet_name": "Cat",
+          "size_id": "698bf0e862f5760ac021c599",
           "size_name": "Medium",
-          "hair_id": "507f1f77bcf86cd799439017",
-          "hair_name": "Short",
-          "price": 150000
+          "hair_id": "698bed63aac98e7b92a3e31d",
+          "hair_name": "Sort Hair",
+          "price": 89000
+        },
+        {
+          "pet_type_id": "698bf0d362f5760ac021c595",
+          "pet_name": "Cat",
+          "size_id": "698bf0e862f5760ac021c599",
+          "size_name": "Medium",
+          "hair_id": "698bf05c62f5760ac021c590",
+          "hair_name": "Long Hair",
+          "price": 109000
+        },
+        {
+          "pet_type_id": "698bf0d362f5760ac021c595",
+          "pet_name": "Cat",
+          "size_id": "698bf0ea62f5760ac021c59b",
+          "size_name": "Large",
+          "hair_id": "698bed63aac98e7b92a3e31d",
+          "hair_name": "Sort Hair",
+          "price": 109000
+        },
+        {
+          "pet_type_id": "698bf0d362f5760ac021c595",
+          "pet_name": "Cat",
+          "size_id": "698bf0ea62f5760ac021c59b",
+          "size_name": "Large",
+          "hair_id": "698bf05c62f5760ac021c590",
+          "hair_name": "Long Hair",
+          "price": 129000
         }
       ],
       "duration": 60,
-      "available_for_unlimited": false,
-      "image_url": "https://res.cloudinary.com/example/image/upload/v1/services/basic-grooming.jpg",
-      "public_id": "pawship-grooming/services/basic-grooming",
+      "available_for_unlimited": true,
+      "include": [
+        "Mandi bersih dengan shampoo gentle khusus anabul",
+        "Blow dry sampai kering dan fluffy",
+        "Gunting kuku & bersihin telinga",
+        "Pembersihan telinga",
+        "Cukur area paw (bawah kaki)",
+        "Parfum pet friendly"
+      ],
+      "show_in_homepage": false,
+      "order": 0,
+      "is_active": true,
+      "isDeleted": false,
+      "deletedAt": null,
+      "createdAt": "2026-03-01T15:12:52.848Z",
+      "updatedAt": "2026-03-07T01:09:10.113Z",
+      "service_location_type": "in store",
+      "service_type": {
+        "_id": "69a22d75a9d735a33014cc8b",
+        "title": "Grooming"
+      },
+      "size_categories": [
+        {
+          "_id": "698bf0e462f5760ac021c597",
+          "name": "Small"
+        },
+        {
+          "_id": "698bf0e862f5760ac021c599",
+          "name": "Medium"
+        },
+        {
+          "_id": "698bf0ea62f5760ac021c59b",
+          "name": "Large"
+        }
+      ],
+      "pet_types": [
+        {
+          "_id": "698bf0d362f5760ac021c595",
+          "name": "Cat"
+        }
+      ],
+      "hair": [
+        {
+          "_id": "698bed63aac98e7b92a3e31d",
+          "name": "Sort Hair"
+        },
+        {
+          "_id": "698bf05c62f5760ac021c590",
+          "name": "Long Hair"
+        }
+      ],
       "avaiable_store": [
         {
-          "_id": "507f1f77bcf86cd799439016",
-          "name": "Store Jakarta Pusat"
+          "_id": "698be0cd80c319b74fe2f073",
+          "name": "Pawship.id"
+        },
+        {
+          "_id": "699a589b9f9402b88230c66a",
+          "name": "Pawship.id Cabang 2"
         }
       ],
       "addons": [
         {
-          "_id": "507f1f77bcf86cd799439022",
-          "code": "ADD001",
-          "name": "Ear Cleaning",
-          "image_url": "https://res.cloudinary.com/example/image/upload/v1/services/ear-cleaning.jpg"
+          "_id": "69ab7a5f83be3bf8a151e3dd",
+          "code": "SVC-0002",
+          "name": "3 Spots Detangling"
         }
-      ],
-      "include": ["Bath", "Nail Trim", "Ear Cleaning"],
-      "show_in_homepage": false,
-      "order": 0,
-      "service_location_type": "in store",
-      "is_active": true,
-      "isDeleted": false,
-      "createdAt": "2026-01-15T10:30:00.000Z",
-      "updatedAt": "2026-01-15T10:30:00.000Z"
+      ]
     }
   ],
   "pagination": {
@@ -1405,51 +1466,89 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
 {
   "message": "Fetch service successfully",
   "service": {
-    "_id": "698d47e80085e35cb26fcab4",
+    "_id": "69a45774ecf65d9a74d53fe6",
     "code": "SVC-0001",
-    "name": "Full Grooming Package",
-    "description": "Complete grooming service including bath, haircut, nail trimming, ear cleaning, and blow dry. Perfect for keeping your pet looking and feeling their best.",
-    "duration": 90,
+    "name": "Basic Grooming",
+    "description": "Perawatan dasar yang bikin pawfriends bersih, wangi, dan nyaman lagi. Cocok untuk rutin supaya tetap fresh dan sehat.",
+    "image_url": "https://res.cloudinary.com/do1uyohvw/image/upload/v1772357877/pawship-grooming/services/nait3ft2mnkjvjojq7j1.jpg",
+    "public_id": "pawship-grooming/services/nait3ft2mnkjvjojq7j1",
+    "prices": [
+      {
+        "pet_type_id": "698bf0d362f5760ac021c595",
+        "pet_name": "Cat",
+        "size_id": "698bf0e462f5760ac021c597",
+        "size_name": "Small",
+        "hair_id": "698bed63aac98e7b92a3e31d",
+        "hair_name": "Sort Hair",
+        "price": 69000
+      },
+      {
+        "pet_type_id": "698bf0d362f5760ac021c595",
+        "pet_name": "Cat",
+        "size_id": "698bf0e462f5760ac021c597",
+        "size_name": "Small",
+        "hair_id": "698bf05c62f5760ac021c590",
+        "hair_name": "Long Hair",
+        "price": 89000
+      },
+      {
+        "pet_type_id": "698bf0d362f5760ac021c595",
+        "pet_name": "Cat",
+        "size_id": "698bf0e862f5760ac021c599",
+        "size_name": "Medium",
+        "hair_id": "698bed63aac98e7b92a3e31d",
+        "hair_name": "Sort Hair",
+        "price": 89000
+      },
+      {
+        "pet_type_id": "698bf0d362f5760ac021c595",
+        "pet_name": "Cat",
+        "size_id": "698bf0e862f5760ac021c599",
+        "size_name": "Medium",
+        "hair_id": "698bf05c62f5760ac021c590",
+        "hair_name": "Long Hair",
+        "price": 109000
+      },
+      {
+        "pet_type_id": "698bf0d362f5760ac021c595",
+        "pet_name": "Cat",
+        "size_id": "698bf0ea62f5760ac021c59b",
+        "size_name": "Large",
+        "hair_id": "698bed63aac98e7b92a3e31d",
+        "hair_name": "Sort Hair",
+        "price": 109000
+      },
+      {
+        "pet_type_id": "698bf0d362f5760ac021c595",
+        "pet_name": "Cat",
+        "size_id": "698bf0ea62f5760ac021c59b",
+        "size_name": "Large",
+        "hair_id": "698bf05c62f5760ac021c590",
+        "hair_name": "Long Hair",
+        "price": 129000
+      }
+    ],
+    "duration": 60,
+    "available_for_unlimited": true,
+    "include": [
+      "Mandi bersih dengan shampoo gentle khusus anabul",
+      "Blow dry sampai kering dan fluffy",
+      "Gunting kuku & bersihin telinga",
+      "Pembersihan telinga",
+      "Cukur area paw (bawah kaki)",
+      "Parfum pet friendly"
+    ],
+    "show_in_homepage": false,
+    "order": 0,
     "is_active": true,
     "isDeleted": false,
     "deletedAt": null,
-    "createdAt": "2026-02-12T03:24:24.372Z",
-    "updatedAt": "2026-02-17T13:23:16.199Z",
-    "available_for_unlimited": true,
-    "image_url": "https://res.cloudinary.com/example/image/upload/v1/services/full-grooming.jpg",
-    "public_id": "pawship-grooming/services/full-grooming",
-    "prices": [
-      {
-        "pet_id": "698bf0e462f5760ac021c596",
-        "pet_name": "Dog",
-        "size_id": "698bf0e462f5760ac021c597",
-        "size_name": "Small",
-        "hair_id": "698bf0e462f5760ac021c598",
-        "hair_name": "Short",
-        "price": 120000
-      },
-      {
-        "pet_id": "698bf0e462f5760ac021c596",
-        "pet_name": "Dog",
-        "size_id": "698bf0e862f5760ac021c599",
-        "size_name": "Medium",
-        "hair_id": "698bf0e462f5760ac021c598",
-        "hair_name": "Short",
-        "price": 150000
-      },
-      {
-        "pet_id": "698bf0e462f5760ac021c596",
-        "pet_name": "Dog",
-        "size_id": "698bf0ea62f5760ac021c59b",
-        "size_name": "Large",
-        "hair_id": "698bf0e462f5760ac021c598",
-        "hair_name": "Short",
-        "price": 170000
-      }
-    ],
+    "createdAt": "2026-03-01T15:12:52.848Z",
+    "updatedAt": "2026-03-07T01:09:10.113Z",
+    "service_location_type": "in store",
     "service_type": {
-      "_id": "698c037b20d26d4a72925a0d",
-      "name": "Grooming"
+      "_id": "69a22d75a9d735a33014cc8b",
+      "title": "Grooming"
     },
     "size_categories": [
       {
@@ -1467,28 +1566,37 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
     ],
     "pet_types": [
       {
-        "_id": "698d5573b70c2a3711e368dd",
-        "name": "Dog"
+        "_id": "698bf0d362f5760ac021c595",
+        "name": "Cat"
+      }
+    ],
+    "hair": [
+      {
+        "_id": "698bed63aac98e7b92a3e31d",
+        "name": "Sort Hair"
+      },
+      {
+        "_id": "698bf05c62f5760ac021c590",
+        "name": "Long Hair"
       }
     ],
     "avaiable_store": [
       {
         "_id": "698be0cd80c319b74fe2f073",
         "name": "Pawship.id"
+      },
+      {
+        "_id": "699a589b9f9402b88230c66a",
+        "name": "Pawship.id Cabang 2"
       }
     ],
     "addons": [
       {
-        "_id": "507f1f77bcf86cd799439022",
-        "code": "ADD001",
-        "name": "Ear Cleaning",
-        "image_url": "https://res.cloudinary.com/example/image/upload/v1/services/ear-cleaning.jpg"
+        "_id": "69ab7a5f83be3bf8a151e3dd",
+        "code": "SVC-0002",
+        "name": "3 Spots Detangling"
       }
-    ],
-    "include": ["Bath", "Nail Trim", "Ear Cleaning"],
-    "show_in_homepage": false,
-    "order": 0,
-    "service_location_type": "in_store"
+    ]
   }
 }
 ```
@@ -1527,6 +1635,7 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
   "service_type_id": "507f1f77bcf86cd799439012",
   "pet_type_ids": ["507f1f77bcf86cd799439013"],
   "size_category_ids": ["507f1f77bcf86cd799439014", "507f1f77bcf86cd799439015"],
+  "hair_category_ids": ["698bed63aac98e7b92a3e31d", "698bf05c62f5760ac021c590"],
   "prices": [
     {
       "pet_id": "507f1f77bcf86cd799439013",
