@@ -316,7 +316,27 @@ export class ServiceService {
       .populate('size_categories', 'name')
       .populate('pet_types', 'name')
       .populate('avaiable_store', 'name')
-      .populate('addons', 'code name description price duration prices')
+      .populate({
+        path: 'addons',
+        select: 'code name description price duration prices',
+        populate: [
+          {
+            path: 'prices.pet_type_id',
+            model: 'Option',
+            select: 'name',
+          },
+          {
+            path: 'prices.size_id',
+            model: 'Option',
+            select: 'name',
+          },
+          {
+            path: 'prices.hair_id',
+            model: 'Option',
+            select: 'name',
+          },
+        ],
+      })
       .populate({
         path: 'prices.pet_type_id',
         model: 'Option',

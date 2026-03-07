@@ -3264,7 +3264,71 @@ Base route: `/bookings`
       "size_categories": [],
       "pet_types": [],
       "avaiable_store": [],
-      "addons": []
+      "addons": [
+        {
+          "_id": "69ab7a5f83be3bf8a151e3dd",
+          "code": "SVC-0002",
+          "name": "3 Spots Detangling",
+          "description": "Buka kusut di 3 area tertentu (biasanya ketiak, belakang telinga, atau ekor) biar bulu balik halus & nggak ketarik sakit.",
+          "prices": [
+            {
+              "pet_type_id": "698bf0d362f5760ac021c595",
+              "pet_name": "Cat",
+              "size_id": "698bf0e462f5760ac021c597",
+              "size_name": "Small",
+              "hair_id": "698bed63aac98e7b92a3e31d",
+              "hair_name": "Sort Hair",
+              "price": 35000
+            },
+            {
+              "pet_type_id": "698bf0d362f5760ac021c595",
+              "pet_name": "Cat",
+              "size_id": "698bf0e462f5760ac021c597",
+              "size_name": "Small",
+              "hair_id": "698bf05c62f5760ac021c590",
+              "hair_name": "Long Hair",
+              "price": 40000
+            },
+            {
+              "pet_type_id": "698bf0d362f5760ac021c595",
+              "pet_name": "Cat",
+              "size_id": "698bf0e862f5760ac021c599",
+              "size_name": "Medium",
+              "hair_id": "698bed63aac98e7b92a3e31d",
+              "hair_name": "Sort Hair",
+              "price": 35000
+            },
+            {
+              "pet_type_id": "698bf0d362f5760ac021c595",
+              "pet_name": "Cat",
+              "size_id": "698bf0e862f5760ac021c599",
+              "size_name": "Medium",
+              "hair_id": "698bf05c62f5760ac021c590",
+              "hair_name": "Long Hair",
+              "price": 40000
+            },
+            {
+              "pet_type_id": "698bf0d362f5760ac021c595",
+              "pet_name": "Cat",
+              "size_id": "698bf0ea62f5760ac021c59b",
+              "size_name": "Large",
+              "hair_id": "698bed63aac98e7b92a3e31d",
+              "hair_name": "Sort Hair",
+              "price": 35000
+            },
+            {
+              "pet_type_id": "698bf0d362f5760ac021c595",
+              "pet_name": "Cat",
+              "size_id": "698bf0ea62f5760ac021c59b",
+              "size_name": "Large",
+              "hair_id": "698bf05c62f5760ac021c590",
+              "hair_name": "Long Hair",
+              "price": 40000
+            }
+          ],
+          "duration": 15
+        }
+      ]
     }
   ]
 }
