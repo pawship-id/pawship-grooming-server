@@ -2640,20 +2640,18 @@ A standalone, reusable endpoint for uploading images to Cloudinary. Use this to 
 
 - `Authorization: Bearer {access_token}` (required)
 
-**Query Parameters:**
-
-- `folder` (string, optional) — Cloudinary subfolder name. Defaults to `general` if not provided. Example: `?folder=services`
-
 **Request Body (Form-Data):**
 
 - `image`: File (required) — image to upload
+- `folder` (string, required) — Cloudinary subfolder name.
 
 **Example Form-Data in Postman:**
 
 ```
-POST /upload-file?folder=services
+POST /upload-file
 
 Key: image | Type: File | Value: [Select file]
+Key: folder | Type: text
 ```
 
 **Success Response (200):**
@@ -2682,9 +2680,7 @@ Key: image | Type: File | Value: [Select file]
 
 **Notes:**
 
-- Use `?folder=` to dynamically control which Cloudinary subfolder the image is stored in (e.g. `?folder=services`, `?folder=service-types`, `?folder=grooming-sessions`)
 - After uploading, use the returned `image_url` and `public_id` in any Create or Update request body
-- Default folder is `general` when no `folder` query param is provided
 
 ---
 
