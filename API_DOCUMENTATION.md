@@ -13,11 +13,12 @@ Base URL: `http://localhost:3000`
 5. [Services](#services)
 6. [Service Types](#service-types)
 7. [Zones](#zones)
-8. [Upload File](#upload-file)
-9. [Pets](#pets)
-10. [Memberships](#memberships)
-11. [Bookings](#bookings) _(includes public/guest endpoints)_
-12. [Grooming Sessions](#grooming-sessions)
+8. [Banners](#banners)
+9. [Upload File](#upload-file)
+10. [Pets](#pets)
+11. [Memberships](#memberships)
+12. [Bookings](#bookings) _(includes public/guest endpoints)_
+13. [Grooming Sessions](#grooming-sessions)
 
 ---
 
@@ -1969,6 +1970,246 @@ Key: store_ids[1]     | Type: Text | Value: 507f1f77bcf86cd799439021
 - This is a soft delete operation
 - Service type is marked with `isDeleted: true` and `deletedAt` timestamp
 - Deleted service types are excluded from GET endpoints
+
+---
+
+---
+
+## Banners
+
+Banners are promotional images displayed on the app, optionally with a CTA button. Position of text and CTA button can be configured per banner.
+
+**Base route:** `/banners`
+
+**Headers (protected endpoints):**
+
+- `Authorization: Bearer {access_token}` (required)
+
+### Schema
+
+| Field                     | Type    | Required    | Default  | Description                                |
+| ------------------------- | ------- | ----------- | -------- | ------------------------------------------ |
+| `image_url`               | string  | ✅          | —        | Cloudinary secure URL of the image         |
+| `public_id`               | string  | ✅          | —        | Cloudinary public ID                       |
+| `title`                   | string  | —           | —        | Banner title text                          |
+| `subtitle`                | string  | —           | —        | Banner subtitle / body text                |
+| `text_align`              | string  | —           | —        | Text alignment (`left`, `center`, `right`) |
+| `text_color`              | string  | —           | —        | Text color (CSS value, e.g. `#ffffff`)     |
+| `cta`                     | object  | —           | `null`   | CTA button config (see below)              |
+| `cta.label`               | string  | ✅ (if cta) | —        | Button label text                          |
+| `cta.link`                | string  | ✅ (if cta) | —        | URL the button navigates to                |
+| `cta.background_color`    | string  | —           | —        | Button background color                    |
+| `cta.text_color`          | string  | —           | —        | Button text color                          |
+| `cta.vertical_position`   | string  | —           | `bottom` | `top` \| `center` \| `bottom`              |
+| `cta.horizontal_position` | string  | —           | `center` | `left` \| `center` \| `right`              |
+| `order`                   | number  | —           | `0`      | Display order (ascending)                  |
+| `is_active`               | boolean | —           | `false`  | Whether banner is visible                  |
+
+---
+
+### 1. Get All Banners (Admin)
+
+**Endpoint:** `GET /banners`
+
+**Headers:** `Authorization: Bearer {access_token}` (required)
+
+**Query Parameters (optional):**
+
+- `page` (number, default: 1)
+- `limit` (number, default: 10)
+- `is_active` (boolean)
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch banners successfully",
+  "banners": [
+    {
+      "_id": "507f1f77bcf86cd799439011",
+      "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo.jpg",
+      "public_id": "banners/promo",
+      "title": "Promo Maret!",
+      "subtitle": "Diskon 20% untuk semua layanan grooming",
+      "text_align": "center",
+      "text_color": "#ffffff",
+      "cta": {
+        "label": "Pesan Sekarang",
+        "link": "/bookings",
+        "background_color": "#FF6B35",
+        "text_color": "#ffffff",
+        "vertical_position": "bottom",
+        "horizontal_position": "center"
+      },
+      "order": 1,
+      "is_active": true,
+      "isDeleted": false,
+      "createdAt": "2026-03-01T10:00:00.000Z",
+      "updatedAt": "2026-03-01T10:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "total": 3,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 1
+  }
+}
+```
+
+---
+
+### 2. Get Active Banners (Public)
+
+**Endpoint:** `GET /banners/active`
+
+**Authentication:** Not Required
+
+**Description:** Mengambil semua banner yang `is_active: true`, diurutkan berdasarkan `order`. Digunakan untuk ditampilkan ke user/guest.
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch active banners successfully",
+  "banners": [ ... ],
+  "pagination": { ... }
+}
+```
+
+---
+
+### 3. Get Banner By ID
+
+**Endpoint:** `GET /banners/:id`
+
+**Headers:** `Authorization: Bearer {access_token}` (required)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch banner successfully",
+  "banner": { ... }
+}
+```
+
+**Error Responses:**
+
+- **404 Not Found:** Banner not found
+
+---
+
+### 4. Create Banner
+
+**Endpoint:** `POST /banners`
+
+**Headers:** `Authorization: Bearer {access_token}` (required)
+
+**Request Body:**
+
+```json
+{
+  "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo.jpg",
+  "public_id": "banners/promo",
+  "title": "Promo Maret!",
+  "subtitle": "Diskon 20% untuk semua layanan grooming",
+  "text_align": "center",
+  "text_color": "#ffffff",
+  "cta": {
+    "label": "Pesan Sekarang",
+    "link": "/bookings",
+    "background_color": "#FF6B35",
+    "text_color": "#ffffff",
+    "vertical_position": "bottom",
+    "horizontal_position": "center"
+  },
+  "order": 1
+}
+```
+
+> `cta` bersifat opsional. Jika tidak dikirim, banner tidak memiliki tombol CTA.
+>
+> `cta.vertical_position` enum: `top` | `center` | `bottom` (default: `bottom`)
+>
+> `cta.horizontal_position` enum: `left` | `center` | `right` (default: `center`)
+
+**Success Response (201):**
+
+```json
+{
+  "message": "Create banner successfully"
+}
+```
+
+---
+
+### 5. Update Banner
+
+**Endpoint:** `PUT /banners/:id`
+
+**Headers:** `Authorization: Bearer {access_token}` (required)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Request Body:** (semua field opsional)
+
+```json
+{
+  "title": "Promo April!",
+  "is_active": true,
+  "order": 2,
+  "cta": {
+    "label": "Lihat Promo",
+    "link": "/promos",
+    "vertical_position": "bottom",
+    "horizontal_position": "left"
+  }
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Update banner successfully"
+}
+```
+
+**Error Responses:**
+
+- **404 Not Found:** Banner not found
+
+---
+
+### 6. Delete Banner
+
+**Endpoint:** `DELETE /banners/:id`
+
+**Headers:** `Authorization: Bearer {access_token}` (required)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Delete banner successfully"
+}
+```
+
+**Notes:**
+
+- Soft delete — banner ditandai `isDeleted: true`
+- Banner yang dihapus tidak muncul di semua GET endpoint
 
 ---
 
