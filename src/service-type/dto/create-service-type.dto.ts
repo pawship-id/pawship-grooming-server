@@ -23,7 +23,7 @@ export class CreateServiceTypeDto {
 
   @IsOptional()
   @IsString()
-  secure_url: string;
+  public_id: string;
 
   @IsOptional()
   @IsBoolean()

@@ -1886,17 +1886,42 @@ GET /service-types?search=grooming&is_active=true&page=1&limit=5
   "message": "Fetch service types successfully",
   "serviceTypes": [
     {
-      "_id": "507f1f77bcf86cd799439011",
+      "_id": "69a22d75a9d735a33014cc8b",
       "title": "Grooming",
-      "desc": "Full grooming service for pets",
-      "image_url": "pawship-grooming/service-types/grooming",
-      "secure_url": "https://res.cloudinary.com/example/image/upload/v1/service-types/grooming.jpg",
-      "is_active": true,
-      "show_in_homepage": true,
-      "store_ids": ["507f1f77bcf86cd799439020", "507f1f77bcf86cd799439021"],
+      "description": "Perawatan lengkap untuk hewan peliharaan meliputi mandi, potong bulu, potong kuku, dan pembersihan telinga agar tetap bersih, sehat, dan nyaman.",
+      "image_url": "https://res.cloudinary.com/do1uyohvw/image/upload/v1772236148/pawship-grooming/service-types/wv36relrkxfa3afhggaq.jpg",
+      "public_id": "pawship-grooming/service-types/wv36relrkxfa3afhggaq",
+      "is_active": false,
+      "show_in_homepage": false,
       "isDeleted": false,
-      "createdAt": "2026-02-19T10:00:00.000Z",
-      "updatedAt": "2026-02-19T10:00:00.000Z"
+      "deletedAt": null,
+      "createdAt": "2026-02-27T23:49:09.120Z",
+      "updatedAt": "2026-03-07T04:01:28.007Z",
+      "stores": [
+        {
+          "_id": "69a04fbf5b6e81b3fc6580cc",
+          "code": "TOKO-JKT-001",
+          "name": "Pawship Jakarta",
+          "description": "Ini adalah pawship pertama di Jakarta"
+        },
+        {
+          "_id": "69a048055b6e81b3fc65808d",
+          "code": "test-01",
+          "name": "test 01"
+        },
+        {
+          "_id": "699a589b9f9402b88230c66a",
+          "code": "PW-0002",
+          "name": "Pawship.id Cabang 2",
+          "description": "Cabang kedua di Surabaya"
+        },
+        {
+          "_id": "698be0cd80c319b74fe2f073",
+          "code": "PW-0001",
+          "name": "Pawship.id",
+          "description": "Cabang pertama di Surabaya"
+        }
+      ]
     }
   ],
   "pagination": {
@@ -1928,17 +1953,42 @@ GET /service-types?search=grooming&is_active=true&page=1&limit=5
 {
   "message": "Fetch service type successfully",
   "serviceType": {
-    "_id": "507f1f77bcf86cd799439011",
+    "_id": "69a22d75a9d735a33014cc8b",
     "title": "Grooming",
-    "desc": "Full grooming service for pets",
-    "image_url": "https://res.cloudinary.com/example/image/upload/v1/service-types/grooming.jpg",
-    "secure_url": "https://res.cloudinary.com/example/image/upload/v1/service-types/grooming.jpg",
-    "is_active": true,
-    "show_in_homepage": true,
-    "store_ids": ["507f1f77bcf86cd799439020", "507f1f77bcf86cd799439021"],
+    "description": "Perawatan lengkap untuk hewan peliharaan meliputi mandi, potong bulu, potong kuku, dan pembersihan telinga agar tetap bersih, sehat, dan nyaman.",
+    "image_url": "https://res.cloudinary.com/do1uyohvw/image/upload/v1772236148/pawship-grooming/service-types/wv36relrkxfa3afhggaq.jpg",
+    "public_id": "pawship-grooming/service-types/wv36relrkxfa3afhggaq",
+    "is_active": false,
+    "show_in_homepage": false,
     "isDeleted": false,
-    "createdAt": "2026-02-19T10:00:00.000Z",
-    "updatedAt": "2026-02-19T10:00:00.000Z"
+    "deletedAt": null,
+    "createdAt": "2026-02-27T23:49:09.120Z",
+    "updatedAt": "2026-03-07T04:01:28.007Z",
+    "stores": [
+      {
+        "_id": "69a04fbf5b6e81b3fc6580cc",
+        "code": "TOKO-JKT-001",
+        "name": "Pawship Jakarta",
+        "description": "Ini adalah pawship pertama di Jakarta"
+      },
+      {
+        "_id": "69a048055b6e81b3fc65808d",
+        "code": "test-01",
+        "name": "test 01"
+      },
+      {
+        "_id": "699a589b9f9402b88230c66a",
+        "code": "PW-0002",
+        "name": "Pawship.id Cabang 2",
+        "description": "Cabang kedua di Surabaya"
+      },
+      {
+        "_id": "698be0cd80c319b74fe2f073",
+        "code": "PW-0001",
+        "name": "Pawship.id",
+        "description": "Cabang pertama di Surabaya"
+      }
+    ]
   }
 }
 ```
@@ -1961,8 +2011,6 @@ GET /service-types?search=grooming&is_active=true&page=1&limit=5
 
 **Endpoint:** `POST /service-types`
 
-**Content-Type:** `multipart/form-data`
-
 **Headers:**
 
 - `Authorization: Bearer {access_token}` (required)
@@ -1971,22 +2019,11 @@ GET /service-types?search=grooming&is_active=true&page=1&limit=5
 
 - `title`: string (required)
 - `desc`: string (optional)
-- `image`: File (optional) — image to upload to Cloudinary
+- `image_url`: string (optional) — image url from Cloudinary
+- `public_id`: string (optional) — public id from Cloudinary
 - `is_active`: boolean string `"true"` or `"false"` (optional, default: `false`)
 - `show_in_homepage`: boolean string `"true"` or `"false"` (optional, default: `false`)
 - `store_ids`: array of MongoDB ObjectId strings (optional) — list of stores where this service type is available
-
-**Example Form-Data in Postman:**
-
-```
-Key: title            | Type: Text | Value: Grooming
-Key: desc             | Type: Text | Value: Full grooming service for pets
-Key: image            | Type: File | Value: [Select file]
-Key: is_active        | Type: Text | Value: true
-Key: show_in_homepage | Type: Text | Value: false
-Key: store_ids[0]     | Type: Text | Value: 507f1f77bcf86cd799439020
-Key: store_ids[1]     | Type: Text | Value: 507f1f77bcf86cd799439021
-```
 
 **Success Response (201):**
 
@@ -2008,8 +2045,6 @@ Key: store_ids[1]     | Type: Text | Value: 507f1f77bcf86cd799439021
 }
 ```
 
-- **500 Internal Server Error:** Cloudinary upload failed
-
 ---
 
 ### 4. Update Service Type
@@ -2030,7 +2065,8 @@ Key: store_ids[1]     | Type: Text | Value: 507f1f77bcf86cd799439021
 
 - `title`: string
 - `desc`: string
-- `image`: File — new image to upload (replaces `image_url` and `secure_url`)
+- `image_url`: string (optional) — image url from Cloudinary
+- `public_id`: string (optional) — public id from Cloudinary
 - `is_active`: boolean string `"true"` or `"false"`
 - `show_in_homepage`: boolean string `"true"` or `"false"`
 - `store_ids`: array of MongoDB ObjectId strings — list of stores where this service type is available
@@ -2046,7 +2082,6 @@ Key: store_ids[1]     | Type: Text | Value: 507f1f77bcf86cd799439021
 **Error Responses:**
 
 - **404 Not Found:** Service type not found
-- **500 Internal Server Error:** Cloudinary upload failed
 
 ---
 

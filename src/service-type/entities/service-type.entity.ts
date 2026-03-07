@@ -28,7 +28,7 @@ export class ServiceType {
   image_url: string;
 
   @Prop()
-  secure_url: string;
+  public_id: string;
 
   @Prop({ default: false })
   is_active: boolean;

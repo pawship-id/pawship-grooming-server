@@ -66,7 +66,10 @@ export class ServiceTypeService {
   }
 
   async findOne(id: ObjectId) {
-    return await this.serviceTypeModel.findById(id).exec();
+    return await this.serviceTypeModel
+      .findById(id)
+      .populate('stores', 'code name description')
+      .exec();
   }
 
   async update(id: ObjectId, body: UpdateServiceTypeDto) {
