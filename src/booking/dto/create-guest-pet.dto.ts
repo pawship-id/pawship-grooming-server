@@ -20,4 +20,8 @@ export class CreateGuestPetDto {
   @IsMongoId()
   @IsNotEmpty()
   size_category_id: string;
+
+  @IsMongoId()
+  @IsNotEmpty()
+  hair_category_id: string;
 }

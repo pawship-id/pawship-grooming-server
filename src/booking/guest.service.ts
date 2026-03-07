@@ -58,6 +58,7 @@ export class GuestService {
     };
   }
 
+  // method to register user + pet
   async registerGuestUser(dto: RegisterGuestDto) {
     const existingUser = await this.userModel.findOne({
       $or: [{ email: dto.email }, { phone_number: dto.phone_number }],
@@ -92,11 +93,23 @@ export class GuestService {
       pet_type_id: new ObjectId(dto.pet.pet_type_id),
       breed_category_id: new ObjectId(dto.pet.breed_category_id),
       size_category_id: new ObjectId(dto.pet.size_category_id),
+      hair_category_id: new ObjectId(dto.pet.hair_category_id),
       customer_id: savedUser._id,
       is_active: true,
     });
 
     const savedPet = await newPet.save();
+
+    const populatedPet = await this.petModel
+      .findById(savedPet._id)
+      .select(
+        '_id name size_category_id breed_category_id pet_type_id hair_category_id',
+      )
+      .populate('size', 'name')
+      .populate('breed', 'name')
+      .populate('pet_type', 'name')
+      .populate('hair', 'name')
+      .exec();
 
     // TODO: Send welcome email with credentials
     // await this.emailService.sendWelcomeEmail({
@@ -113,10 +126,7 @@ export class GuestService {
         phone_number: savedUser.phone_number,
         role: savedUser.role,
       },
-      pet: {
-        _id: savedPet._id,
-        name: savedPet.name,
-      },
+      pet: populatedPet,
       credentials: {
         email: dto.email,
         password: defaultPassword,
@@ -124,6 +134,7 @@ export class GuestService {
     };
   }
 
+  // method to register pet only when user found
   async createPetForGuest(dto: CreateGuestPetDto) {
     const user = await this.userModel
       .findOne({
@@ -142,6 +153,7 @@ export class GuestService {
       pet_type_id: new ObjectId(dto.pet_type_id),
       breed_category_id: new ObjectId(dto.breed_category_id),
       size_category_id: new ObjectId(dto.size_category_id),
+      hair_category_id: new ObjectId(dto.hair_category_id),
       customer_id: user._id,
       is_active: true,
     });
@@ -150,10 +162,13 @@ export class GuestService {
 
     const populatedPet = await this.petModel
       .findById(savedPet._id)
-      .select('_id name size_category_id breed_category_id pet_type_id')
+      .select(
+        '_id name size_category_id breed_category_id pet_type_id hair_category_id',
+      )
       .populate('size', 'name')
       .populate('breed', 'name')
       .populate('pet_type', 'name')
+      .populate('hair', 'name')
       .exec();
 
     return {

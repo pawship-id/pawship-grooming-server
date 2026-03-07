@@ -23,6 +23,10 @@ export class GuestPetDto {
   @IsMongoId()
   @IsNotEmpty()
   size_category_id: string;
+
+  @IsMongoId()
+  @IsNotEmpty()
+  hair_category_id: string;
 }
 
 export class RegisterGuestDto {

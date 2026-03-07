@@ -3508,7 +3508,8 @@ If user not found:
     "name": "string (required)",
     "pet_type_id": "MongoDB ObjectId (required)",
     "breed_category_id": "MongoDB ObjectId (required)",
-    "size_category_id": "MongoDB ObjectId (required)"
+    "size_category_id": "MongoDB ObjectId (required)",
+    "hair_category_id": "MongoDB ObjectId (required)"
   }
 }
 ```
@@ -3519,18 +3520,34 @@ If user not found:
 {
   "message": "User and pet registered successfully. Welcome email has been sent.",
   "user": {
-    "_id": "507f1f77bcf86cd799439011",
-    "username": "john_doe",
-    "email": "john@example.com",
-    "phone_number": "+628123456789",
+    "_id": "69ab97591a5708c32b266194",
+    "username": "caca",
+    "email": "caca@gmail.com",
+    "phone_number": "089534256786",
     "role": "customer"
   },
   "pet": {
-    "_id": "507f1f77bcf86cd799439012",
-    "name": "Buddy"
+    "_id": "69ab97591a5708c32b266196",
+    "name": "Jeje",
+    "pet_type": {
+      "_id": "698d5573b70c2a3711e368dd",
+      "name": "Dog"
+    },
+    "hair": {
+      "_id": "698bed63aac98e7b92a3e31d",
+      "name": "Sort Hair"
+    },
+    "size": {
+      "_id": "698bf0ea62f5760ac021c59b",
+      "name": "Large"
+    },
+    "breed": {
+      "_id": "698da2bb19b8a1bbac7aabb6",
+      "name": "Pom"
+    }
   },
   "credentials": {
-    "email": "john@example.com",
+    "email": "caca@gmail.com",
     "password": "pawship123"
   }
 }
@@ -3563,7 +3580,8 @@ If user not found:
   "pet_name": "string (required)",
   "pet_type_id": "MongoDB ObjectId (required)",
   "breed_category_id": "MongoDB ObjectId (required)",
-  "size_category_id": "MongoDB ObjectId (required)"
+  "size_category_id": "MongoDB ObjectId (required)",
+  "hair_category_id": "MongoDB ObjectId (required)"
 }
 ```
 
@@ -3573,17 +3591,30 @@ If user not found:
 {
   "message": "Pet created successfully",
   "pet": {
-    "_id": "507f1f77bcf86cd799439012",
-    "name": "Max",
-    "pet_type_id": "507f1f77bcf86cd799439013",
-    "size_category_id": "507f1f77bcf86cd799439014",
-    "breed_category_id": "507f1f77bcf86cd799439015"
+    "_id": "69ab97e81a5708c32b26619e",
+    "name": "jeri",
+    "pet_type": {
+      "_id": "698d5573b70c2a3711e368dd",
+      "name": "Dog"
+    },
+    "hair": {
+      "_id": "698bf05c62f5760ac021c590",
+      "name": "Long Hair"
+    },
+    "size": {
+      "_id": "698bf0e462f5760ac021c597",
+      "name": "Small"
+    },
+    "breed": {
+      "_id": "698da2bb19b8a1bbac7aabb6",
+      "name": "Pom"
+    }
   },
   "customer": {
-    "_id": "507f1f77bcf86cd799439011",
-    "username": "john_doe",
-    "email": "john@example.com",
-    "phone_number": "+628123456789"
+    "_id": "69ab97591a5708c32b266194",
+    "username": "caca",
+    "email": "caca@gmail.com",
+    "phone_number": "089534256786"
   }
 }
 ```
