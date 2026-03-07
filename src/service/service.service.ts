@@ -99,7 +99,7 @@ export class ServiceService {
       .populate('service_type', 'title')
       .populate('size_categories', 'name')
       .populate('pet_types', 'name')
-      .populate('hair', 'name')
+      .populate('hair_categories', 'name')
       .populate('avaiable_store', 'name')
       .populate('addons', 'code name image_url')
       .populate({
@@ -136,7 +136,7 @@ export class ServiceService {
       .populate('service_type', 'title')
       .populate('size_categories', 'name')
       .populate('pet_types', 'name')
-      .populate('hair', 'name')
+      .populate('hair_categories', 'name')
       .populate('avaiable_store', 'name')
       .populate('addons', 'code name image_url')
       .populate({

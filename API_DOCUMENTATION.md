@@ -1401,7 +1401,7 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
           "name": "Cat"
         }
       ],
-      "hair": [
+      "hair_categories": [
         {
           "_id": "698bed63aac98e7b92a3e31d",
           "name": "Sort Hair"
@@ -1570,7 +1570,7 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
         "name": "Cat"
       }
     ],
-    "hair": [
+    "hair_categories": [
       {
         "_id": "698bed63aac98e7b92a3e31d",
         "name": "Sort Hair"

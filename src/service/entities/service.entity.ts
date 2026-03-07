@@ -189,7 +189,7 @@ ServiceSchema.virtual('pet_types', {
   foreignField: '_id',
 });
 
-ServiceSchema.virtual('hair', {
+ServiceSchema.virtual('hair_categories', {
   ref: 'Option',
   localField: 'hair_category_ids',
   foreignField: '_id',
