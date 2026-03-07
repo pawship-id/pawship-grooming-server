@@ -23,6 +23,7 @@ import {
   StoreDailyCapacitySchema,
 } from 'src/store-daily-capacity/entities/store-daily-capacity.entity';
 import { GuestService } from './guest.service';
+import { OptionModule } from 'src/option/option.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { GuestService } from './guest.service';
     StoreModule,
     CloudinaryModule,
     AuthModule,
+    OptionModule,
   ],
   controllers: [BookingController, SessionController],
   providers: [BookingService, SessionService, GuestService],

@@ -12,5 +12,6 @@ import { AuthModule } from 'src/auth/auth.module';
   ],
   controllers: [OptionController],
   providers: [OptionService],
+  exports: [OptionService],
 })
 export class OptionModule {}

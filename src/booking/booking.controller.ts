@@ -26,6 +26,7 @@ import { RegisterGuestDto } from './dto/register-guest.dto';
 import { CreateGuestPetDto } from './dto/create-guest-pet.dto';
 import { StoreService } from 'src/store/store.service';
 import { ServiceService } from 'src/service/service.service';
+import { OptionService } from 'src/option/option.service';
 
 @Controller('bookings')
 @UseGuards(AuthGuard)
@@ -35,6 +36,7 @@ export class BookingController {
     private readonly guestService: GuestService,
     private readonly storeService: StoreService,
     private readonly serviceService: ServiceService,
+    private readonly optionService: OptionService,
   ) {}
 
   // ─── Public (Guest) Endpoints ──────────────────────────────────────────────
@@ -68,6 +70,13 @@ export class BookingController {
   }
 
   // Check if user exists by phone number (public)
+  @Public()
+  @Get('public/option')
+  async getPublicOptions(@Query('category') category?: string) {
+    const options = await this.optionService.findAll(category);
+    return { message: 'Fetch options successfully', options };
+  }
+
   @Public()
   @Get('public/check-user/phone/:phone_number')
   async checkUserByPhone(@Param('phone_number') phone_number: string) {

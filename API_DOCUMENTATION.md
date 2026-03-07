@@ -3336,7 +3336,39 @@ Base route: `/bookings`
 
 ---
 
-#### 3. Check User By Phone (Public)
+#### 3. Get All Options (Public)
+
+**Endpoint:** `GET /bookings/public/option`
+
+**Authentication:** Not Required
+
+**Query Parameters:**
+
+- `category` (optional): Filter options by category (e.g., `hair category`, `size category`, `breed category`, `member category`, `customer category`, `pet type`)
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch options successfully",
+  "options": [
+    {
+      "_id": "698bf0d362f5760ac021c595",
+      "name": "Cat",
+      "category_options": "pet_type",
+      "is_active": true,
+      "isDeleted": false,
+      "deletedAt": null,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+#### 4. Check User By Phone (Public)
 
 **Endpoint:** `GET /bookings/public/check-user/phone/:phone_number`
 
@@ -3384,7 +3416,7 @@ If user not found:
 
 ---
 
-#### 4. Register Guest User (Public)
+#### 5. Register Guest User (Public)
 
 **Endpoint:** `POST /bookings/public/register`
 
@@ -3442,7 +3474,7 @@ If user not found:
 
 ---
 
-#### 5. Create Pet For Guest (Public)
+#### 6. Create Pet For Guest (Public)
 
 **Endpoint:** `POST /bookings/public/pets`
 
@@ -3487,7 +3519,7 @@ If user not found:
 
 ---
 
-#### 6. Create Guest Booking (Public)
+#### 7. Create Guest Booking (Public)
 
 **Endpoint:** `POST /bookings/public`
 
