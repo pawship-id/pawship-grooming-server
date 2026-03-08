@@ -10,7 +10,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { BookingStatus, GroomingType, ServiceType } from './booking.dto';
+import { BookingStatus, GroomingType } from './booking.dto';
 
 export class PetSnapshotDto {
   @IsOptional()
@@ -114,9 +114,9 @@ export class AssignedGroomerDto {
 }
 
 export class CreateBookingDto {
-  @IsOptional()
-  @IsEnum(ServiceType)
-  service_type?: ServiceType;
+  @IsMongoId({ message: 'service type must be a valid ID' })
+  @IsNotEmpty({ message: 'service type is required' })
+  service_type_id: string;
 
   @IsMongoId({ message: 'customer must be a valid ID' })
   @IsNotEmpty({ message: 'customer is required' })
@@ -128,15 +128,14 @@ export class CreateBookingDto {
 
   @ValidateNested()
   @Type(() => PetSnapshotDto)
-  pet_snapshot?: PetSnapshotDto;
+  pet_snapshot: PetSnapshotDto;
 
-  @IsOptional()
   @ValidateNested()
   @Type(() => ServiceSnapshotDto)
-  service_snapshot?: ServiceSnapshotDto;
+  service_snapshot: ServiceSnapshotDto;
 
-  @IsOptional()
   @IsMongoId({ message: 'store must be a valid ID' })
+  @IsNotEmpty({ message: 'store is required' })
   store_id: string;
 
   @IsNotEmpty({ message: 'date booking is required' })
@@ -145,12 +144,13 @@ export class CreateBookingDto {
   @IsString()
   time_range: string;
 
+  @IsOptional()
   @IsEnum(GroomingType)
-  type: GroomingType;
+  type?: GroomingType;
 
   @IsOptional()
   @IsEnum(BookingStatus)
-  booking_status?: BookingStatus;
+  booking_status: BookingStatus;
 
   @IsMongoId({ message: 'service must be a valid ID' })
   @IsNotEmpty({ message: 'service is required' })

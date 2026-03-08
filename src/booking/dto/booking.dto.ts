@@ -14,11 +14,6 @@ export enum SessionStatus {
   FINISHED = 'finished',
 }
 
-export enum ServiceType {
-  GROOMING = 'grooming',
-  HOTEL = 'hotel',
-}
-
 export enum GroomingType {
   IN_HOME = 'in home',
   IN_STORE = 'in store',

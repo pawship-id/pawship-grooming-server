@@ -3,7 +3,6 @@ import { HydratedDocument, Types } from 'mongoose';
 import {
   BookingStatus,
   SessionStatus,
-  ServiceType,
   GroomingType,
   MediaType,
 } from '../dto/booking.dto';
@@ -272,11 +271,8 @@ export class AssignedGroomer {
 })
 export class Booking {
   /* ===== Service Type ===== */
-  @Prop({
-    enum: ServiceType,
-    default: ServiceType.GROOMING,
-  })
-  service_type: ServiceType;
+  @Prop({ type: Types.ObjectId, ref: 'ServiceType', required: true })
+  service_type_id: Types.ObjectId;
 
   /* ===== Owner ===== */
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
@@ -286,15 +282,15 @@ export class Booking {
   @Prop({ type: PetSnapshot, required: true })
   pet_snapshot: PetSnapshot;
 
-  @Prop({ type: ServiceSnapshot, default: null })
-  service_snapshot?: ServiceSnapshot;
+  @Prop({ type: ServiceSnapshot, required: true })
+  service_snapshot: ServiceSnapshot;
 
   @Prop({ type: Types.ObjectId, ref: 'Pet', required: true })
   pet_id: Types.ObjectId;
 
   /* ===== Schedule ===== */
-  @Prop({ type: Types.ObjectId, ref: 'Store' })
-  store_id?: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'Store', required: true })
+  store_id: Types.ObjectId;
 
   @Prop({ required: true })
   date: Date;

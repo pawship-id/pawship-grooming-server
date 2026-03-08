@@ -4135,44 +4135,46 @@ If user not found:
 
 **Endpoint:** `POST /bookings`
 
+**Headers:** `Authorization: Bearer {access_token}` (required)
+
 **Request Body:**
 
 ```json
 {
+  "service_type_id": "MongoDB ObjectId (required)",
   "customer_id": "MongoDB ObjectId (required)",
   "pet_id": "MongoDB ObjectId (required)",
-  "pet_snapshot": {
-    "name": "string (optional)",
-    "member_type": "string (optional)"
-  },
-  "service_snapshot": {
-    "code": "string (optional, auto-populated by server)",
-    "name": "string (optional, auto-populated by server)",
-    "description": "string (optional)",
-    "service_type": { "_id": "string", "title": "string" },
-    "price": "number (optional)",
-    "pet_type": { "_id": "string", "name": "string" },
-    "size": { "_id": "string", "name": "string" },
-    "hair": { "_id": "string", "name": "string" },
-    "duration": "number (optional)"
-  },
-  "store_id": "MongoDB ObjectId (optional, required for in store type)",
-  "date": "Date (required)",
-  "time_range": "string (required, format: HH:mm - HH:mm)",
-  "type": "in home | in store (required)",
-  "booking_status": "requested | confirmed | arrived | grooming in progress | grooming finished | rescheduled | cancelled (optional)",
+  "store_id": "MongoDB ObjectId (required)",
   "service_id": "MongoDB ObjectId (required)",
-  "service_addon_ids": ["MongoDB ObjectId"] (optional array),
+  "date": "2026-03-08 (required, format: YYYY-MM-DD)",
+  "time_range": "09.00 - 12.00 (required)",
+  "service_addon_ids": ["MongoDB ObjectId (optional)"],
   "travel_fee": "number (optional)",
-  "sub_total_service": "number (optional)",
-  "total_price": "number (optional)",
-  "discount_ids": ["MongoDB ObjectId"] (optional array),
-  "assigned_groomer_ids": ["MongoDB ObjectId"] (optional array),
+  "discount_ids": ["MongoDB ObjectId (optional)"],
   "referal_code": "string (optional)",
   "note": "string (optional)",
   "payment_method": "string (optional)"
 }
 ```
+
+**Example Request Body:**
+
+```json
+{
+  "service_type_id": "69a22d75a9d735a33014cc8b",
+  "customer_id": "699a5d240d322c3d4e81dfbc",
+  "pet_id": "699a6285a99f14a4be787c77",
+  "date": "2026-03-08",
+  "time_range": "09.00 - 12.00",
+  "store_id": "698be0cd80c319b74fe2f073",
+  "service_id": "69a45774ecf65d9a74d53fe6",
+  "service_addon_ids": ["69ace8ab7fbc3acb5e61f94d"],
+  "note": "hewan takut suara bising"
+}
+```
+
+> `pet_snapshot` dan `service_snapshot` di-generate otomatis oleh server berdasarkan `pet_id` dan `service_id`.
+> `sub_total_service` dan `total_price` dihitung otomatis oleh server.
 
 **Success Response (200):**
 

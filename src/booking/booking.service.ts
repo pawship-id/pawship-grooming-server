@@ -11,7 +11,7 @@ import { Model, Types, Connection } from 'mongoose';
 import { ObjectId } from 'mongodb';
 import { PetService } from 'src/pet/pet.service';
 import { ServiceService } from 'src/service/service.service';
-import { BookingStatus, SessionStatus } from './dto/booking.dto';
+import { BookingStatus, GroomingType, SessionStatus } from './dto/booking.dto';
 import { Store, StoreDocument } from 'src/store/entities/store.entity';
 import { Service, ServiceDocument } from 'src/service/entities/service.entity';
 import {
@@ -113,6 +113,9 @@ export class BookingService {
         (Number(service.duration) || 0) + addonsTotalDuration;
       body.sub_total_service = service.price + addonsTotal;
       body.total_price = (body.sub_total_service || 0) + (body.travel_fee || 0);
+
+      // assign body.type base on service.service_location_type
+      body.type = service.service_location_type as GroomingType;
 
       // 3️⃣ Ambil Capacity (override atau default)
       const dailyOverride = await this.storeDailyCapacityModel
@@ -327,6 +330,9 @@ export class BookingService {
 
       body.sub_total_service = service.price + addonsTotal;
       body.total_price = (body.sub_total_service || 0) + (body.travel_fee || 0);
+
+      // assign body.type base on service.service_location_type
+      body.type = service.service_location_type as GroomingType;
 
       // Check if date or service/addons changed (affects capacity)
       const oldDate = new Date(existingBooking.date);
