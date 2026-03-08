@@ -14,6 +14,9 @@ import { BookingStatus, GroomingType, ServiceType } from './booking.dto';
 
 export class PetSnapshotDto {
   @IsOptional()
+  _id?: string;
+
+  @IsOptional()
   @IsString()
   name: string;
 
@@ -39,7 +42,29 @@ export class PetSnapshotDto {
   breed: { _id: string; name: string };
 }
 
+export class ServiceSnapshotAddonDto {
+  @IsOptional()
+  _id?: string;
+
+  @IsOptional()
+  @IsString()
+  code?: string;
+
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  price?: number;
+
+  @IsOptional()
+  duration?: number;
+}
+
 export class ServiceSnapshotDto {
+  @IsOptional()
+  _id?: string;
+
   @IsOptional()
   @IsString()
   code?: string;
@@ -59,16 +84,13 @@ export class ServiceSnapshotDto {
   price?: number;
 
   @IsOptional()
-  pet_type?: { _id: string; name: string };
-
-  @IsOptional()
-  size?: { _id: string; name: string };
-
-  @IsOptional()
-  hair?: { _id: string; name: string };
-
-  @IsOptional()
   duration?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ServiceSnapshotAddonDto)
+  addons?: ServiceSnapshotAddonDto[];
 }
 
 export class BookingStatusLogDto {

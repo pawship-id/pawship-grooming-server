@@ -10,8 +10,38 @@ import {
 
 export type BookingDocument = HydratedDocument<Booking>;
 
-@Schema({ _id: false })
+@Schema({
+  toJSON: {
+    virtuals: true,
+    transform: (_: any, ret: any) => {
+      delete ret.id;
+      if (ret.member_type) {
+        delete ret.member_type.id;
+      }
+
+      if (ret.pet_type) {
+        delete ret.pet_type.id;
+      }
+
+      if (ret.size) {
+        delete ret.size.id;
+      }
+
+      if (ret.hair) {
+        delete ret.hair.id;
+      }
+
+      if (ret.breed) {
+        delete ret.breed.id;
+      }
+    },
+  },
+  toObject: { virtuals: true },
+})
 export class PetSnapshot {
+  @Prop({ type: Types.ObjectId })
+  _id?: Types.ObjectId;
+
   @Prop({ required: true })
   name: string;
 
@@ -46,7 +76,23 @@ export class PetSnapshot {
   breed?: { _id: Types.ObjectId; name: string };
 }
 
-@Schema({ _id: false })
+@Schema({
+  _id: false,
+  toJSON: {
+    virtuals: true,
+    transform: (_: any, ret: any) => {
+      delete ret.service_type.id;
+      delete ret.id;
+
+      if (ret.addons.length) {
+        ret.addons.forEach((el: any) => {
+          delete el.id;
+        });
+      }
+    },
+  },
+  toObject: { virtuals: true },
+})
 export class ServiceSnapshot {
   @Prop({ type: Types.ObjectId })
   _id?: Types.ObjectId;
@@ -259,16 +305,6 @@ export class AssignedGroomer {
             },
           };
         });
-      }
-
-      if (ret.service_snapshot) {
-        delete ret.service_snapshot.service_type.id;
-
-        if (ret.service_snapshot.addons.length) {
-          ret.service_snapshot.addons.forEach((el: any) => {
-            delete el.id;
-          });
-        }
       }
 
       return ret;

@@ -53,7 +53,10 @@ export class BookingService {
       // Get pet snapshot
       let pet = await this.petService.getPetSnapshot(new ObjectId(body.pet_id));
 
-      body.pet_snapshot = pet;
+      body.pet_snapshot = {
+        ...pet,
+        _id: pet._id.toString(),
+      };
 
       body.service_snapshot = (await this.serviceService.getServiceSnapshot(
         new ObjectId(body.service_id),
@@ -308,7 +311,10 @@ export class BookingService {
 
       let pet = await this.petService.getPetSnapshot(new ObjectId(body.pet_id));
 
-      body.pet_snapshot = pet;
+      body.pet_snapshot = {
+        ...pet,
+        _id: pet._id.toString(),
+      };
 
       body.service_snapshot = (await this.serviceService.getServiceSnapshot(
         new ObjectId(body.service_id),

@@ -217,6 +217,7 @@ export class PetService {
     const breed = (pet as any).breed;
 
     return {
+      _id: pet._id,
       name: pet.name,
       member_type: memberCategory
         ? { _id: memberCategory._id, name: memberCategory.name }
