@@ -17,6 +17,30 @@ export class PetSnapshot {
 
   @Prop()
   member_type?: string;
+
+  @Prop({
+    type: { _id: { type: Types.ObjectId }, name: { type: String } },
+    default: null,
+  })
+  pet_type?: { _id: Types.ObjectId; name: string };
+
+  @Prop({
+    type: { _id: { type: Types.ObjectId }, name: { type: String } },
+    default: null,
+  })
+  size?: { _id: Types.ObjectId; name: string };
+
+  @Prop({
+    type: { _id: { type: Types.ObjectId }, name: { type: String } },
+    default: null,
+  })
+  hair?: { _id: Types.ObjectId; name: string };
+
+  @Prop({
+    type: { _id: { type: Types.ObjectId }, name: { type: String } },
+    default: null,
+  })
+  breed?: { _id: Types.ObjectId; name: string };
 }
 
 @Schema({ _id: false })

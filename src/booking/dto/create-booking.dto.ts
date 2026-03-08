@@ -4,6 +4,7 @@ import {
   IsEnum,
   IsMongoId,
   IsNotEmpty,
+  IsObject,
   IsOptional,
   IsString,
   ValidateNested,
@@ -17,7 +18,23 @@ export class PetSnapshotDto {
 
   @IsOptional()
   @IsString()
-  member_type?: string;
+  member_type: string;
+
+  @IsOptional()
+  @IsObject()
+  pet_type: { _id: string; name: string };
+
+  @IsOptional()
+  @IsObject()
+  size: { _id: string; name: string };
+
+  @IsOptional()
+  @IsObject()
+  hair: { _id: string; name: string };
+
+  @IsOptional()
+  @IsObject()
+  breed: { _id: string; name: string };
 }
 
 export class ServiceSnapshotDto {

@@ -197,21 +197,31 @@ export class PetService {
     const pet = await this.petModel
       .findById(petId)
       .select(
-        'name isDeleted member_category_id size_category_id pet_type_id hair_category_id',
+        'name isDeleted member_category_id size_category_id pet_type_id hair_category_id breed_category_id',
       )
       .populate('member_category', 'name')
+      .populate('pet_type', '_id name')
+      .populate('size', '_id name')
+      .populate('hair', '_id name')
+      .populate('breed', '_id name')
       .exec();
 
     if (!pet || pet.isDeleted) {
       throw new NotFoundException('pet not found');
     }
 
+    const petType = (pet as any).pet_type;
+    const size = (pet as any).size;
+    const hair = (pet as any).hair;
+    const breed = (pet as any).breed;
+
     return {
       name: pet.name,
       member_type: (pet as any).member_category?.name ?? null,
-      size_category_id: pet.size_category_id,
-      pet_type_id: pet.pet_type_id,
-      hair_category_id: pet.hair_category_id,
+      pet_type: { _id: petType._id, name: petType.name },
+      size: { _id: size._id, name: size.name },
+      hair: { _id: hair._id, name: hair.name },
+      breed: { _id: breed._id, name: breed.name },
     };
   }
 }
