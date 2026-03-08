@@ -123,10 +123,15 @@ export class Service {
 
   @Prop({
     type: [ServicePriceSchema],
-    required: true,
     default: [],
   })
   prices: ServicePrice[];
+
+  @Prop({ required: true, enum: ['single', 'multiple'] })
+  price_type: string;
+
+  @Prop({ default: 0 })
+  price: number;
 
   @Prop({ required: true })
   duration: number;

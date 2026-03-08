@@ -1627,6 +1627,8 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
 
 **Request Body (JSON):**
 
+**Example — price_type: "single":**
+
 ```json
 {
   "code": "SVC001",
@@ -1636,6 +1638,34 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
   "pet_type_ids": ["507f1f77bcf86cd799439013"],
   "size_category_ids": ["507f1f77bcf86cd799439014", "507f1f77bcf86cd799439015"],
   "hair_category_ids": ["698bed63aac98e7b92a3e31d", "698bf05c62f5760ac021c590"],
+  "price_type": "single",
+  "price": 100000,
+  "duration": 60,
+  "available_for_unlimited": false,
+  "available_store_ids": ["507f1f77bcf86cd799439016"],
+  "addon_ids": ["507f1f77bcf86cd799439022"],
+  "include": ["Bath", "Nail Trim", "Ear Cleaning"],
+  "image_url": "https://res.cloudinary.com/example/image/upload/v1/services/basic-grooming.jpg",
+  "public_id": "pawship-grooming/services/basic-grooming",
+  "show_in_homepage": false,
+  "order": 0,
+  "service_location_type": "in store",
+  "is_active": true
+}
+```
+
+**Example — price_type: "multiple":**
+
+```json
+{
+  "code": "SVC001",
+  "name": "basic grooming",
+  "description": "Basic grooming package",
+  "service_type_id": "507f1f77bcf86cd799439012",
+  "pet_type_ids": ["507f1f77bcf86cd799439013"],
+  "size_category_ids": ["507f1f77bcf86cd799439014", "507f1f77bcf86cd799439015"],
+  "hair_category_ids": ["698bed63aac98e7b92a3e31d", "698bf05c62f5760ac021c590"],
+  "price_type": "multiple",
   "prices": [
     {
       "pet_id": "507f1f77bcf86cd799439013",
@@ -1672,7 +1702,9 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
 - `service_type_id`: Reference to a Service Type document (required)
 - `pet_type_ids`: Array of pet type Option IDs (optional, default: all active pet types)
 - `size_category_ids`: Array of size category Option IDs (optional, default: all active size categories)
-- `prices`: Array of `{ pet_id, size_id, hair_id, price }` — all three ID fields are optional per entry (optional, default: `[]`)
+- `price_type`: Pricing strategy — `single` (one flat price) or `multiple` (price varies per pet/size/hair combination) (required)
+- `price`: Flat price for the service — required when `price_type` is `single` (optional otherwise)
+- `prices`: Array of `{ pet_id, size_id, hair_id, price }` — all three ID fields are optional per entry — required when `price_type` is `multiple` (optional otherwise)
 - `duration`: Duration in minutes, minimum 1 (required)
 - `available_for_unlimited`: Whether available for unlimited membership (optional)
 - `available_store_ids`: Stores where service is available (optional, default: all active stores)
@@ -1714,6 +1746,8 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
     "code is required",
     "name service is required",
     "service type must be a valid ID",
+    "price_type is required",
+    "price_type must be either single or multiple",
     "Duration must be at least 1 minute"
   ],
   "error": "Bad Request"
@@ -1724,10 +1758,12 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
 
 - Service name will be automatically capitalized (e.g., "basic grooming" → "Basic Grooming")
 - Code must be unique across all services
+- `price_type` determines the pricing strategy:
+  - `single`: One flat price — `price` field is required
+  - `multiple`: Price varies by pet/size/hair combination — `prices` array is required
 - If `available_store_ids` is not provided or empty, defaults to all active stores
 - If `size_category_ids` is not provided or empty, defaults to all active size categories
 - If `pet_type_ids` is not provided or empty, defaults to all active pet types
-- If `prices` is not provided, defaults to `[]`
 - To upload an image, use the dedicated `POST /upload-file?folder=services` endpoint, then pass the returned `image_url` and `public_id` into the request body
 
 ---
@@ -1754,6 +1790,7 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
   "description": "Updated description",
   "image_url": "https://res.cloudinary.com/example/image/upload/v1/services/full-grooming.jpg",
   "public_id": "pawship-grooming/services/full-grooming",
+  "price_type": "multiple",
   "prices": [
     {
       "pet_id": "507f1f77bcf86cd799439013",
@@ -1802,6 +1839,8 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
 - All fields are optional — only send fields you want to update
 - Service name will be automatically capitalized
 - Code must remain unique if updated
+- If `price_type` is updated to `single`, `price` must also be provided
+- If `price_type` is updated to `multiple`, `prices` array must also be provided
 - If `available_store_ids` is updated with an empty array, it defaults to all active stores
 - If `size_category_ids` is updated with an empty array, it defaults to all active size categories
 - If `pet_type_ids` is updated with an empty array, it defaults to all active pet types

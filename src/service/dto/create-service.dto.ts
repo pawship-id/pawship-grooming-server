@@ -9,6 +9,7 @@ import {
   IsOptional,
   IsString,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -61,8 +62,22 @@ export class CreateServiceDto {
   @IsMongoId({ each: true, message: 'Each hair category must be a valid ID' })
   hair_category_ids?: string[];
 
-  @IsOptional()
+  @IsNotEmpty({ message: 'price type is required' })
+  @IsEnum(['single', 'multiple'], {
+    message: 'price type must be either single or multiple',
+  })
+  price_type: string;
+
+  @ValidateIf((o) => o.price_type === 'single')
+  @Type(() => Number)
+  @IsNumber({}, { message: 'price must be a number' })
+  @Min(0, { message: 'price cannot be negative' })
+  @IsNotEmpty({ message: 'price is required when price type is single' })
+  price?: number;
+
+  @ValidateIf((o) => o.price_type === 'multiple')
   @IsArray({ message: 'prices must be an array' })
+  @IsNotEmpty({ message: 'prices is required when price type is multiple' })
   @ValidateNested({ each: true })
   @Type(() => ServicePriceDto)
   prices?: ServicePriceDto[];
