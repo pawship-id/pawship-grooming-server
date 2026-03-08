@@ -1107,8 +1107,8 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
     "timezone": "string (optional, default: Asia/Jakarta)"
   },
   "capacity": {
-    "default_daily_capacity_minutes": "number (required)",
-    "overbooking_limit_minutes": "number (required)"
+    "default_daily_capacity_minutes": "number (default: 960)",
+    "overbooking_limit_minutes": "number (default: 120)"
   },
   "session": ["string"] ,
   "is_active": "boolean (optional, default: true)"

@@ -76,10 +76,14 @@ export class Store {
 
   @Prop({
     type: {
-      default_daily_capacity_minutes: { type: Number },
-      overbooking_limit_minutes: { type: Number },
+      default_daily_capacity_minutes: { type: Number, default: 960 },
+      overbooking_limit_minutes: { type: Number, default: 120 },
     },
     _id: false,
+    default: () => ({
+      default_daily_capacity_minutes: 960,
+      overbooking_limit_minutes: 120,
+    }),
   })
   capacity: {
     default_daily_capacity_minutes: number;
