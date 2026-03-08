@@ -9,6 +9,7 @@ import {
   StoreDailyCapacitySchema,
 } from 'src/store-daily-capacity/entities/store-daily-capacity.entity';
 import { Service, ServiceSchema } from 'src/service/entities/service.entity';
+import { Zone, ZoneSchema } from 'src/zone/entities/zone.entity';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { Service, ServiceSchema } from 'src/service/entities/service.entity';
       { name: Store.name, schema: StoreSchema },
       { name: StoreDailyCapacity.name, schema: StoreDailyCapacitySchema },
       { name: Service.name, schema: ServiceSchema },
+      { name: Zone.name, schema: ZoneSchema },
     ]),
     AuthModule,
   ],

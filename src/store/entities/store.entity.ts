@@ -9,6 +9,8 @@ export type StoreDocument = HydratedDocument<Store>;
   toJSON: {
     virtuals: true,
     transform: (_: any, ret: any) => {
+      console.log(ret, 'ini rett');
+
       delete ret.id;
       delete ret.__v;
     },

@@ -87,7 +87,7 @@ export class StoreService {
           is_active: true,
         },
       })
-      .lean();
+      .exec();
 
     // Get today's date normalized to UTC midnight
     const today = new Date();
@@ -113,15 +113,21 @@ export class StoreService {
     );
 
     // Override capacity if found
-    const storesWithCapacity = stores.map((store) => ({
-      ...store,
-      capacity: {
-        ...store.capacity,
+    const storesWithCapacity = stores.map((store) => {
+      const storeObj = store.toObject();
+
+      const capacity = {
+        ...storeObj.capacity,
         default_daily_capacity_minutes:
           capacityMap[store._id.toString()] ??
-          store.capacity?.default_daily_capacity_minutes,
-      },
-    }));
+          storeObj.capacity?.default_daily_capacity_minutes,
+      };
+
+      return {
+        ...storeObj,
+        capacity,
+      };
+    });
 
     return {
       stores: storesWithCapacity,
@@ -144,11 +150,13 @@ export class StoreService {
           is_active: true,
         },
       })
-      .lean();
+      .exec();
 
     if (!store) {
       return null;
     }
+
+    const storeObj = store.toObject();
 
     // Get today's date normalized to UTC midnight
     const today = new Date();
@@ -163,8 +171,8 @@ export class StoreService {
       .lean();
 
     // Convert to object and override capacity if found
-    if (todayCapacity && store.capacity) {
-      store.capacity.default_daily_capacity_minutes = (
+    if (todayCapacity && storeObj.capacity) {
+      storeObj.capacity.default_daily_capacity_minutes = (
         todayCapacity as any
       ).total_capacity_minutes;
     }
@@ -186,7 +194,7 @@ export class StoreService {
       .exec();
 
     return {
-      ...store,
+      ...storeObj,
       services,
     };
   }
