@@ -12,6 +12,7 @@ import {
   ContactDto,
   LocationDto,
   OperationalDto,
+  ZoneItemDto,
 } from './store.dto';
 
 export class CreateStoreDto {
@@ -52,4 +53,10 @@ export class CreateStoreDto {
   @IsOptional()
   @IsBoolean()
   is_active?: boolean = true;
+
+  @IsOptional()
+  @IsArray({ message: 'zones must be an array' })
+  @ValidateNested({ each: true })
+  @Type(() => ZoneItemDto)
+  zones?: ZoneItemDto[] = [];
 }

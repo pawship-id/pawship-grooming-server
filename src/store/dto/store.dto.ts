@@ -4,6 +4,8 @@ import {
   IsArray,
   isNotEmpty,
   IsNotEmpty,
+  IsNumber,
+  Min,
 } from 'class-validator';
 
 export enum DayOfWeek {
@@ -55,4 +57,29 @@ export class CapacityDto {
     message: 'overbooking limit minutes is required',
   })
   overbooking_limit_minutes: number;
+}
+
+export class ZoneItemDto {
+  @IsNotEmpty({ message: 'area_name is required' })
+  area_name: string;
+
+  @IsNotEmpty({ message: 'min_radius_km is required' })
+  @IsNumber({}, { message: 'min_radius_km must be a number' })
+  @Min(0, { message: 'min_radius_km must be at least 0' })
+  min_radius_km: number;
+
+  @IsNotEmpty({ message: 'max_radius_km is required' })
+  @IsNumber({}, { message: 'max_radius_km must be a number' })
+  @Min(0, { message: 'max_radius_km must be at least 0' })
+  max_radius_km: number;
+
+  @IsNotEmpty({ message: 'travel_time_minutes is required' })
+  @IsNumber({}, { message: 'travel_time_minutes must be a number' })
+  @Min(0, { message: 'travel_time_minutes must be at least 0' })
+  travel_time_minutes: number;
+
+  @IsNotEmpty({ message: 'travel_fee is required' })
+  @IsNumber({}, { message: 'travel_fee must be a number' })
+  @Min(0, { message: 'travel_fee must be at least 0' })
+  travel_fee: number;
 }

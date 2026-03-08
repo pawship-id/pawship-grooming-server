@@ -14,7 +14,6 @@ import { BookingModule } from './booking/booking.module';
 import { StoreDailyCapacityModule } from './store-daily-capacity/store-daily-capacity.module';
 import { ServiceTypeModule } from './service-type/service-type.module';
 import { UploadFileModule } from './upload-file/upload-file.module';
-import { ZoneModule } from './zone/zone.module';
 import { BannerModule } from './banner/banner.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 
@@ -41,7 +40,6 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
     StoreDailyCapacityModule,
     ServiceTypeModule,
     UploadFileModule,
-    ZoneModule,
     BannerModule,
   ],
   controllers: [AppController],

@@ -9,8 +9,6 @@ export type StoreDocument = HydratedDocument<Store>;
   toJSON: {
     virtuals: true,
     transform: (_: any, ret: any) => {
-      console.log(ret, 'ini rett');
-
       delete ret.id;
       delete ret.__v;
     },
@@ -92,6 +90,27 @@ export class Store {
     overbooking_limit_minutes: number;
   };
 
+  @Prop({
+    type: [
+      {
+        area_name: { type: String, required: true },
+        min_radius_km: { type: Number, required: true },
+        max_radius_km: { type: Number, required: true },
+        travel_time_minutes: { type: Number, required: true },
+        travel_fee: { type: Number, required: true },
+      },
+    ],
+    default: [],
+    _id: false,
+  })
+  zones: {
+    area_name: string;
+    min_radius_km: number;
+    max_radius_km: number;
+    travel_time_minutes: number;
+    travel_fee: number;
+  }[];
+
   @Prop({ type: [String], default: [] })
   sessions: string[];
 
@@ -113,8 +132,4 @@ StoreSchema.virtual('serviceTypes', {
   foreignField: 'store_ids',
 });
 
-StoreSchema.virtual('zones', {
-  ref: 'Zone',
-  localField: '_id',
-  foreignField: 'store_id',
-});
+StoreSchema.set('toObject', { virtuals: true });

@@ -12,13 +12,12 @@ Base URL: `http://localhost:3000`
 4. [Stores](#stores)
 5. [Services](#services)
 6. [Service Types](#service-types)
-7. [Zones](#zones)
-8. [Banners](#banners)
-9. [Upload File](#upload-file)
-10. [Pets](#pets)
-11. [Memberships](#memberships)
-12. [Bookings](#bookings) _(includes public/guest endpoints)_
-13. [Grooming Sessions](#grooming-sessions)
+7. [Banners](#banners)
+8. [Upload File](#upload-file)
+9. [Pets](#pets)
+10. [Memberships](#memberships)
+11. [Bookings](#bookings) _(includes public/guest endpoints)_
+12. [Grooming Sessions](#grooming-sessions)
 
 ---
 
@@ -927,7 +926,15 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
       "updatedAt": "2026-03-06T04:54:14.821Z",
       "__v": 0,
       "sessions": ["09.00 - 12.00", "13.00 - 16.00", "17.00 - 20.00"],
-      "zones": []
+      "zones": [
+        {
+          "area_name": "Kemang",
+          "min_radius_km": 0,
+          "max_radius_km": 5,
+          "travel_time_minutes": 30,
+          "travel_fee": 15000
+        }
+      ]
     }
   ],
   "pagination": {
@@ -1061,7 +1068,15 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
         "pet_types": []
       }
     ],
-    "zones": []
+    "zones": [
+      {
+        "area_name": "Kemang",
+        "min_radius_km": 0,
+        "max_radius_km": 5,
+        "travel_time_minutes": 30,
+        "travel_fee": 15000
+      }
+    ]
   }
 }
 ```
@@ -1112,8 +1127,17 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
     "default_daily_capacity_minutes": "number (default: 960)",
     "overbooking_limit_minutes": "number (default: 120)"
   },
-  "session": ["string"] ,
-  "is_active": "boolean (optional, default: true)"
+  "session": ["string"],
+  "is_active": "boolean (optional, default: true)",
+  "zones": [
+    {
+      "area_name": "string (required)",
+      "min_radius_km": "number (required, min: 0)",
+      "max_radius_km": "number (required, min: 0)",
+      "travel_time_minutes": "number (required, min: 0)",
+      "travel_fee": "number (required, min: 0)"
+    }
+  ]
 }
 ```
 
@@ -1186,7 +1210,16 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
     "overbooking_limit_minutes": "number (optional)"
   },
   "session": ["string"],
-  "is_active": "boolean (optional)"
+  "is_active": "boolean (optional)",
+  "zones": [
+    {
+      "area_name": "string (required)",
+      "min_radius_km": "number (required, min: 0)",
+      "max_radius_km": "number (required, min: 0)",
+      "travel_time_minutes": "number (required, min: 0)",
+      "travel_fee": "number (required, min: 0)"
+    }
+  ]
 }
 ```
 
@@ -2433,275 +2466,6 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
 
 - Soft delete — banner ditandai `isDeleted: true`
 - Banner yang dihapus tidak muncul di semua GET endpoint
-
----
-
-## Zones
-
-Zones define delivery/service coverage areas linked to a specific store. Each zone contains radius boundaries, estimated travel time, and a travel fee.
-
-**Base route:** `/zones`
-
-**Headers (all endpoints):**
-
-- `Authorization: Bearer {access_token}` (required)
-- `Content-Type: application/json`
-
----
-
-### 1. Get All Zones
-
-**Endpoint:** `GET /zones`
-
-**Query Parameters:**
-
-| Parameter  | Type   | Required | Description                  |
-| ---------- | ------ | -------- | ---------------------------- |
-| `page`     | number | No       | Page number (default: 1)     |
-| `limit`    | number | No       | Items per page (default: 10) |
-| `search`   | string | No       | Search by `area_name`        |
-| `store_id` | string | No       | Filter by store ObjectId     |
-
-**Success Response (200):**
-
-```json
-{
-  "message": "Fetch zones successfully",
-  "zones": [
-    {
-      "_id": "6650f1a2c3b4e5f6a7b8c9d0",
-      "store_id": "6650f1a2c3b4e5f6a7b8c900",
-      "area_name": "Kemang",
-      "min_radius_km": 0,
-      "max_radius_km": 5,
-      "travel_time_minutes": 30,
-      "travel_fee": 15000,
-      "isDeleted": false,
-      "deletedAt": null,
-      "createdAt": "2024-01-15T10:00:00.000Z",
-      "updatedAt": "2024-01-15T10:00:00.000Z",
-      "store": {
-        "_id": "6650f1a2c3b4e5f6a7b8c900",
-        "name": "Pawship Kemang"
-      }
-    }
-  ],
-  "pagination": {
-    "total": 1,
-    "page": 1,
-    "limit": 10,
-    "totalPages": 1
-  }
-}
-```
-
----
-
-### 2. Get Zone by ID
-
-**Endpoint:** `GET /zones/:id`
-
-**Path Parameters:**
-
-- `id` (string, required) — Zone ObjectId
-
-**Success Response (200):**
-
-```json
-{
-  "message": "Fetch zone successfully",
-  "zone": {
-    "_id": "6650f1a2c3b4e5f6a7b8c9d0",
-    "store_id": "6650f1a2c3b4e5f6a7b8c900",
-    "area_name": "Kemang",
-    "min_radius_km": 0,
-    "max_radius_km": 5,
-    "travel_time_minutes": 30,
-    "travel_fee": 15000,
-    "isDeleted": false,
-    "deletedAt": null,
-    "createdAt": "2024-01-15T10:00:00.000Z",
-    "updatedAt": "2024-01-15T10:00:00.000Z",
-    "store": {
-      "_id": "6650f1a2c3b4e5f6a7b8c900",
-      "name": "Pawship Kemang"
-    }
-  }
-}
-```
-
-**Error Responses:**
-
-- **404 Not Found:**
-
-```json
-{
-  "statusCode": 404,
-  "message": "data not found",
-  "error": "Not Found"
-}
-```
-
----
-
-### 3. Create Zone
-
-**Endpoint:** `POST /zones`
-
-**Request Body:**
-
-```json
-{
-  "store_id": "string (required, valid ObjectId)",
-  "area_name": "string (required)",
-  "min_radius_km": "number (required, min: 0)",
-  "max_radius_km": "number (required, min: 0)",
-  "travel_time_minutes": "number (required, min: 0)",
-  "travel_fee": "number (required, min: 0)"
-}
-```
-
-**Example Request Body:**
-
-```json
-{
-  "store_id": "6650f1a2c3b4e5f6a7b8c900",
-  "area_name": "Kemang",
-  "min_radius_km": 0,
-  "max_radius_km": 5,
-  "travel_time_minutes": 30,
-  "travel_fee": 15000
-}
-```
-
-**Success Response (201):**
-
-```json
-{
-  "message": "Create zone successfully",
-  "zone": {
-    "_id": "6650f1a2c3b4e5f6a7b8c9d0",
-    "store_id": "6650f1a2c3b4e5f6a7b8c900",
-    "area_name": "Kemang",
-    "min_radius_km": 0,
-    "max_radius_km": 5,
-    "travel_time_minutes": 30,
-    "travel_fee": 15000,
-    "isDeleted": false,
-    "deletedAt": null,
-    "createdAt": "2024-01-15T10:00:00.000Z",
-    "updatedAt": "2024-01-15T10:00:00.000Z"
-  }
-}
-```
-
-**Error Responses:**
-
-- **400 Bad Request:** Validation error
-
-```json
-{
-  "statusCode": 400,
-  "message": ["store_id must be a mongodb id", "area_name should not be empty"],
-  "error": "Bad Request"
-}
-```
-
----
-
-### 4. Update Zone
-
-**Endpoint:** `PUT /zones/:id`
-
-**Path Parameters:**
-
-- `id` (string, required) — Zone ObjectId
-
-**Request Body** (all fields optional):
-
-```json
-{
-  "store_id": "string (optional, valid ObjectId)",
-  "area_name": "string (optional)",
-  "min_radius_km": "number (optional, min: 0)",
-  "max_radius_km": "number (optional, min: 0)",
-  "travel_time_minutes": "number (optional, min: 0)",
-  "travel_fee": "number (optional, min: 0)"
-}
-```
-
-**Success Response (200):**
-
-```json
-{
-  "message": "Update zone successfully",
-  "zone": {
-    "_id": "6650f1a2c3b4e5f6a7b8c9d0",
-    "store_id": "6650f1a2c3b4e5f6a7b8c900",
-    "area_name": "Kemang",
-    "min_radius_km": 0,
-    "max_radius_km": 7,
-    "travel_time_minutes": 45,
-    "travel_fee": 20000,
-    "isDeleted": false,
-    "deletedAt": null,
-    "createdAt": "2024-01-15T10:00:00.000Z",
-    "updatedAt": "2024-01-15T11:00:00.000Z",
-    "store": {
-      "_id": "6650f1a2c3b4e5f6a7b8c900",
-      "name": "Pawship Kemang"
-    }
-  }
-}
-```
-
-**Error Responses:**
-
-- **404 Not Found:** Zone not found or already deleted
-
-```json
-{
-  "statusCode": 404,
-  "message": "data not found",
-  "error": "Not Found"
-}
-```
-
----
-
-### 5. Delete Zone
-
-**Endpoint:** `DELETE /zones/:id`
-
-**Path Parameters:**
-
-- `id` (string, required) — Zone ObjectId
-
-**Success Response (200):**
-
-```json
-{
-  "message": "Delete zone successfully"
-}
-```
-
-**Error Responses:**
-
-- **404 Not Found:** Zone not found or already deleted
-
-```json
-{
-  "statusCode": 404,
-  "message": "data not found",
-  "error": "Not Found"
-}
-```
-
-**Notes:**
-
-- This is a soft delete operation
-- Zone is marked with `isDeleted: true` and `deletedAt` timestamp
-- Deleted zones are excluded from GET endpoints
 
 ---
 

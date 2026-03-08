@@ -22,6 +22,7 @@ export class StoreService {
     private readonly serviceModel: Model<ServiceDocument>,
   ) {}
 
+
   async create(body: CreateStoreDto) {
     try {
       const store = new this.storeModel(body);
@@ -80,13 +81,6 @@ export class StoreService {
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 })
-      .populate({
-        path: 'zones',
-        match: {
-          isDeleted: false,
-          is_active: true,
-        },
-      })
       .exec();
 
     // Get today's date normalized to UTC midnight
@@ -114,7 +108,7 @@ export class StoreService {
 
     // Override capacity if found
     const storesWithCapacity = stores.map((store) => {
-      const storeObj = store.toObject();
+      const storeObj = store.toObject({ virtuals: true });
 
       const capacity = {
         ...storeObj.capacity,
@@ -143,20 +137,13 @@ export class StoreService {
   async findOne(id: ObjectId) {
     const store = await this.storeModel
       .findById(id)
-      .populate({
-        path: 'zones',
-        match: {
-          isDeleted: false,
-          is_active: true,
-        },
-      })
       .exec();
 
     if (!store) {
       return null;
     }
 
-    const storeObj = store.toObject();
+    const storeObj = store.toObject({ virtuals: true });
 
     // Get today's date normalized to UTC midnight
     const today = new Date();
@@ -233,13 +220,6 @@ export class StoreService {
       .populate({
         path: 'serviceTypes',
         select: 'title description image_url',
-        match: {
-          isDeleted: false,
-          is_active: true,
-        },
-      })
-      .populate({
-        path: 'zones',
         match: {
           isDeleted: false,
           is_active: true,
