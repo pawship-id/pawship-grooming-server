@@ -259,9 +259,9 @@ export class ServiceService {
     const service = await this.serviceModel
       .findById(serviceId)
       .select(
-        'code name description service_type_id price price_type prices duration service_location_type addon_ids isDeleted',
+        '_id code name description service_type_id price price_type prices duration service_addon_ids isDeleted',
       )
-      .populate('service_type', 'title')
+      .populate('service_type', '_id title')
       .lean();
 
     if (!service || service.isDeleted) {
@@ -270,9 +270,6 @@ export class ServiceService {
 
     const priceType = (service as any).price_type;
     let resolvedPrice = 0;
-    let petTypeOption: any = null;
-    let sizeOption: any = null;
-    let hairOption: any = null;
     let bestPrice: any = null;
 
     if (priceType === 'single') {
@@ -304,22 +301,6 @@ export class ServiceService {
       }
 
       resolvedPrice = bestPrice?.price ?? 0;
-
-      // Look up option names for the matched price entry
-      [petTypeOption, sizeOption, hairOption] = await Promise.all([
-        bestPrice?.pet_type_id
-          ? this.optionModel
-              .findById(bestPrice.pet_type_id)
-              .select('name')
-              .lean()
-          : null,
-        bestPrice?.size_id
-          ? this.optionModel.findById(bestPrice.size_id).select('name').lean()
-          : null,
-        bestPrice?.hair_id
-          ? this.optionModel.findById(bestPrice.hair_id).select('name').lean()
-          : null,
-      ]);
     }
 
     const serviceType = (service as any).service_type;
@@ -334,7 +315,7 @@ export class ServiceService {
     if (idsToFetch.length > 0) {
       const addonDocs = await this.serviceModel
         .find({ _id: { $in: idsToFetch }, isDeleted: false })
-        .select('code name price price_type prices duration')
+        .select('_id code name price price_type prices duration')
         .lean();
 
       addonsSnapshot = addonDocs.map((addon: any) => {
@@ -367,6 +348,7 @@ export class ServiceService {
           addonPrice = best?.price ?? 0;
         }
         return {
+          _id: addon._id,
           code: addon.code,
           name: addon.name,
           price: addonPrice,
@@ -376,6 +358,7 @@ export class ServiceService {
     }
 
     return {
+      _id: service._id,
       code: service.code,
       name: service.name,
       description: (service as any).description ?? null,
@@ -383,21 +366,8 @@ export class ServiceService {
         ? { _id: serviceType._id, title: serviceType.title }
         : null,
       price: resolvedPrice,
-      pet_type:
-        petTypeOption && bestPrice
-          ? { _id: bestPrice.pet_type_id, name: (petTypeOption as any).name }
-          : null,
-      size:
-        sizeOption && bestPrice
-          ? { _id: bestPrice.size_id, name: (sizeOption as any).name }
-          : null,
-      hair:
-        hairOption && bestPrice
-          ? { _id: bestPrice.hair_id, name: (hairOption as any).name }
-          : null,
       duration: (service as any).duration ?? 0,
       addons: addonsSnapshot.length > 0 ? addonsSnapshot : undefined,
-      service_location_type: (service as any).service_location_type ?? null,
     };
   }
 

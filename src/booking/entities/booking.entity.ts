@@ -21,6 +21,9 @@ export class PetSnapshot {
 
 @Schema({ _id: false })
 export class ServiceSnapshot {
+  @Prop({ type: Types.ObjectId })
+  _id?: Types.ObjectId;
+
   @Prop()
   code?: string;
 
@@ -32,7 +35,6 @@ export class ServiceSnapshot {
 
   @Prop({
     type: { _id: { type: Types.ObjectId }, title: { type: String } },
-    _id: false,
     default: null,
   })
   service_type?: { _id: Types.ObjectId; title: string };
@@ -40,29 +42,28 @@ export class ServiceSnapshot {
   @Prop({ default: 0 })
   price?: number;
 
-  @Prop({
-    type: { _id: { type: Types.ObjectId }, name: { type: String } },
-    _id: false,
-    default: null,
-  })
-  pet_type?: { _id: Types.ObjectId; name: string };
-
-  @Prop({
-    type: { _id: { type: Types.ObjectId }, name: { type: String } },
-    _id: false,
-    default: null,
-  })
-  size?: { _id: Types.ObjectId; name: string };
-
-  @Prop({
-    type: { _id: { type: Types.ObjectId }, name: { type: String } },
-    _id: false,
-    default: null,
-  })
-  hair?: { _id: Types.ObjectId; name: string };
-
   @Prop({ default: 0 })
   duration?: number;
+
+  @Prop({
+    type: [
+      {
+        _id: { type: Types.ObjectId },
+        code: { type: String },
+        name: { type: String },
+        price: { type: Number, default: 0 },
+        duration: { type: Number, default: 0 },
+      },
+    ],
+    default: undefined,
+  })
+  addons?: {
+    _id: Types.ObjectId;
+    code: string;
+    name: string;
+    price: number;
+    duration: number;
+  }[];
 }
 
 @Schema({ _id: false })
@@ -177,31 +178,46 @@ export class AssignedGroomer {
       delete ret.service_id;
       delete ret.service_addon_ids;
 
-      if (ret.pet?.size?._id) {
-        const petSizeId = ret.pet.size._id.toString();
+      const petSizeId = ret.pet?.size?._id?.toString();
+      const petTypeId = ret.pet?.pet_type?._id?.toString();
+      const petHairId = ret.pet?.hair?._id?.toString();
 
-        // transform price service - jika ada
-        if (ret.service) {
-          let find_service_price = ret.service.prices.find(
-            (el: any) => el.size_id.toString() === petSizeId,
-          );
-
-          ret.service.price = find_service_price.price;
-          delete ret.service.prices;
+      const findBestPrice = (prices: any[]): number => {
+        if (!prices?.length) return 0;
+        let best: any = null;
+        let bestScore = -1;
+        for (const p of prices) {
+          let score = 0;
+          if (petTypeId && p.pet_type_id?.toString() === petTypeId) score++;
+          if (petSizeId && p.size_id?.toString() === petSizeId) score++;
+          if (petHairId && p.hair_id?.toString() === petHairId) score++;
+          if (score > bestScore) {
+            bestScore = score;
+            best = p;
+          }
         }
+        return best?.price ?? 0;
+      };
 
-        // transform price add on - jika ada
-        if (ret.service_addons && ret.service_addons.length) {
-          ret.service_addons = ret.service_addons.map((addon: any) => {
-            let find_service_price = addon.prices.find(
-              (el: any) => el.size_id.toString() === petSizeId,
-            );
-
-            addon.price = find_service_price.price;
-            delete addon.prices;
-            return addon;
-          });
+      // transform price service - jika ada
+      if (ret.service) {
+        if (ret.service.price_type !== 'single') {
+          ret.service.price = findBestPrice(ret.service.prices);
         }
+        delete ret.service.prices;
+        delete ret.service.price_type;
+      }
+
+      // transform price add on - jika ada
+      if (ret.service_addons && ret.service_addons.length) {
+        ret.service_addons = ret.service_addons.map((addon: any) => {
+          if (addon.price_type !== 'single') {
+            addon.price = findBestPrice(addon.prices);
+          }
+          delete addon.prices;
+          delete addon.price_type;
+          return addon;
+        });
       }
 
       if (ret.assigned_groomers?.length) {
@@ -216,6 +232,16 @@ export class AssignedGroomer {
             },
           };
         });
+      }
+
+      if (ret.service_snapshot) {
+        delete ret.service_snapshot.service_type.id;
+
+        if (ret.service_snapshot.addons.length) {
+          ret.service_snapshot.addons.forEach((el: any) => {
+            delete el.id;
+          });
+        }
       }
 
       return ret;
