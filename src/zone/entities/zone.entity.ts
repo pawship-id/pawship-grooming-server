@@ -23,6 +23,9 @@ export class Zone {
   @Prop({ required: true })
   travel_fee: number;
 
+  @Prop({ default: true })
+  is_active: boolean;
+
   @Prop({ default: false })
   isDeleted: boolean;
 

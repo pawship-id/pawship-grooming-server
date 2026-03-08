@@ -926,7 +926,8 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
       "createdAt": "2026-02-11T01:52:13.002Z",
       "updatedAt": "2026-03-06T04:54:14.821Z",
       "__v": 0,
-      "sessions": ["09.00 - 12.00", "13.00 - 16.00", "17.00 - 20.00"]
+      "sessions": ["09.00 - 12.00", "13.00 - 16.00", "17.00 - 20.00"],
+      "zones": []
     }
   ],
   "pagination": {
@@ -1059,7 +1060,8 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
         ],
         "pet_types": []
       }
-    ]
+    ],
+    "zones": []
   }
 }
 ```

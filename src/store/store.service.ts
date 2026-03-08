@@ -80,6 +80,13 @@ export class StoreService {
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 })
+      .populate({
+        path: 'zones',
+        match: {
+          isDeleted: false,
+          is_active: true,
+        },
+      })
       .lean();
 
     // Get today's date normalized to UTC midnight
@@ -127,25 +134,17 @@ export class StoreService {
     };
   }
 
-  async findAllWithServiceTypes() {
-    const stores = await this.storeModel
-      .find({ isDeleted: false, is_active: true })
+  async findOne(id: ObjectId) {
+    const store = await this.storeModel
+      .findById(id)
       .populate({
-        path: 'serviceTypes',
-        select: 'title description image_url',
+        path: 'zones',
         match: {
           isDeleted: false,
           is_active: true,
         },
       })
-      .sort({ createdAt: -1 })
-      .exec();
-
-    return { stores };
-  }
-
-  async findOne(id: ObjectId) {
-    const store = await this.storeModel.findById(id).lean();
+      .lean();
 
     if (!store) {
       return null;
@@ -218,5 +217,29 @@ export class StoreService {
     });
 
     return store;
+  }
+
+  async findAllWithServiceTypes() {
+    const stores = await this.storeModel
+      .find({ isDeleted: false, is_active: true })
+      .populate({
+        path: 'serviceTypes',
+        select: 'title description image_url',
+        match: {
+          isDeleted: false,
+          is_active: true,
+        },
+      })
+      .populate({
+        path: 'zones',
+        match: {
+          isDeleted: false,
+          is_active: true,
+        },
+      })
+      .sort({ createdAt: -1 })
+      .exec();
+
+    return { stores };
   }
 }

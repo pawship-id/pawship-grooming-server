@@ -1,7 +1,9 @@
 import {
+  IsBoolean,
   IsMongoId,
   IsNotEmpty,
   IsNumber,
+  IsOptional,
   IsString,
   Min,
 } from 'class-validator';
@@ -39,4 +41,8 @@ export class CreateZoneDto {
   @IsNumber()
   @Min(0)
   travel_fee: number;
+
+  @IsOptional()
+  @IsBoolean()
+  is_active?: boolean = true;
 }

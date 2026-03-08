@@ -110,3 +110,9 @@ StoreSchema.virtual('serviceTypes', {
   localField: '_id',
   foreignField: 'store_ids',
 });
+
+StoreSchema.virtual('zones', {
+  ref: 'Zone',
+  localField: '_id',
+  foreignField: 'store_id',
+});
