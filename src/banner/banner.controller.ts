@@ -41,21 +41,6 @@ export class BannerController {
     };
   }
 
-  // Public endpoint — untuk ditampilkan ke user/guest tanpa login
-  @Public()
-  @Get('active')
-  async findActive() {
-    const result = await this.bannerService.findAll({
-      is_active: true,
-      page: 1,
-      limit: 100,
-    });
-    return {
-      message: 'Fetch active banners successfully',
-      ...result,
-    };
-  }
-
   @Public()
   @Get('public')
   async getPublicBanners() {

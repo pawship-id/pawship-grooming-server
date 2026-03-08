@@ -2260,27 +2260,7 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
 
 ---
 
-### 2. Get Active Banners (Public)
-
-**Endpoint:** `GET /banners/active`
-
-**Authentication:** Not Required
-
-**Description:** Mengambil semua banner yang `is_active: true`, diurutkan berdasarkan `order`. Digunakan untuk ditampilkan ke user/guest.
-
-**Success Response (200):**
-
-```json
-{
-  "message": "Fetch active banners successfully",
-  "banners": [ ... ],
-  "pagination": { ... }
-}
-```
-
----
-
-### 3. Get Public Banners
+### 2. Get Public Banners
 
 **Endpoint:** `GET /banners/public`
 
@@ -2322,7 +2302,7 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
 
 ---
 
-### 4. Get Banner By ID
+### 3. Get Banner By ID
 
 **Endpoint:** `GET /banners/:id`
 
@@ -2347,7 +2327,7 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
 
 ---
 
-### 5. Create Banner
+### 4. Create Banner
 
 **Endpoint:** `POST /banners`
 
@@ -2391,7 +2371,7 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
 
 ---
 
-### 6. Update Banner
+### 5. Update Banner
 
 **Endpoint:** `PUT /banners/:id`
 
@@ -2431,7 +2411,7 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
 
 ---
 
-### 7. Delete Banner
+### 6. Delete Banner
 
 **Endpoint:** `DELETE /banners/:id`
 
