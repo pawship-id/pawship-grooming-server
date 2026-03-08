@@ -3878,33 +3878,51 @@ If user not found:
       "_id": "507f1f77bcf86cd799439011",
       "customer_id": "507f1f77bcf86cd799439012",
       "pet_snapshot": {
-        "name": "Buddy",
-        "member_type": "VIP"
-      },
-      "service_snapshot": {
-        "code": "GRM-001",
-        "name": "Basic Grooming",
-        "description": "Full grooming package including bath, dry, and trim",
-        "service_type": {
-          "_id": "507f1f77bcf86cd799439030",
-          "title": "Grooming"
+        "_id": "699a6285a99f14a4be787c77",
+        "name": "Pet 1",
+        "member_type": {
+          "_id": "699456cf429638a275fb0456",
+          "name": "Vip - In Store"
         },
-        "price": 150000,
         "pet_type": {
-          "_id": "507f1f77bcf86cd799439031",
-          "name": "Dog"
+          "_id": "698bf0d362f5760ac021c595",
+          "name": "Cat"
         },
         "size": {
-          "_id": "507f1f77bcf86cd799439032",
-          "name": "Medium"
+          "_id": "698bf0e462f5760ac021c597",
+          "name": "Small"
         },
         "hair": {
-          "_id": "507f1f77bcf86cd799439033",
-          "name": "Short"
+          "_id": "69a0fe38dee77f169eb3259b",
+          "name": "Long Hair"
         },
-        "duration": 60
+        "breed": {
+          "_id": "698da2bb19b8a1bbac7aabb6",
+          "name": "Pom"
+        }
       },
-      "pet_id": "507f1f77bcf86cd799439013",
+      "service_snapshot": {
+        "_id": "69a45774ecf65d9a74d53fe6",
+        "code": "SVC-0001",
+        "name": "Basic Grooming",
+        "description": "Perawatan dasar yang bikin pawfriends bersih, wangi, dan nyaman lagi. Cocok untuk rutin supaya tetap fresh dan sehat.",
+        "service_type": {
+          "_id": "69a22d75a9d735a33014cc8b",
+          "title": "Grooming"
+        },
+        "price": 89000,
+        "duration": 60,
+        "addons": [
+          {
+            "_id": "69ace8ab7fbc3acb5e61f94d",
+            "code": "SVC-0002",
+            "name": "3 Spots Detangling",
+            "price": 35000,
+            "duration": 15
+          }
+        ]
+      },
+      "pet_id": "699a6285a99f14a4be787c77",
       "store_id": "507f1f77bcf86cd799439014",
       "date": "2026-02-25T00:00:00.000Z",
       "time_range": "10:00 - 11:00",
@@ -3999,7 +4017,87 @@ If user not found:
 ```json
 {
   "message": "Fetch booking successfully",
-  "booking": { ... }
+  "booking": {
+    "_id": "69acf9f3ec21849a308137c5",
+    "service_type": "grooming",
+    "pet_snapshot": {
+      "_id": "699a6285a99f14a4be787c77",
+      "name": "Pet 1",
+      "member_type": {
+        "_id": "699456cf429638a275fb0456",
+        "name": "Vip - In Store"
+      },
+      "pet_type": {
+        "_id": "698bf0d362f5760ac021c595",
+        "name": "Cat"
+      },
+      "size": {
+        "_id": "698bf0e462f5760ac021c597",
+        "name": "Small"
+      },
+      "hair": {
+        "_id": "69a0fe38dee77f169eb3259b",
+        "name": "Long Hair"
+      },
+      "breed": {
+        "_id": "698da2bb19b8a1bbac7aabb6",
+        "name": "Pom"
+      }
+    },
+    "service_snapshot": {
+      "_id": "69a45774ecf65d9a74d53fe6",
+      "code": "SVC-0001",
+      "name": "Basic Grooming",
+      "description": "Perawatan dasar yang bikin pawfriends bersih, wangi, dan nyaman lagi. Cocok untuk rutin supaya tetap fresh dan sehat.",
+      "service_type": {
+        "_id": "69a22d75a9d735a33014cc8b",
+        "title": "Grooming"
+      },
+      "price": 89000,
+      "duration": 60,
+      "addons": [
+        {
+          "_id": "69ace8ab7fbc3acb5e61f94d",
+          "code": "SVC-0002",
+          "name": "3 Spots Detangling",
+          "price": 35000,
+          "duration": 15
+        }
+      ]
+    },
+    "date": "2026-03-08T00:00:00.000Z",
+    "time_range": "09.00 - 12.00",
+    "type": "in store",
+    "booking_status": "requested",
+    "status_logs": [
+      {
+        "status": "requested",
+        "timestamp": "2026-03-08T04:24:19.117Z",
+        "note": "Booking is waitlisted (capacity exceeded) - created by Jhon (admin)"
+      }
+    ],
+    "travel_fee": 0,
+    "sub_total_service": 124000,
+    "total_price": 124000,
+    "discount_ids": [],
+    "assigned_groomers": [],
+    "note": "hewan takut suara bising",
+    "isDeleted": false,
+    "deletedAt": null,
+    "sessions": [],
+    "createdAt": "2026-03-08T04:24:19.137Z",
+    "updatedAt": "2026-03-08T04:24:19.137Z",
+    "customer": {
+      "_id": "699a5d240d322c3d4e81dfbc",
+      "username": "Cantika",
+      "email": "cantika@gmail.com",
+      "phone_number": "081324765890"
+    },
+    "store": {
+      "_id": "698be0cd80c319b74fe2f073",
+      "name": "Pawship.id"
+    }
+  }
 }
 ```
 

@@ -212,25 +212,7 @@ export class BookingService {
     const bookings = await this.bookingModel
       .find({ isDeleted: false })
       .populate('customer', 'username email phone_number')
-      .populate({
-        path: 'pet',
-        select: 'name size_category_id breed_category_id',
-        populate: [
-          {
-            path: 'size',
-            model: 'Option',
-            select: '_id name',
-          },
-          {
-            path: 'breed',
-            model: 'Option',
-            select: 'name',
-          },
-        ],
-      })
       .populate('store', 'name')
-      .populate('service', 'name prices')
-      .populate('service_addons', 'name prices')
       .populate({
         path: 'assigned_groomers.groomer_id',
         select: 'username email phone_number',
@@ -245,25 +227,7 @@ export class BookingService {
     const booking = await this.bookingModel
       .findById(id)
       .populate('customer', 'username email phone_number')
-      .populate({
-        path: 'pet',
-        select: 'name size_category_id breed_category_id',
-        populate: [
-          {
-            path: 'size',
-            model: 'Option',
-            select: '_id name',
-          },
-          {
-            path: 'breed',
-            model: 'Option',
-            select: 'name',
-          },
-        ],
-      })
       .populate('store', 'name')
-      .populate('service', 'name prices')
-      .populate('service_addons', 'name prices')
       .populate({
         path: 'assigned_groomers.groomer_id',
         select: 'username email phone_number',
