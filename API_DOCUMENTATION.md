@@ -2280,7 +2280,49 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
 
 ---
 
-### 3. Get Banner By ID
+### 3. Get Public Banners
+
+**Endpoint:** `GET /banners/public`
+
+**Authentication:** Not Required
+
+**Description:** Mengambil semua banner aktif khusus untuk tampilan publik (tanpa field internal seperti `public_id`, `isDeleted`, dll). Diurutkan berdasarkan `order`.
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch public banners successfully",
+  "banners": [
+    {
+      "_id": "60d21b4667d0d8992e610c85",
+      "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo.jpg",
+      "title": "Promo Maret!",
+      "subtitle": "Diskon 20% untuk semua layanan grooming",
+      "text_align": "center",
+      "text_color": "#ffffff",
+      "cta": {
+        "label": "Pesan Sekarang",
+        "link": "/bookings",
+        "background_color": "#FF6B35",
+        "text_color": "#ffffff",
+        "vertical_position": "bottom",
+        "horizontal_position": "center"
+      },
+      "order": 1
+    }
+  ]
+}
+```
+
+**Notes:**
+
+- Response hanya menyertakan field yang relevan untuk tampilan publik
+- Field internal seperti `public_id`, `isDeleted`, `deletedAt`, `createdAt`, `updatedAt` tidak disertakan
+
+---
+
+### 4. Get Banner By ID
 
 **Endpoint:** `GET /banners/:id`
 
@@ -2305,7 +2347,7 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
 
 ---
 
-### 4. Create Banner
+### 5. Create Banner
 
 **Endpoint:** `POST /banners`
 
@@ -2349,7 +2391,7 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
 
 ---
 
-### 5. Update Banner
+### 6. Update Banner
 
 **Endpoint:** `PUT /banners/:id`
 
@@ -2389,7 +2431,7 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
 
 ---
 
-### 6. Delete Banner
+### 7. Delete Banner
 
 **Endpoint:** `DELETE /banners/:id`
 

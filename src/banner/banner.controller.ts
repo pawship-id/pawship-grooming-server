@@ -56,6 +56,16 @@ export class BannerController {
     };
   }
 
+  @Public()
+  @Get('public')
+  async getPublicBanners() {
+    const banners = await this.bannerService.getPublicBanners();
+    return {
+      message: 'Fetch public banners successfully',
+      banners,
+    };
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
     if (!id) throw new BadRequestException('id is required');

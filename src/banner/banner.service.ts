@@ -70,4 +70,14 @@ export class BannerService {
     if (!banner) throw new NotFoundException('data not found');
     return banner;
   }
+
+  async getPublicBanners() {
+    const banners = await this.bannerModel
+      .find({ isDeleted: false, is_active: true })
+      .select('_id image_url title subtitle text_align text_color cta order')
+      .sort({ order: 1, createdAt: -1 })
+      .exec();
+
+    return banners;
+  }
 }
