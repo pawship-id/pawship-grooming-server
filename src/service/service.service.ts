@@ -189,25 +189,61 @@ export class ServiceService {
   }
 
   // method to retrieve service duration and price based on service id
-  async getServiceForBooking(serviceId: ObjectId, sizeCategoryId: ObjectId) {
+  async getServiceForBooking(
+    serviceId: ObjectId,
+    sizeCategoryId?: ObjectId,
+    petTypeId?: ObjectId,
+    hairCategoryId?: ObjectId,
+  ) {
     const service = await this.serviceModel
       .findById(serviceId)
-      .select('code name prices size_category_id isDeleted duration')
+      .select('code name price price_type prices isDeleted duration')
       .lean();
 
     if (!service || service.isDeleted) {
       throw new NotFoundException('service not found');
     }
 
-    // filter price berdasarkan size_id (yang sesuai dengan sizeCategoryId)
-    const priceItem = (service as any).prices?.find(
-      (p: any) => p.size_id.toString() === sizeCategoryId.toString(),
-    );
+    const priceType = (service as any).price_type;
+    let resolvedPrice = 0;
+
+    if (priceType === 'single') {
+      resolvedPrice = (service as any).price ?? 0;
+    } else {
+      // multiple: cari entry yang cocok berdasarkan size_id, hair_id, dan pet_type_id
+      const prices: any[] = (service as any).prices ?? [];
+
+      let bestItem: any = null;
+      let bestScore = -1;
+
+      for (const p of prices) {
+        let score = 0;
+        if (
+          sizeCategoryId &&
+          p.size_id?.toString() === sizeCategoryId.toString()
+        )
+          score++;
+        if (petTypeId && p.pet_type_id?.toString() === petTypeId.toString())
+          score++;
+        if (
+          hairCategoryId &&
+          p.hair_id?.toString() === hairCategoryId.toString()
+        )
+          score++;
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestItem = p;
+        }
+      }
+
+      resolvedPrice = bestItem?.price ?? 0;
+    }
 
     return {
       code: service.code,
       name: service.name,
-      price: priceItem?.price ?? 0,
+      price: resolvedPrice,
       duration: service.duration,
     };
   }
@@ -318,24 +354,7 @@ export class ServiceService {
       .populate('avaiable_store', 'name')
       .populate({
         path: 'addons',
-        select: 'code name description price duration prices',
-        populate: [
-          {
-            path: 'prices.pet_type_id',
-            model: 'Option',
-            select: 'name',
-          },
-          {
-            path: 'prices.size_id',
-            model: 'Option',
-            select: 'name',
-          },
-          {
-            path: 'prices.hair_id',
-            model: 'Option',
-            select: 'name',
-          },
-        ],
+        select: 'code name description price duration',
       })
       .populate({
         path: 'prices.pet_type_id',
