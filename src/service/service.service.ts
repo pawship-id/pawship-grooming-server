@@ -210,34 +210,29 @@ export class ServiceService {
     if (priceType === 'single') {
       resolvedPrice = (service as any).price ?? 0;
     } else {
-      // multiple: cari entry yang cocok berdasarkan size_id, hair_id, dan pet_type_id
+      // multiple: cari entry yang cocok persis berdasarkan size_id, hair_id, dan pet_type_id
       const prices: any[] = (service as any).prices ?? [];
 
-      let bestItem: any = null;
-      let bestScore = -1;
+      const exactMatch = prices.find((p) => {
+        const sizeMatch = sizeCategoryId
+          ? p.size_id?.toString() === sizeCategoryId.toString()
+          : !p.size_id;
+        const petTypeMatch = petTypeId
+          ? p.pet_type_id?.toString() === petTypeId.toString()
+          : !p.pet_type_id;
+        const hairMatch = hairCategoryId
+          ? p.hair_id?.toString() === hairCategoryId.toString()
+          : !p.hair_id;
+        return sizeMatch && petTypeMatch && hairMatch;
+      });
 
-      for (const p of prices) {
-        let score = 0;
-        if (
-          sizeCategoryId &&
-          p.size_id?.toString() === sizeCategoryId.toString()
-        )
-          score++;
-        if (petTypeId && p.pet_type_id?.toString() === petTypeId.toString())
-          score++;
-        if (
-          hairCategoryId &&
-          p.hair_id?.toString() === hairCategoryId.toString()
-        )
-          score++;
-
-        if (score > bestScore) {
-          bestScore = score;
-          bestItem = p;
-        }
+      if (!exactMatch) {
+        throw new NotFoundException(
+          `Harga tidak ditemukan untuk hewan dengan jenis, ukuran, dan jenis bulu yang dipilih`,
+        );
       }
 
-      resolvedPrice = bestItem?.price ?? 0;
+      resolvedPrice = exactMatch.price ?? 0;
     }
 
     return {
@@ -270,37 +265,32 @@ export class ServiceService {
 
     const priceType = (service as any).price_type;
     let resolvedPrice = 0;
-    let bestPrice: any = null;
 
     if (priceType === 'single') {
       resolvedPrice = (service as any).price ?? 0;
     } else {
       const prices: any[] = (service as any).prices || [];
 
-      let bestScore = -1;
+      const exactMatch = prices.find((p) => {
+        const sizeMatch = sizeCategoryId
+          ? p.size_id?.toString() === sizeCategoryId.toString()
+          : !p.size_id;
+        const petTypeMatch = petTypeId
+          ? p.pet_type_id?.toString() === petTypeId.toString()
+          : !p.pet_type_id;
+        const hairMatch = hairCategoryId
+          ? p.hair_id?.toString() === hairCategoryId.toString()
+          : !p.hair_id;
+        return sizeMatch && petTypeMatch && hairMatch;
+      });
 
-      for (const p of prices) {
-        let score = 0;
-        if (petTypeId && p.pet_type_id?.toString() === petTypeId.toString())
-          score++;
-        if (
-          sizeCategoryId &&
-          p.size_id?.toString() === sizeCategoryId.toString()
-        )
-          score++;
-        if (
-          hairCategoryId &&
-          p.hair_id?.toString() === hairCategoryId.toString()
-        )
-          score++;
-
-        if (score > bestScore) {
-          bestScore = score;
-          bestPrice = p;
-        }
+      if (!exactMatch) {
+        throw new NotFoundException(
+          `Harga tidak ditemukan untuk hewan dengan jenis, ukuran, dan jenis bulu yang dipilih`,
+        );
       }
 
-      resolvedPrice = bestPrice?.price ?? 0;
+      resolvedPrice = exactMatch.price ?? 0;
     }
 
     const serviceType = (service as any).service_type;
@@ -324,28 +314,24 @@ export class ServiceService {
           addonPrice = addon.price ?? 0;
         } else {
           const prices: any[] = addon.prices || [];
-          let best: any = null;
-          let bestScore = -1;
-          for (const p of prices) {
-            let score = 0;
-            if (petTypeId && p.pet_type_id?.toString() === petTypeId.toString())
-              score++;
-            if (
-              sizeCategoryId &&
-              p.size_id?.toString() === sizeCategoryId.toString()
-            )
-              score++;
-            if (
-              hairCategoryId &&
-              p.hair_id?.toString() === hairCategoryId.toString()
-            )
-              score++;
-            if (score > bestScore) {
-              bestScore = score;
-              best = p;
-            }
+          const exactMatch = prices.find((p) => {
+            const sizeMatch = sizeCategoryId
+              ? p.size_id?.toString() === sizeCategoryId.toString()
+              : !p.size_id;
+            const petTypeMatch = petTypeId
+              ? p.pet_type_id?.toString() === petTypeId.toString()
+              : !p.pet_type_id;
+            const hairMatch = hairCategoryId
+              ? p.hair_id?.toString() === hairCategoryId.toString()
+              : !p.hair_id;
+            return sizeMatch && petTypeMatch && hairMatch;
+          });
+          if (!exactMatch) {
+            throw new NotFoundException(
+              `Harga addon tidak ditemukan untuk hewan dengan jenis, ukuran, dan jenis bulu yang dipilih`,
+            );
           }
-          addonPrice = best?.price ?? 0;
+          addonPrice = exactMatch.price ?? 0;
         }
         return {
           _id: addon._id,

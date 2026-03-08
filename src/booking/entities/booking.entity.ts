@@ -251,48 +251,6 @@ export class AssignedGroomer {
       delete ret.service_id;
       delete ret.service_addon_ids;
 
-      const petSizeId = ret.pet?.size?._id?.toString();
-      const petTypeId = ret.pet?.pet_type?._id?.toString();
-      const petHairId = ret.pet?.hair?._id?.toString();
-
-      const findBestPrice = (prices: any[]): number => {
-        if (!prices?.length) return 0;
-        let best: any = null;
-        let bestScore = -1;
-        for (const p of prices) {
-          let score = 0;
-          if (petTypeId && p.pet_type_id?.toString() === petTypeId) score++;
-          if (petSizeId && p.size_id?.toString() === petSizeId) score++;
-          if (petHairId && p.hair_id?.toString() === petHairId) score++;
-          if (score > bestScore) {
-            bestScore = score;
-            best = p;
-          }
-        }
-        return best?.price ?? 0;
-      };
-
-      // transform price service - jika ada
-      if (ret.service) {
-        if (ret.service.price_type !== 'single') {
-          ret.service.price = findBestPrice(ret.service.prices);
-        }
-        delete ret.service.prices;
-        delete ret.service.price_type;
-      }
-
-      // transform price add on - jika ada
-      if (ret.service_addons && ret.service_addons.length) {
-        ret.service_addons = ret.service_addons.map((addon: any) => {
-          if (addon.price_type !== 'single') {
-            addon.price = findBestPrice(addon.prices);
-          }
-          delete addon.prices;
-          delete addon.price_type;
-          return addon;
-        });
-      }
-
       if (ret.assigned_groomers?.length) {
         ret.assigned_groomers = ret.assigned_groomers.map((el: any) => {
           return {

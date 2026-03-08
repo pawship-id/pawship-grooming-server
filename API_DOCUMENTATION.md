@@ -4161,7 +4161,7 @@ If user not found:
 **Business Logic:**
 
 - System automatically creates `pet_snapshot` from pet data
-- System automatically creates `service_snapshot` — stores service code, name, description, service type, and the best-matched price entry based on the pet's pet type, size, and hair (highest specificity match wins)
+- System automatically creates `service_snapshot` — stores service code, name, description, service type, and the exact-matched price entry based on the pet's pet type, size, and hair (all three must match)
 - System calculates pricing based on service and pet size (including addons)
 - Initial `booking_status` is "requested"
 - Creates initial status log entry
@@ -4172,6 +4172,28 @@ If user not found:
   - If within overbooking limit, creates CONFIRMED booking with overbooked note
   - Uses MongoDB transactions to ensure data consistency
 - All operations are atomic - if any step fails, entire transaction is rolled back
+
+**Error Responses:**
+
+- **404 Not Found:** Harga tidak ditemukan untuk kombinasi jenis hewan, ukuran, dan jenis bulu yang dipilih
+
+```json
+{
+  "statusCode": 404,
+  "message": "Harga tidak ditemukan untuk hewan dengan jenis, ukuran, dan jenis bulu yang dipilih",
+  "error": "Not Found"
+}
+```
+
+- **404 Not Found:** Harga addon tidak ditemukan
+
+```json
+{
+  "statusCode": 404,
+  "message": "Harga addon tidak ditemukan untuk hewan dengan jenis, ukuran, dan jenis bulu yang dipilih",
+  "error": "Not Found"
+}
+```
 
 ---
 
@@ -4210,6 +4232,26 @@ If user not found:
 - Use specific endpoints for status updates
 
 **Error Responses:**
+
+- **404 Not Found:** Harga tidak ditemukan untuk kombinasi jenis hewan, ukuran, dan jenis bulu yang dipilih
+
+```json
+{
+  "statusCode": 404,
+  "message": "Harga tidak ditemukan untuk hewan dengan jenis, ukuran, dan jenis bulu yang dipilih",
+  "error": "Not Found"
+}
+```
+
+- **404 Not Found:** Harga addon tidak ditemukan
+
+```json
+{
+  "statusCode": 404,
+  "message": "Harga addon tidak ditemukan untuk hewan dengan jenis, ukuran, dan jenis bulu yang dipilih",
+  "error": "Not Found"
+}
+```
 
 - **400 Bad Request:** Capacity exceeded for the new date
 
