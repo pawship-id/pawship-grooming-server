@@ -254,10 +254,13 @@ export class ServiceService {
     petTypeId?: ObjectId,
     sizeCategoryId?: ObjectId,
     hairCategoryId?: ObjectId,
+    addonIds?: ObjectId[],
   ) {
     const service = await this.serviceModel
       .findById(serviceId)
-      .select('code name description service_type_id prices duration isDeleted')
+      .select(
+        'code name description service_type_id price price_type prices duration service_location_type addon_ids isDeleted',
+      )
       .populate('service_type', 'title')
       .lean();
 
@@ -265,53 +268,112 @@ export class ServiceService {
       throw new NotFoundException('service not found');
     }
 
-    const prices = (service as any).prices || [];
-
-    // Best-match: score based on matching pet_type, size, hair fields
+    const priceType = (service as any).price_type;
+    let resolvedPrice = 0;
+    let petTypeOption: any = null;
+    let sizeOption: any = null;
+    let hairOption: any = null;
     let bestPrice: any = null;
-    let bestScore = -1;
 
-    for (const p of prices) {
-      let score = 0;
-      if (
-        petTypeId &&
-        p.pet_type_id &&
-        p.pet_type_id.toString() === petTypeId.toString()
-      )
-        score++;
-      if (
-        sizeCategoryId &&
-        p.size_id &&
-        p.size_id.toString() === sizeCategoryId.toString()
-      )
-        score++;
-      if (
-        hairCategoryId &&
-        p.hair_id &&
-        p.hair_id.toString() === hairCategoryId.toString()
-      )
-        score++;
+    if (priceType === 'single') {
+      resolvedPrice = (service as any).price ?? 0;
+    } else {
+      const prices: any[] = (service as any).prices || [];
 
-      if (score > bestScore) {
-        bestScore = score;
-        bestPrice = p;
+      let bestScore = -1;
+
+      for (const p of prices) {
+        let score = 0;
+        if (petTypeId && p.pet_type_id?.toString() === petTypeId.toString())
+          score++;
+        if (
+          sizeCategoryId &&
+          p.size_id?.toString() === sizeCategoryId.toString()
+        )
+          score++;
+        if (
+          hairCategoryId &&
+          p.hair_id?.toString() === hairCategoryId.toString()
+        )
+          score++;
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestPrice = p;
+        }
       }
+
+      resolvedPrice = bestPrice?.price ?? 0;
+
+      // Look up option names for the matched price entry
+      [petTypeOption, sizeOption, hairOption] = await Promise.all([
+        bestPrice?.pet_type_id
+          ? this.optionModel
+              .findById(bestPrice.pet_type_id)
+              .select('name')
+              .lean()
+          : null,
+        bestPrice?.size_id
+          ? this.optionModel.findById(bestPrice.size_id).select('name').lean()
+          : null,
+        bestPrice?.hair_id
+          ? this.optionModel.findById(bestPrice.hair_id).select('name').lean()
+          : null,
+      ]);
     }
 
-    // Look up option names for the matched price entry
-    const [petTypeOption, sizeOption, hairOption] = await Promise.all([
-      bestPrice?.pet_type_id
-        ? this.optionModel.findById(bestPrice.pet_type_id).select('name').lean()
-        : null,
-      bestPrice?.size_id
-        ? this.optionModel.findById(bestPrice.size_id).select('name').lean()
-        : null,
-      bestPrice?.hair_id
-        ? this.optionModel.findById(bestPrice.hair_id).select('name').lean()
-        : null,
-    ]);
-
     const serviceType = (service as any).service_type;
+
+    // Resolve addons snapshot
+    let addonsSnapshot: any[] = [];
+    const idsToFetch =
+      addonIds && addonIds.length > 0
+        ? addonIds
+        : (service as any).addon_ids || [];
+
+    if (idsToFetch.length > 0) {
+      const addonDocs = await this.serviceModel
+        .find({ _id: { $in: idsToFetch }, isDeleted: false })
+        .select('code name price price_type prices duration')
+        .lean();
+
+      addonsSnapshot = addonDocs.map((addon: any) => {
+        let addonPrice = 0;
+        if (addon.price_type === 'single') {
+          addonPrice = addon.price ?? 0;
+        } else {
+          const prices: any[] = addon.prices || [];
+          let best: any = null;
+          let bestScore = -1;
+          for (const p of prices) {
+            let score = 0;
+            if (petTypeId && p.pet_type_id?.toString() === petTypeId.toString())
+              score++;
+            if (
+              sizeCategoryId &&
+              p.size_id?.toString() === sizeCategoryId.toString()
+            )
+              score++;
+            if (
+              hairCategoryId &&
+              p.hair_id?.toString() === hairCategoryId.toString()
+            )
+              score++;
+            if (score > bestScore) {
+              bestScore = score;
+              best = p;
+            }
+          }
+          addonPrice = best?.price ?? 0;
+        }
+        return {
+          code: addon.code,
+          name: addon.name,
+          price: addonPrice,
+          duration: addon.duration ?? 0,
+        };
+      });
+    }
 
     return {
       code: service.code,
@@ -320,17 +382,22 @@ export class ServiceService {
       service_type: serviceType
         ? { _id: serviceType._id, title: serviceType.title }
         : null,
-      price: bestPrice?.price ?? 0,
-      pet_type: petTypeOption
-        ? { _id: bestPrice.pet_type_id, name: (petTypeOption as any).name }
-        : null,
-      size: sizeOption
-        ? { _id: bestPrice.size_id, name: (sizeOption as any).name }
-        : null,
-      hair: hairOption
-        ? { _id: bestPrice.hair_id, name: (hairOption as any).name }
-        : null,
+      price: resolvedPrice,
+      pet_type:
+        petTypeOption && bestPrice
+          ? { _id: bestPrice.pet_type_id, name: (petTypeOption as any).name }
+          : null,
+      size:
+        sizeOption && bestPrice
+          ? { _id: bestPrice.size_id, name: (sizeOption as any).name }
+          : null,
+      hair:
+        hairOption && bestPrice
+          ? { _id: bestPrice.hair_id, name: (hairOption as any).name }
+          : null,
       duration: (service as any).duration ?? 0,
+      addons: addonsSnapshot.length > 0 ? addonsSnapshot : undefined,
+      service_location_type: (service as any).service_location_type ?? null,
     };
   }
 

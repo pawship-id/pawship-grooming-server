@@ -67,6 +67,7 @@ export class BookingService {
         pet.hair_category_id
           ? new ObjectId(pet.hair_category_id as any)
           : undefined,
+        body.service_addon_ids?.map((id) => new ObjectId(id)),
       )) as any;
 
       // 1️⃣ Ambil Store dengan session
@@ -336,6 +337,7 @@ export class BookingService {
         pet.hair_category_id
           ? new ObjectId(pet.hair_category_id as any)
           : undefined,
+        body.service_addon_ids?.map((id) => new ObjectId(id)),
       )) as any;
 
       // handle service
