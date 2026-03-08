@@ -7,6 +7,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { BookingStatus, GroomingType, ServiceType } from './booking.dto';
@@ -17,8 +18,9 @@ export class PetSnapshotDto {
   name: string;
 
   @IsOptional()
-  @IsString()
-  member_type: string;
+  @ValidateIf((o) => o.member_type !== null)
+  @IsObject()
+  member_type?: { _id: string; name: string } | null;
 
   @IsOptional()
   @IsObject()

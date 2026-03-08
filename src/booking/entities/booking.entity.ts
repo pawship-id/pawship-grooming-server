@@ -15,8 +15,11 @@ export class PetSnapshot {
   @Prop({ required: true })
   name: string;
 
-  @Prop()
-  member_type?: string;
+  @Prop({
+    type: { _id: { type: Types.ObjectId }, name: { type: String } },
+    default: null,
+  })
+  member_type?: { _id: Types.ObjectId; name: string } | null;
 
   @Prop({
     type: { _id: { type: Types.ObjectId }, name: { type: String } },

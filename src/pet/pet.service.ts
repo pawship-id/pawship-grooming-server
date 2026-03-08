@@ -199,7 +199,7 @@ export class PetService {
       .select(
         'name isDeleted member_category_id size_category_id pet_type_id hair_category_id breed_category_id',
       )
-      .populate('member_category', 'name')
+      .populate('member_category', '_id name')
       .populate('pet_type', '_id name')
       .populate('size', '_id name')
       .populate('hair', '_id name')
@@ -210,6 +210,7 @@ export class PetService {
       throw new NotFoundException('pet not found');
     }
 
+    const memberCategory = (pet as any).member_category;
     const petType = (pet as any).pet_type;
     const size = (pet as any).size;
     const hair = (pet as any).hair;
@@ -217,7 +218,9 @@ export class PetService {
 
     return {
       name: pet.name,
-      member_type: (pet as any).member_category?.name ?? null,
+      member_type: memberCategory
+        ? { _id: memberCategory._id, name: memberCategory.name }
+        : null,
       pet_type: { _id: petType._id, name: petType.name },
       size: { _id: size._id, name: size.name },
       hair: { _id: hair._id, name: hair.name },
