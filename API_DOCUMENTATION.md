@@ -18,6 +18,7 @@ Base URL: `http://localhost:3000`
 10. [Memberships](#memberships)
 11. [Bookings](#bookings) _(includes public/guest endpoints)_
 12. [Grooming Sessions](#grooming-sessions)
+13. [Promotions](#promotions)
 
 ---
 
@@ -4496,6 +4497,287 @@ Key: note          | Type: Text | Value: Pet condition before grooming
 
 ---
 
+## Promotions
+
+### 1. Create Promotion
+
+**Endpoint:** `POST /promotions`
+**Description:** Create a new promotion.
+**Authentication:** Required (Bearer Token)
+
+**Headers:**
+| Key | Value |
+|-----|-------|
+| Authorization | Bearer {access_token} |
+| Content-Type | application/json |
+
+**Request Body:**
+
+```json
+{
+  "code": "PROMO2026",
+  "name": "New Member Discount",
+  "description": "10% off for new members",
+  "promo_type": "membership_benefit",
+  "claim_type": "once_per_booking",
+  "benefit": {
+    "type": "discount",
+    "discount_type": "percent",
+    "value": 10
+  },
+  "eligibility": {
+    "is_only_for_membership": true,
+    "membership_ids": ["60d21b4667d0d8992e610c85"],
+    "first_time_user": false
+  },
+  "validity": {
+    "start_at": "2026-03-01T00:00:00.000Z",
+    "end_at": "2026-12-31T23:59:59.000Z"
+  },
+  "stackable": false,
+  "priority": 1,
+  "is_active": true
+}
+```
+
+**Field Notes:**
+
+- `benefit.type`: `"discount"` or `"free_service"`
+- If `benefit.type` is `"discount"`: `discount_type` (`"percent"` or `"fixed"`) and `value` are **required**
+- If `benefit.type` is `"free_service"`: `service_id` (MongoDB ObjectId) is **required**
+- `promo_type`: `"membership_benefit"` or `"general_promo"`
+- `claim_type`: `"once_per_membership"`, `"every_add_on"`, or `"once_per_booking"`
+- `validity.end_at`: optional — if `null`, promotion has no expiry
+- `eligibility`: **required**
+- `eligibility.is_only_for_membership`: **required** — `true` = hanya untuk member, `false` = bisa dipakai semua user
+- `eligibility.membership_ids`: optional — membatasi promo ke membership tertentu
+- `eligibility.first_time_user`: optional — default `false`
+- `stackable`: default `false`
+- `priority`: default `0` — lower number = higher priority
+
+**Success Response (201):**
+
+```json
+{
+  "message": "Create promotion successfully"
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Validation failed or `code` already exists
+- **401 Unauthorized:** Missing or invalid token
+
+---
+
+### 2. Get All Promotions
+
+**Endpoint:** `GET /promotions`
+**Description:** Retrieve a paginated list of promotions with optional filters.
+**Authentication:** Required (Bearer Token)
+
+**Headers:**
+| Key | Value |
+|-----|-------|
+| Authorization | Bearer {access_token} |
+
+**Query Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| page | number | No | Page number (default: 1) |
+| limit | number | No | Items per page (default: 10) |
+| search | string | No | Search by name or code (case-insensitive) |
+| is_active | boolean | No | Filter by active status |
+| promo_type | string | No | `membership_benefit` or `general_promo` |
+| claim_type | string | No | `once_per_membership`, `every_add_on`, or `once_per_booking` |
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch promotions successfully",
+  "promotions": [
+    {
+      "_id": "60d21b4667d0d8992e610c85",
+      "code": "PROMO2026",
+      "name": "New Member Discount",
+      "description": "10% off for new members",
+      "promo_type": "membership_benefit",
+      "claim_type": "once_per_booking",
+      "benefit": {
+        "type": "discount",
+        "discount_type": "percent",
+        "value": 10,
+        "service_id": null
+      },
+      "eligibility": {
+        "is_only_for_membership": true,
+        "membership_ids": ["60d21b4667d0d8992e610c85"],
+        "memberships": [
+          { "_id": "60d21b4667d0d8992e610c85", "name": "Gold Member" }
+        ],
+        "first_time_user": false
+      },
+      "validity": {
+        "start_at": "2026-03-01T00:00:00.000Z",
+        "end_at": "2026-12-31T23:59:59.000Z"
+      },
+      "stackable": false,
+      "priority": 1,
+      "is_active": true,
+      "isDeleted": false,
+      "createdAt": "2026-03-09T10:00:00.000Z",
+      "updatedAt": "2026-03-09T10:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "total": 1,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 1
+  }
+}
+```
+
+**Error Responses:**
+
+- **401 Unauthorized:** Missing or invalid token
+
+---
+
+### 3. Get Promotion By ID
+
+**Endpoint:** `GET /promotions/:id`
+**Description:** Retrieve a single promotion by its ID.
+**Authentication:** Required (Bearer Token)
+
+**Headers:**
+| Key | Value |
+|-----|-------|
+| Authorization | Bearer {access_token} |
+
+**Path Parameters:** `:id` — MongoDB ObjectId of the promotion
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch promotion successfully",
+  "promotion": {
+    "_id": "60d21b4667d0d8992e610c85",
+    "code": "FREE2026",
+    "name": "Free Bath Service",
+    "description": "Free bath for premium members",
+    "promo_type": "membership_benefit",
+    "claim_type": "once_per_membership",
+    "benefit": {
+      "type": "free_service",
+      "discount_type": null,
+      "value": null,
+      "service_id": "60d21b4667d0d8992e610c86",
+      "service": { "_id": "60d21b4667d0d8992e610c86", "name": "Bath Service" }
+    },
+    "eligibility": {
+      "is_only_for_membership": true,
+      "membership_ids": ["60d21b4667d0d8992e610c85"],
+      "memberships": [
+        { "_id": "60d21b4667d0d8992e610c85", "name": "Platinum Member" }
+      ],
+      "first_time_user": false
+    },
+    "validity": {
+      "start_at": "2026-03-01T00:00:00.000Z",
+      "end_at": null
+    },
+    "stackable": false,
+    "priority": 0,
+    "is_active": true,
+    "isDeleted": false,
+    "createdAt": "2026-03-09T10:00:00.000Z",
+    "updatedAt": "2026-03-09T10:00:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- **401 Unauthorized:** Missing or invalid token
+- **404 Not Found:** Promotion not found or already deleted
+
+---
+
+### 4. Update Promotion
+
+**Endpoint:** `PUT /promotions/:id`
+**Description:** Update an existing promotion. All fields are optional.
+**Authentication:** Required (Bearer Token)
+
+**Headers:**
+| Key | Value |
+|-----|-------|
+| Authorization | Bearer {access_token} |
+| Content-Type | application/json |
+
+**Path Parameters:** `:id` — MongoDB ObjectId of the promotion
+
+**Request Body:** _(all fields optional)_
+
+```json
+{
+  "name": "Updated Name",
+  "is_active": false,
+  "priority": 2,
+  "validity": {
+    "start_at": "2026-04-01T00:00:00.000Z",
+    "end_at": "2026-12-31T23:59:59.000Z"
+  }
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Update promotion successfully"
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Validation failed or `code` already exists on another promotion
+- **401 Unauthorized:** Missing or invalid token
+- **404 Not Found:** Promotion not found or already deleted
+
+---
+
+### 5. Delete Promotion (Soft Delete)
+
+**Endpoint:** `DELETE /promotions/:id`
+**Description:** Soft-delete a promotion (sets `isDeleted: true`, records `deletedAt`). The record remains in the database.
+**Authentication:** Required (Bearer Token)
+
+**Headers:**
+| Key | Value |
+|-----|-------|
+| Authorization | Bearer {access_token} |
+
+**Path Parameters:** `:id` — MongoDB ObjectId of the promotion
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Delete promotion successfully"
+}
+```
+
+**Error Responses:**
+
+- **401 Unauthorized:** Missing or invalid token
+- **404 Not Found:** Promotion not found or already deleted
+
+---
+
 ## Enums Reference
 
 ### SessionStatus
@@ -4647,5 +4929,5 @@ PORT=3000
 
 ---
 
-**Last Updated:** February 26, 2026
+**Last Updated:** March 9, 2026
 **API Version:** 1.0.0

@@ -22,7 +22,6 @@ export class StoreService {
     private readonly serviceModel: Model<ServiceDocument>,
   ) {}
 
-
   async create(body: CreateStoreDto) {
     try {
       const store = new this.storeModel(body);
@@ -135,9 +134,7 @@ export class StoreService {
   }
 
   async findOne(id: ObjectId) {
-    const store = await this.storeModel
-      .findById(id)
-      .exec();
+    const store = await this.storeModel.findById(id).exec();
 
     if (!store) {
       return null;

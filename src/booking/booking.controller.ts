@@ -239,7 +239,7 @@ export class BookingController {
 
     await this.bookingService.updateStatus(
       _id,
-      status as BookingStatus,
+      status,
       note,
       rescheduleData,
       request.user,

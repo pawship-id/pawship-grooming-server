@@ -27,7 +27,7 @@ export class OptionService {
   }
 
   async findAll(category: string | undefined) {
-    let filter: OptionFilter = {
+    const filter: OptionFilter = {
       isDeleted: false,
     };
 

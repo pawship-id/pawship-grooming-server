@@ -15,6 +15,7 @@ import { StoreDailyCapacityModule } from './store-daily-capacity/store-daily-cap
 import { ServiceTypeModule } from './service-type/service-type.module';
 import { UploadFileModule } from './upload-file/upload-file.module';
 import { BannerModule } from './banner/banner.module';
+import { PromotionModule } from './promotion/promotion.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 
 @Module({
@@ -41,6 +42,7 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
     ServiceTypeModule,
     UploadFileModule,
     BannerModule,
+    PromotionModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -51,7 +51,9 @@ export class BookingService {
 
     try {
       // Get pet snapshot
-      let pet = await this.petService.getPetSnapshot(new ObjectId(body.pet_id));
+      const pet = await this.petService.getPetSnapshot(
+        new ObjectId(body.pet_id),
+      );
 
       body.pet_snapshot = {
         ...pet,
@@ -60,9 +62,9 @@ export class BookingService {
 
       body.service_snapshot = (await this.serviceService.getServiceSnapshot(
         new ObjectId(body.service_id),
-        pet.pet_type._id ? new ObjectId(pet.pet_type._id as any) : undefined,
-        pet.size._id ? new ObjectId(pet.size._id as any) : undefined,
-        pet.hair._id ? new ObjectId(pet.hair._id as any) : undefined,
+        pet.pet_type._id ? new ObjectId(pet.pet_type._id) : undefined,
+        pet.size._id ? new ObjectId(pet.size._id) : undefined,
+        pet.hair._id ? new ObjectId(pet.hair._id) : undefined,
         body.service_addon_ids?.map((id) => new ObjectId(id)),
       )) as any;
 
@@ -75,11 +77,11 @@ export class BookingService {
 
       // 2️⃣ Ambil Service dan Addons
       // Handle service price calculation
-      let service = await this.serviceService.getServiceForBooking(
+      const service = await this.serviceService.getServiceForBooking(
         new ObjectId(body.service_id),
-        pet.size._id ? new ObjectId(pet.size._id as any) : undefined,
-        pet.pet_type._id ? new ObjectId(pet.pet_type._id as any) : undefined,
-        pet.hair._id ? new ObjectId(pet.hair._id as any) : undefined,
+        pet.size._id ? new ObjectId(pet.size._id) : undefined,
+        pet.pet_type._id ? new ObjectId(pet.pet_type._id) : undefined,
+        pet.hair._id ? new ObjectId(pet.hair._id) : undefined,
       );
 
       // Handle add-ons jika ada
@@ -90,11 +92,9 @@ export class BookingService {
           body.service_addon_ids.map((addonId) =>
             this.serviceService.getServiceForBooking(
               new ObjectId(addonId),
-              pet.size._id ? new ObjectId(pet.size._id as any) : undefined,
-              pet.pet_type._id
-                ? new ObjectId(pet.pet_type._id as any)
-                : undefined,
-              pet.hair._id ? new ObjectId(pet.hair._id as any) : undefined,
+              pet.size._id ? new ObjectId(pet.size._id) : undefined,
+              pet.pet_type._id ? new ObjectId(pet.pet_type._id) : undefined,
+              pet.hair._id ? new ObjectId(pet.hair._id) : undefined,
             ),
           ),
         );
@@ -276,7 +276,9 @@ export class BookingService {
         body.status_logs = [...status_logs, newStatusLog];
       }
 
-      let pet = await this.petService.getPetSnapshot(new ObjectId(body.pet_id));
+      const pet = await this.petService.getPetSnapshot(
+        new ObjectId(body.pet_id),
+      );
 
       body.pet_snapshot = {
         ...pet,
@@ -285,18 +287,18 @@ export class BookingService {
 
       body.service_snapshot = (await this.serviceService.getServiceSnapshot(
         new ObjectId(body.service_id),
-        pet.pet_type._id ? new ObjectId(pet.pet_type._id as any) : undefined,
-        pet.size._id ? new ObjectId(pet.size._id as any) : undefined,
-        pet.hair._id ? new ObjectId(pet.hair._id as any) : undefined,
+        pet.pet_type._id ? new ObjectId(pet.pet_type._id) : undefined,
+        pet.size._id ? new ObjectId(pet.size._id) : undefined,
+        pet.hair._id ? new ObjectId(pet.hair._id) : undefined,
         body.service_addon_ids?.map((id) => new ObjectId(id)),
       )) as any;
 
       // handle service
-      let service = await this.serviceService.getServiceForBooking(
+      const service = await this.serviceService.getServiceForBooking(
         new ObjectId(body.service_id),
-        pet.size._id ? new ObjectId(pet.size._id as any) : undefined,
-        pet.pet_type._id ? new ObjectId(pet.pet_type._id as any) : undefined,
-        pet.hair._id ? new ObjectId(pet.hair._id as any) : undefined,
+        pet.size._id ? new ObjectId(pet.size._id) : undefined,
+        pet.pet_type._id ? new ObjectId(pet.pet_type._id) : undefined,
+        pet.hair._id ? new ObjectId(pet.hair._id) : undefined,
       );
 
       // handle add-ons jika ada
@@ -307,11 +309,9 @@ export class BookingService {
           body.service_addon_ids.map((addonId) =>
             this.serviceService.getServiceForBooking(
               new ObjectId(addonId),
-              pet.size._id ? new ObjectId(pet.size._id as any) : undefined,
-              pet.pet_type._id
-                ? new ObjectId(pet.pet_type._id as any)
-                : undefined,
-              pet.hair._id ? new ObjectId(pet.hair._id as any) : undefined,
+              pet.size._id ? new ObjectId(pet.size._id) : undefined,
+              pet.pet_type._id ? new ObjectId(pet.pet_type._id) : undefined,
+              pet.hair._id ? new ObjectId(pet.hair._id) : undefined,
             ),
           ),
         );

@@ -30,8 +30,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const errorMessage =
       typeof exceptionResponse === 'string'
         ? exceptionResponse
-        : (exceptionResponse as Record<string, unknown>)?.message ??
-          'Unknown error';
+        : ((exceptionResponse as Record<string, unknown>)?.message ??
+          'Unknown error');
 
     const logContext = `${request.method} ${request.originalUrl}`;
 
