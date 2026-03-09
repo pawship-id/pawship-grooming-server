@@ -264,6 +264,22 @@ export class AssignedGroomer {
         });
       }
 
+      if (ret.sessions?.length) {
+        ret.sessions = ret.sessions.map((session: any) => {
+          const s = { ...session };
+          if (s.groomer_id && typeof s.groomer_id === 'object') {
+            s.groomer_detail = {
+              _id: s.groomer_id._id,
+              username: s.groomer_id.username,
+              email: s.groomer_id.email,
+              phone_number: s.groomer_id.phone_number,
+            };
+            delete s.groomer_id;
+          }
+          return s;
+        });
+      }
+
       return ret;
     },
   },

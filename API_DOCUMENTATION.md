@@ -3879,11 +3879,38 @@ If user not found:
     "sub_total_service": 124000,
     "total_price": 124000,
     "discount_ids": [],
-    "assigned_groomers": [],
+    "assigned_groomers": [
+      {
+        "task": "bathing",
+        "groomer_detail": {
+          "_id": "699a5d240d322c3d4e81dfbd",
+          "username": "groomer_andi",
+          "email": "andi@pawship.id",
+          "phone_number": "081200000001"
+        }
+      }
+    ],
     "note": "hewan takut suara bising",
     "isDeleted": false,
     "deletedAt": null,
-    "sessions": [],
+    "sessions": [
+      {
+        "type": "bathing",
+        "status": "not started",
+        "started_at": null,
+        "finished_at": null,
+        "notes": null,
+        "internal_note": null,
+        "media": [],
+        "order": 0,
+        "groomer_detail": {
+          "_id": "699a5d240d322c3d4e81dfbd",
+          "username": "groomer_andi",
+          "email": "andi@pawship.id",
+          "phone_number": "081200000001"
+        }
+      }
+    ],
     "createdAt": "2026-03-08T04:24:19.137Z",
     "updatedAt": "2026-03-08T04:24:19.137Z",
     "customer": {
@@ -3898,6 +3925,12 @@ If user not found:
     }
   }
 }
+```
+
+> **Note:** `assigned_groomers[].groomer_detail` berisi data User groomer yang di-assign ke booking. `sessions[].groomer_detail` berisi data User groomer yang di-assign ke sesi tertentu. Field `groomer_id` (raw ObjectId) tidak akan muncul di response.
+
+```
+
 ```
 
 **Error Responses:**

@@ -236,6 +236,11 @@ export class BookingService {
         select: 'username email phone_number',
         model: 'User',
       })
+      .populate({
+        path: 'sessions.groomer_id',
+        select: 'username email phone_number',
+        model: 'User',
+      })
       .exec();
     return booking;
   }
