@@ -1004,7 +1004,7 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
       "default_daily_capacity_minutes": 480,
       "overbooking_limit_minutes": 60
     },
-    "session": [],
+    "sessions": ["09.00 - 12.00", "13.00 - 16.00", "17.00 - 20.00"],
     "is_active": true,
     "createdAt": "2024-01-15T08:00:00.000Z",
     "updatedAt": "2024-01-15T08:00:00.000Z",
@@ -1128,7 +1128,7 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
     "default_daily_capacity_minutes": "number (default: 960)",
     "overbooking_limit_minutes": "number (default: 120)"
   },
-  "session": ["string"],
+  "sessions": ["string (optional)"],
   "is_active": "boolean (optional, default: true)",
   "zones": [
     {
@@ -1210,7 +1210,7 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
     "default_daily_capacity_minutes": "number (optional)",
     "overbooking_limit_minutes": "number (optional)"
   },
-  "session": ["string"],
+  "sessions": ["string (optional)"],
   "is_active": "boolean (optional)",
   "zones": [
     {
@@ -3666,6 +3666,12 @@ If user not found:
     {
       "_id": "507f1f77bcf86cd799439011",
       "customer_id": "507f1f77bcf86cd799439012",
+      "customer": {
+        "_id": "507f1f77bcf86cd799439012",
+        "username": "Cantika",
+        "email": "cantika@gmail.com",
+        "phone_number": "081324765890"
+      },
       "pet_snapshot": {
         "_id": "699a6285a99f14a4be787c77",
         "name": "Pet 1",
@@ -3713,6 +3719,10 @@ If user not found:
       },
       "pet_id": "699a6285a99f14a4be787c77",
       "store_id": "507f1f77bcf86cd799439014",
+      "store": {
+        "_id": "507f1f77bcf86cd799439014",
+        "name": "Pawship.id"
+      },
       "date": "2026-02-25T00:00:00.000Z",
       "time_range": "10:00 - 11:00",
       "type": "in store",
