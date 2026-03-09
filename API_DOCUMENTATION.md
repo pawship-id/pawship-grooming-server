@@ -3665,6 +3665,12 @@ If user not found:
     {
       "_id": "507f1f77bcf86cd799439011",
       "customer_id": "507f1f77bcf86cd799439012",
+      "customer": {
+        "_id": "507f1f77bcf86cd799439012",
+        "username": "Cantika",
+        "email": "cantika@gmail.com",
+        "phone_number": "081324765890"
+      },
       "pet_snapshot": {
         "_id": "699a6285a99f14a4be787c77",
         "name": "Pet 1",
@@ -3712,6 +3718,10 @@ If user not found:
       },
       "pet_id": "699a6285a99f14a4be787c77",
       "store_id": "507f1f77bcf86cd799439014",
+      "store": {
+        "_id": "507f1f77bcf86cd799439014",
+        "name": "Pawship.id"
+      },
       "date": "2026-02-25T00:00:00.000Z",
       "time_range": "10:00 - 11:00",
       "type": "in store",
