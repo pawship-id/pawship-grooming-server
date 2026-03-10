@@ -11,6 +11,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { BookingStatus, GroomingType } from './booking.dto';
+import { CreateSessionDto } from './create-grooming-session.dto';
 
 export class PetSnapshotDto {
   @IsOptional()
@@ -105,14 +106,6 @@ export class BookingStatusLogDto {
   note?: string;
 }
 
-export class AssignedGroomerDto {
-  @IsString()
-  task: string;
-
-  @IsMongoId({ message: 'groomer_id must be a valid Mongo ID' })
-  groomer_id: string;
-}
-
 export class CreateBookingDto {
   @IsMongoId({ message: 'service type must be a valid ID' })
   @IsNotEmpty({ message: 'service type is required' })
@@ -178,8 +171,8 @@ export class CreateBookingDto {
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => AssignedGroomerDto)
-  assigned_groomers?: AssignedGroomerDto[];
+  @Type(() => CreateSessionDto)
+  sessions?: CreateSessionDto[];
 
   @IsOptional()
   @IsString()

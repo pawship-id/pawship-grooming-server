@@ -1,6 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import {
-  AssignedGroomerDto,
   BookingStatusLogDto,
   CreateBookingDto,
 } from './dto/create-booking.dto';
@@ -117,6 +116,28 @@ export class BookingService {
       // assign body.type base on service.service_location_type
       body.type = service.service_location_type as GroomingType;
 
+      // Handle sessions — admin can provide sessions[], guest/customer gets []
+      if (
+        user &&
+        user.role !== 'customer' &&
+        body.sessions &&
+        body.sessions.length > 0
+      ) {
+        (body as any).sessions = body.sessions.map((s, index) => ({
+          type: s.type,
+          groomer_id: new Types.ObjectId(s.groomer_id),
+          status: SessionStatus.NOT_STARTED,
+          started_at: null,
+          finished_at: null,
+          notes: null,
+          internal_note: null,
+          order: s.order ?? index,
+          media: [],
+        }));
+      } else {
+        (body as any).sessions = [];
+      }
+
       // 3️⃣ Ambil Capacity (override atau default)
       const dailyOverride = await this.storeDailyCapacityModel
         .findOne({
@@ -216,11 +237,6 @@ export class BookingService {
       .find({ isDeleted: false })
       .populate('customer', 'username email phone_number')
       .populate('store', 'name')
-      .populate({
-        path: 'assigned_groomers.groomer_id',
-        select: 'username email phone_number',
-        model: 'User',
-      })
       .exec();
 
     return bookings;
@@ -231,11 +247,6 @@ export class BookingService {
       .findById(id)
       .populate('customer', 'username email phone_number')
       .populate('store', 'name')
-      .populate({
-        path: 'assigned_groomers.groomer_id',
-        select: 'username email phone_number',
-        model: 'User',
-      })
       .populate({
         path: 'sessions.groomer_id',
         select: 'username email phone_number',
@@ -476,47 +487,19 @@ export class BookingService {
       // Prepare update data
       const updateData: any = { ...body };
 
-      // Sync sessions with assigned_groomers if updated
-      if (body.assigned_groomers && body.assigned_groomers.length > 0) {
-        const existingSessions = existingBooking.sessions || [];
-        const updatedSessions = [...existingSessions];
-
-        // Convert assigned_groomers string IDs to ObjectId
-        const newAssignedGroomers = body.assigned_groomers.map((groomer) => ({
-          task: groomer.task,
-          groomer_id: new Types.ObjectId(groomer.groomer_id),
+      // Convert sessions[].groomer_id strings to ObjectId if sessions are provided
+      if (body.sessions && body.sessions.length > 0) {
+        updateData.sessions = body.sessions.map((s, index) => ({
+          type: s.type,
+          groomer_id: new Types.ObjectId(s.groomer_id),
+          status: SessionStatus.NOT_STARTED,
+          started_at: null,
+          finished_at: null,
+          notes: null,
+          internal_note: null,
+          order: s.order ?? index,
+          media: [],
         }));
-
-        // Update existing sessions or create new ones based on index/order
-        newAssignedGroomers.forEach((groomer, index) => {
-          // Find session by order matching the assigned_groomer index
-          const sessionIndex = updatedSessions.findIndex(
-            (session) => session.order === index,
-          );
-
-          if (sessionIndex >= 0) {
-            // Update existing session's groomer_id and type (task bisa berubah)
-            updatedSessions[sessionIndex].groomer_id = groomer.groomer_id;
-            updatedSessions[sessionIndex].type = groomer.task;
-          } else {
-            // Create new session for this groomer
-            updatedSessions.push({
-              type: groomer.task,
-              groomer_id: groomer.groomer_id,
-              status: SessionStatus.NOT_STARTED,
-              started_at: null,
-              finished_at: null,
-              notes: null,
-              internal_note: null,
-              order: index,
-              media: [],
-            } as any);
-          }
-        });
-
-        updateData.sessions = updatedSessions;
-        // Convert assigned_groomers to proper format with ObjectId
-        updateData.assigned_groomers = newAssignedGroomers;
       }
 
       // update booking
@@ -544,54 +527,6 @@ export class BookingService {
     });
 
     return booking;
-  }
-
-  async assignGroomer(id: ObjectId, assigned_groomers: AssignedGroomerDto[]) {
-    try {
-      const existingBooking = await this.findOne(id);
-
-      if (!existingBooking || existingBooking.isDeleted) {
-        throw new NotFoundException('data not found');
-      }
-
-      // Create sessions based on assigned groomers
-      const existingSession = existingBooking.sessions || [];
-      const sessions = assigned_groomers.map((groomer, index) => ({
-        type: groomer.task,
-        groomer_id: new Types.ObjectId(groomer.groomer_id),
-        status: SessionStatus.NOT_STARTED,
-        started_at: null,
-        finished_at: null,
-        notes: null,
-        internal_note: null,
-        order: existingSession.length + index,
-        media: [],
-      }));
-
-      // Convert assigned_groomers string IDs to ObjectId
-      const newAssignedGroomers = assigned_groomers.map((groomer) => ({
-        task: groomer.task,
-        groomer_id: new Types.ObjectId(groomer.groomer_id),
-      }));
-
-      const updateData: any = {
-        assigned_groomers: [
-          ...existingBooking.assigned_groomers,
-          ...newAssignedGroomers,
-        ],
-        sessions: [...existingSession, ...sessions],
-      };
-
-      const updatedBooking = await this.bookingModel.findByIdAndUpdate(
-        id,
-        { $set: updateData },
-        { new: true },
-      );
-
-      return updatedBooking;
-    } catch (error) {
-      throw error;
-    }
   }
 
   async updateStatus(

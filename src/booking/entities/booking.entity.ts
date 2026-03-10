@@ -224,19 +224,6 @@ export class BookingStatusLog {
   note?: string;
 }
 
-@Schema({ _id: false })
-export class AssignedGroomer {
-  @Prop({ required: true })
-  task: string; // contoh: 'bathing' | 'styling'
-
-  @Prop({
-    type: Types.ObjectId,
-    ref: 'User',
-    required: true,
-  })
-  groomer_id: Types.ObjectId;
-}
-
 @Schema({
   timestamps: true,
   toJSON: {
@@ -249,20 +236,6 @@ export class AssignedGroomer {
       delete ret.store_id;
       delete ret.service_id;
       delete ret.service_addon_ids;
-
-      if (ret.assigned_groomers?.length) {
-        ret.assigned_groomers = ret.assigned_groomers.map((el: any) => {
-          return {
-            task: el.task,
-            groomer_detail: {
-              _id: el.groomer_id._id,
-              username: el.groomer_id.username,
-              email: el.groomer_id.email,
-              phone_number: el.groomer_id.phone_number,
-            },
-          };
-        });
-      }
 
       if (ret.sessions?.length) {
         ret.sessions = ret.sessions.map((session: any) => {
@@ -352,13 +325,6 @@ export class Booking {
     default: [],
   })
   discount_ids: Types.ObjectId[];
-
-  /* ===== Groomer ===== */
-  @Prop({
-    type: [AssignedGroomer],
-    default: [],
-  })
-  assigned_groomers: AssignedGroomer[];
 
   /* ===== Misc ===== */
   @Prop()

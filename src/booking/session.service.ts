@@ -14,6 +14,7 @@ import {
 } from 'src/helpers/cloudinary';
 import { GroomingMediaDto } from './dto/grooming-media.dto';
 import { UpdateSessionDto } from './dto/update-grooming-session.dto';
+import { CreateSessionDto } from './dto/create-grooming-session.dto';
 
 @Injectable()
 export class SessionService {
@@ -23,8 +24,36 @@ export class SessionService {
   ) {}
 
   // ==================== SESSION MANAGEMENT ====================
-  // Sessions are auto-created when groomers are assigned via assignGroomer in booking.service.ts
-  // These methods handle updating, deleting, and workflow actions on existing sessions
+
+  // Create a new session for a booking
+  async createSession(bookingId: ObjectId, dto: CreateSessionDto) {
+    const booking = await this.bookingModel.findById(bookingId);
+    if (!booking || booking.isDeleted) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    const order = dto.order ?? booking.sessions.length;
+
+    const newSession = {
+      type: dto.type,
+      groomer_id: new Types.ObjectId(dto.groomer_id),
+      status: SessionStatus.NOT_STARTED,
+      started_at: null,
+      finished_at: null,
+      notes: null,
+      internal_note: null,
+      order,
+      media: [],
+    };
+
+    const updatedBooking = await this.bookingModel.findByIdAndUpdate(
+      bookingId,
+      { $push: { sessions: newSession } },
+      { new: true },
+    );
+
+    return updatedBooking;
+  }
 
   // Update an existing session by ID
   async updateSession(
@@ -92,17 +121,12 @@ export class SessionService {
         throw new NotFoundException('Session not found');
       }
 
-      // Remove the session and the corresponding assigned groomer
-      // Match both groomer_id and task since one groomer can handle multiple tasks
+      // Remove the session from sessions array
       const updatedBooking = await this.bookingModel.findByIdAndUpdate(
         bookingId,
         {
           $pull: {
             sessions: { _id: sessionId },
-            assigned_groomers: {
-              groomer_id: session.groomer_id,
-              task: session.type,
-            },
           },
         },
         { new: true },

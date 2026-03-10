@@ -19,6 +19,7 @@ import {
   UpdateSessionDto,
   FinishSessionDto,
 } from './dto/update-grooming-session.dto';
+import { CreateSessionDto } from './dto/create-grooming-session.dto';
 import { AuthGuard } from 'src/auth/auth.guard';
 
 @Controller('bookings')
@@ -27,8 +28,22 @@ export class SessionController {
   constructor(private readonly sessionService: SessionService) {}
 
   // ==================== SESSION ENDPOINTS ====================
-  // Sessions are auto-created when groomers are assigned
-  // Use update, start, finish endpoints to manage existing sessions
+
+  // Create a new session for a booking
+  @Post(':bookingId/session')
+  async createSession(
+    @Param('bookingId') bookingId: string,
+    @Body() body: CreateSessionDto,
+  ) {
+    if (!bookingId) throw new BadRequestException('bookingId is required');
+
+    const _bookingId = new ObjectId(bookingId);
+    await this.sessionService.createSession(_bookingId, body);
+
+    return {
+      message: 'Session created successfully',
+    };
+  }
 
   // Update a session by ID
   @Patch(':bookingId/session/:sessionId')

@@ -1,5 +1,28 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsMongoId,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 import { MediaType } from './booking.dto';
+
+export class CreateSessionDto {
+  @IsString()
+  @IsNotEmpty({ message: 'type is required' })
+  type: string;
+
+  @IsMongoId({ message: 'groomer_id must be a valid Mongo ID' })
+  @IsNotEmpty({ message: 'groomer_id is required' })
+  groomer_id: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  order?: number;
+}
 
 // DTO for media within a session
 export class SessionMediaDto {

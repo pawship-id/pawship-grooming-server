@@ -3745,16 +3745,6 @@ If user not found:
       "sub_total_service": 150000,
       "total_price": 200000,
       "discount_ids": [],
-      "assigned_groomers": [
-        {
-          "task": "washing",
-          "groomer_id": "507f1f77bcf86cd799439017"
-        },
-        {
-          "task": "drying",
-          "groomer_id": "507f1f77bcf86cd799439018"
-        }
-      ],
       "sessions": [
         {
           "_id": "507f1f77bcf86cd799439020",
@@ -3879,17 +3869,6 @@ If user not found:
     "sub_total_service": 124000,
     "total_price": 124000,
     "discount_ids": [],
-    "assigned_groomers": [
-      {
-        "task": "bathing",
-        "groomer_detail": {
-          "_id": "699a5d240d322c3d4e81dfbd",
-          "username": "groomer_andi",
-          "email": "andi@pawship.id",
-          "phone_number": "081200000001"
-        }
-      }
-    ],
     "note": "hewan takut suara bising",
     "isDeleted": false,
     "deletedAt": null,
@@ -3927,11 +3906,7 @@ If user not found:
 }
 ```
 
-> **Note:** `assigned_groomers[].groomer_detail` berisi data User groomer yang di-assign ke booking. `sessions[].groomer_detail` berisi data User groomer yang di-assign ke sesi tertentu. Field `groomer_id` (raw ObjectId) tidak akan muncul di response.
-
-```
-
-```
+> **Note:** `sessions[].groomer_detail` berisi data User groomer yang di-assign ke sesi tertentu. Field `groomer_id` (raw ObjectId) tidak akan muncul di response.
 
 **Error Responses:**
 
@@ -3959,6 +3934,13 @@ If user not found:
   "service_addon_ids": ["MongoDB ObjectId (optional)"],
   "travel_fee": "number (optional)",
   "discount_ids": ["MongoDB ObjectId (optional)"],
+  "sessions": [
+    {
+      "type": "string (required, e.g. 'bathing', 'styling')",
+      "groomer_id": "MongoDB ObjectId (required)",
+      "order": "number (optional, default: index position)"
+    }
+  ],
   "referal_code": "string (optional)",
   "note": "string (optional)",
   "payment_method": "string (optional)"
@@ -3983,6 +3965,7 @@ If user not found:
 
 > `pet_snapshot` dan `service_snapshot` di-generate otomatis oleh server berdasarkan `pet_id` dan `service_id`.
 > `sub_total_service` dan `total_price` dihitung otomatis oleh server.
+> Field `sessions` hanya berlaku untuk booking yang dibuat oleh admin/ops. Jika booking dibuat oleh customer/guest, `sessions` default `[]` dan diabaikan meski dikirim.
 
 **Success Response (200):**
 
@@ -4058,10 +4041,6 @@ If user not found:
   - Increments new capacity usage (validates against new date's limit)
   - If new capacity would be exceeded, update is rejected with error
   - All capacity operations use MongoDB transactions for atomicity
-- **Session Synchronization:**
-  - If `assigned_groomers` array is updated, sessions are automatically synchronized
-  - Sessions are matched by order/index with assigned groomers
-  - Existing sessions are updated, new sessions are created as needed
 - Status logs are automatically appended when `booking_status` changes
 - Use specific endpoints for status updates
 
@@ -4117,9 +4096,11 @@ If user not found:
 
 ---
 
-### 6. Assign Groomer to Booking
+### 6. Create Session for Booking
 
-**Endpoint:** `PATCH /bookings/assign-groomer/:id`
+**Endpoint:** `POST /bookings/:id/session`
+
+**Authentication:** Required (JWT)
 
 **Parameters:**
 
@@ -4129,12 +4110,9 @@ If user not found:
 
 ```json
 {
-  "assigned_groomers": [
-    {
-      "task": "string (required, e.g., 'washing', 'drying', 'cutting')",
-      "groomer_id": "MongoDB ObjectId (required)"
-    }
-  ] (required array)
+  "type": "string (required, e.g., 'bathing', 'styling', 'nail_trimming')",
+  "groomer_id": "MongoDB ObjectId (required)",
+  "order": "number (optional, default: appended to end)"
 }
 ```
 
@@ -4142,20 +4120,19 @@ If user not found:
 
 ```json
 {
-  "message": "Assign groomer successfully"
+  "message": "Session created successfully"
 }
 ```
 
 **Business Logic:**
 
-- Assigns groomers to the booking with specific tasks
-- Automatically creates/syncs sessions array based on assigned_groomers
-- Each groomer assignment creates a corresponding session with:
-  - `order`: Matches the index in assigned_groomers array
-  - `type`: The task assigned to the groomer
-  - `status`: NOT_STARTED initially
-  - `groomer_id`: The assigned groomer
-- Sessions are synchronized by order/index when groomers are updated
+- Creates a new session and pushes it into `booking.sessions`
+- `order` defaults to current sessions length (appended to end) if not provided
+- Session status starts as `NOT_STARTED`
+
+**Error Responses:**
+
+- **404 Not Found:** Booking not found
 
 ---
 
@@ -4201,15 +4178,54 @@ If user not found:
 
 ## Grooming Sessions
 
-Grooming sessions track individual grooming tasks within a booking. Sessions are automatically created when groomers are assigned to a booking, with each session representing one groomer's task.
+Grooming sessions track individual grooming tasks within a booking. Sessions can be created by admin at booking creation time (via `sessions[]` in `POST /bookings`) or individually via `POST /bookings/:id/session`.
 
 ### Session Lifecycle
 
-- **Creation**: Sessions are auto-created when groomers are assigned via PATCH `/bookings/assign-groomer/:id`
-- **Synchronization**: Sessions sync with `assigned_groomers` by order/index
+- **Creation**: Created at booking time by admin (with `sessions[]` in request), or individually via `POST /bookings/:id/session`
 - **States**: NOT_STARTED → IN_PROGRESS → FINISHED
 
-### 1. Update Session
+### 1. Create Session
+
+**Endpoint:** `POST /bookings/:bookingId/session`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `bookingId` (path): Booking MongoDB ObjectId
+
+**Request Body:**
+
+```json
+{
+  "type": "string (required, e.g., 'bathing', 'styling', 'nail_trimming')",
+  "groomer_id": "MongoDB ObjectId (required)",
+  "order": "number (optional, default: appended to end)"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Session created successfully"
+}
+```
+
+**Business Logic:**
+
+- Creates a new session and pushes it into `booking.sessions`
+- `order` defaults to current sessions length (appended to end) if not provided
+- Session status starts as `NOT_STARTED`
+
+**Error Responses:**
+
+- **404 Not Found:** Booking not found
+
+---
+
+### 2. Update Session
 
 **Endpoint:** `PATCH /bookings/:bookingId/session/:sessionId`
 
@@ -4239,7 +4255,7 @@ Grooming sessions track individual grooming tasks within a booking. Sessions are
 
 ---
 
-### 2. Start Session
+### 3. Start Session
 
 **Endpoint:** `PATCH /bookings/:bookingId/session/:sessionId/start`
 
@@ -4266,7 +4282,7 @@ Grooming sessions track individual grooming tasks within a booking. Sessions are
 
 ---
 
-### 3. Finish Session
+### 4. Finish Session
 
 **Endpoint:** `PATCH /bookings/:bookingId/session/:sessionId/finish`
 
@@ -4302,7 +4318,7 @@ Grooming sessions track individual grooming tasks within a booking. Sessions are
 
 ---
 
-### 4. Delete Session
+### 5. Delete Session
 
 **Endpoint:** `DELETE /bookings/:bookingId/session/:sessionId`
 
@@ -4328,7 +4344,7 @@ Grooming sessions track individual grooming tasks within a booking. Sessions are
 
 ---
 
-### 5. Upload Session Media
+### 6. Upload Session Media
 
 **Endpoint:** `POST /bookings/:bookingId/session/:sessionId/media`
 

@@ -14,7 +14,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { BookingService } from './booking.service';
-import { AssignedGroomerDto, CreateBookingDto } from './dto/create-booking.dto';
+import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { ObjectId } from 'mongodb';
 import { BookingStatus } from './dto/booking.dto';
@@ -198,23 +198,6 @@ export class BookingController {
 
     return {
       message: 'Delete booking successfully',
-    };
-  }
-
-  // assign groomer
-  @Patch('/assign-groomer/:id')
-  async assignGroomer(
-    @Param('id') id: string,
-    @Body('assigned_groomers') assigned_groomers: AssignedGroomerDto[],
-  ) {
-    if (!id) throw new BadRequestException('id is required');
-
-    const _id = new ObjectId(id);
-
-    await this.bookingService.assignGroomer(_id, assigned_groomers);
-
-    return {
-      message: 'Assign groomer successfully',
     };
   }
 
