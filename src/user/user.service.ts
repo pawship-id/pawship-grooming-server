@@ -3,8 +3,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { ObjectId } from 'mongodb';
 import { Model } from 'mongoose';
 import { hashPassword } from 'src/helpers/bcrypt';
-import { User, UserDocument } from './user.model';
-import { CreateUserDto, UpdateUserDto, GetUsersQueryDto } from './user.dto';
+import { User, UserDocument } from './entities/user.entity';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { GetUsersQueryDto } from './dto/get-users-query.dto';
 import { Pet, PetDocument } from 'src/pet/entities/pet.entity';
 
 @Injectable()

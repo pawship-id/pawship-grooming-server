@@ -5,10 +5,10 @@ import {
 } from '@nestjs/common';
 import { comparePassword, hashPassword } from 'src/helpers/bcrypt';
 import { JwtService } from '@nestjs/jwt';
-import { User, UserDocument } from 'src/user/user.model';
+import { User, UserDocument } from 'src/user/entities/user.entity';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { CreateUserDto } from 'src/user/user.dto';
+import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { ConfigService } from '@nestjs/config';
 import { ObjectId } from 'mongodb';
 

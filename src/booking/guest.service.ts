@@ -5,13 +5,13 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { User, UserDocument } from 'src/user/user.model';
+import { User, UserDocument } from 'src/user/entities/user.entity';
 import { Pet, PetDocument } from 'src/pet/entities/pet.entity';
 import { RegisterGuestDto } from './dto/register-guest.dto';
 import { CreateGuestPetDto } from './dto/create-guest-pet.dto';
 import { hashPassword } from 'src/helpers/bcrypt';
 import { ObjectId } from 'mongodb';
-import { UserRole } from 'src/user/user.dto';
+import { UserRole } from 'src/user/dto/user.dto';
 
 @Injectable()
 export class GuestService {

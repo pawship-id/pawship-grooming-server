@@ -18,13 +18,13 @@ import {
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { ObjectId } from 'mongodb';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import {
-  CreateUserDto,
-  UpdateUserDto,
   GetUsersQueryDto,
   ToggleUserStatusDto,
   UpdatePasswordDto,
-} from './user.dto';
+} from './dto/get-users-query.dto';
 import { AuthGuard } from 'src/auth/auth.guard';
 
 @Controller('users')

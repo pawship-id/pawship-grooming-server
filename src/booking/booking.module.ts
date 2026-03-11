@@ -4,7 +4,7 @@ import { BookingController } from './booking.controller';
 import { SessionService } from './session.service';
 import { SessionController } from './session.controller';
 import { MongooseModule } from '@nestjs/mongoose';
-import { User, UserSchema } from 'src/user/user.model';
+import { User, UserSchema } from 'src/user/entities/user.entity';
 import { Pet, PetSchema } from 'src/pet/entities/pet.entity';
 import { Service, ServiceSchema } from 'src/service/entities/service.entity';
 import { Booking, BookingSchema } from './entities/booking.entity';
