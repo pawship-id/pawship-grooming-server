@@ -1,13 +1,14 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ObjectId } from 'mongodb';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { hashPassword } from 'src/helpers/bcrypt';
 import { User, UserDocument } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { GetUsersQueryDto } from './dto/get-users-query.dto';
 import { Pet, PetDocument } from 'src/pet/entities/pet.entity';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
 export class UserService {
@@ -115,6 +116,50 @@ export class UserService {
     const user = await this.userModel.findOne({ email: email });
 
     return user;
+  }
+
+  async updateProfile(userId: ObjectId, body: UpdateProfileDto) {
+    const setData: Record<string, unknown> = {};
+
+    const scalarFields = [
+      'full_name',
+      'image_url',
+      'public_id',
+      'gender',
+      'groomer_skills',
+      'groomer_rating',
+      'tags',
+    ] as const;
+
+    const objectIdFields = ['placement', 'customer_category_id'] as const;
+
+    for (const field of scalarFields) {
+      if (body[field]) {
+        setData[`profile.${field}`] = body[field];
+      }
+    }
+
+    for (const field of objectIdFields) {
+      console.log(body[field], 'noooo');
+
+      if (body[field]) {
+        setData[`profile.${field}`] = new Types.ObjectId(body[field] as string);
+      }
+    }
+
+    if (body.address) {
+      for (const [key, val] of Object.entries(body.address)) {
+        if (val) {
+          setData[`profile.address.${key}`] = val;
+        }
+      }
+    }
+
+    console.log(setData, '>>>>>');
+
+    return this.userModel
+      .findByIdAndUpdate(userId, { $set: setData }, { new: true })
+      .select('-password -refresh_token -refresh_token_expires_at');
   }
 
   async update(id: ObjectId, body: UpdateUserDto) {

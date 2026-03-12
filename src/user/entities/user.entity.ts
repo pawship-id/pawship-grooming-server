@@ -11,16 +11,16 @@ export enum Gender {
 
 // ── Address ──────────────────────────────────────────────────────────────────
 
-@Schema({ _id: false })
+@Schema({ _id: false, minimize: true })
 export class UserAddress {
-  @Prop({ default: null })
-  street: string;
+  @Prop()
+  street?: string;
 
-  @Prop({ default: null })
-  city: string;
+  @Prop()
+  city?: string;
 
-  @Prop({ default: null })
-  zone: string;
+  @Prop()
+  zone?: string;
 }
 
 export const UserAddressSchema = SchemaFactory.createForClass(UserAddress);
@@ -35,41 +35,40 @@ export const UserAddressSchema = SchemaFactory.createForClass(UserAddress);
 //  Customer    : full_name, image_url, public_id, gender,
 //                customer_category_id, tags, address
 
-@Schema({ _id: false })
+@Schema({ _id: false, minimize: true })
 export class UserProfile {
-  @Prop({ default: null })
-  full_name: string;
+  @Prop()
+  full_name?: string;
 
-  @Prop({ default: null })
-  image_url: string;
+  @Prop()
+  image_url?: string;
 
-  @Prop({ default: null })
-  public_id: string;
+  @Prop()
+  public_id?: string;
 
-  @Prop({ enum: Object.values(Gender), default: null })
-  gender: Gender;
+  @Prop({ enum: Object.values(Gender) })
+  gender?: Gender;
 
   /** Admin / Ops / Groomer — ref: Store */
-  @Prop({ type: Types.ObjectId, ref: 'Store', default: null })
-  placement: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'Store' })
+  placement?: Types.ObjectId;
 
   /** Groomer only */
-  @Prop({ type: [String], default: [] })
-  groomer_skills: string[];
+  @Prop({ type: [String] })
+  groomer_skills?: string[];
 
-  @Prop({ type: Number, default: null })
-  groomer_rating: number;
+  @Prop({ type: Number })
+  groomer_rating?: number;
 
   /** Customer only — ref: Option */
-  @Prop({ type: Types.ObjectId, ref: 'Option', default: null })
-  customer_category_id: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'Option' })
+  customer_category_id?: Types.ObjectId;
 
-  /** Shared across all roles */
-  @Prop({ type: [String], default: [] })
-  tags: string[];
+  @Prop({ type: [String] })
+  tags?: string[];
 
-  @Prop({ type: UserAddressSchema, default: () => ({}) })
-  address: UserAddress;
+  @Prop({ type: UserAddressSchema })
+  address?: UserAddress;
 }
 
 export const UserProfileSchema = SchemaFactory.createForClass(UserProfile);
@@ -93,8 +92,8 @@ export class User {
   @Prop({ enum: Object.values(UserRole), default: UserRole.CUSTOMER })
   role: string;
 
-  @Prop({ type: UserProfileSchema, default: () => ({}) })
-  profile: UserProfile;
+  @Prop({ type: UserProfileSchema })
+  profile?: UserProfile;
 
   @Prop({ default: true })
   is_active: boolean;

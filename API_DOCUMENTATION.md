@@ -293,6 +293,10 @@ For customer users:
     "email": "jane@gmail.com",
     "phone_number": "081234567890",
     "role": "customer",
+    "profile": {
+      "full_name": "Jane Doe",
+      "customer_category_id": "507f1f77bcf86cd799439033"
+    },
     "is_active": true,
     "isDeleted": false,
     "createdAt": "2026-02-12T09:52:34.717Z",
@@ -369,13 +373,381 @@ For customer users:
 
 - This endpoint retrieves information about the currently authenticated user based on JWT token
 - Sensitive fields (`password`, `refresh_token`, `refresh_token_expires_at`) are automatically excluded from response
+- `profile` field is omitted entirely when the user has not set any profile data
+- Only fields that have been explicitly saved to the database are returned — no null placeholders
+- Fields like `groomer_skills` and `groomer_rating` are only meaningful for users with `role: groomer`
+- `customer_category_id` is only meaningful for users with `role: customer`
 - If user role is `customer`, the response includes a `pets` array with all their pets (non-deleted only)
 - Pets are populated with their relationships: pet_type, hair_category, size_category, breed_category, and member_category
 - Useful for profile pages or checking current user permissions
 
 ---
 
-### 3. Get User By ID
+### 3. Update My Profile
+
+**Endpoint:** `PUT /users/me/profile`
+
+**Authentication:** Required (JWT Token)
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Request Body:** (All fields optional)
+
+```json
+{
+  "full_name": "string (optional)",
+  "image_url": "string (optional)",
+  "public_id": "string (optional)",
+  "gender": "Male | Female (optional)",
+  "placement": "MongoDB ObjectId — Store ref (optional, admin/ops/groomer only)",
+  "groomer_skills": ["string"],
+  "groomer_rating": "number >= 0 (optional, groomer only)",
+  "customer_category_id": "MongoDB ObjectId — Option ref (optional, customer only)",
+  "tags": ["string"],
+  "address": {
+    "street": "string (optional)",
+    "city": "string (optional)",
+    "zone": "string (optional)"
+  }
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Update profile successfully",
+  "user": {
+    "_id": "507f1f77bcf86cd799439011",
+    "username": "john_doe",
+    "phone_number": "+628123456789",
+    "role": "groomer",
+    "profile": {
+      "full_name": "John Doe",
+      "image_url": "https://res.cloudinary.com/...",
+      "public_id": "pawship-grooming/users/abc123",
+      "gender": "Male",
+      "placement": "507f1f77bcf86cd799439099",
+      "groomer_skills": ["Dog grooming", "Cat grooming"],
+      "tags": ["experienced"],
+      "address": {
+        "street": "Jl. Merdeka No. 1",
+        "city": "Jakarta",
+        "zone": "Pusat"
+      }
+    },
+    "is_active": true,
+    "isDeleted": false,
+    "createdAt": "2026-02-12T09:52:34.717Z",
+    "updatedAt": "2026-03-11T10:00:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- **401 Unauthorized:** Missing or invalid token
+
+```json
+{
+  "statusCode": 401,
+  "message": "User not authenticated",
+  "error": "Unauthorized"
+}
+```
+
+**Notes:**
+
+- Email cannot be updated via this endpoint
+- Only `profile.*` fields are updated; account fields (`username`, `phone_number`, `role`, etc.) are not affected
+- Uses dot-notation `$set` so partial updates do not overwrite other profile fields
+- Role-based field eligibility is not enforced at the API level — all fields are accepted regardless of role
+
+---
+
+### 4. Create My Pet
+
+**Endpoint:** `POST /users/me/pets`
+
+**Authentication:** Required (JWT Token)
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Request Body:**
+
+```json
+{
+  "name": "string (required)",
+  "description": "string (optional)",
+  "internal_note": "string (optional)",
+  "profile_image": {
+    "secure_url": "string (optional)",
+    "public_id": "string (optional)"
+  },
+  "pet_type_id": "MongoDB ObjectId (required)",
+  "hair_category_id": "MongoDB ObjectId (optional)",
+  "birthday": "ISO date (optional)",
+  "size_category_id": "MongoDB ObjectId (required)",
+  "breed_category_id": "MongoDB ObjectId (required)",
+  "weight": "number (optional)",
+  "member_category_id": "MongoDB ObjectId (optional)",
+  "tags": ["string"],
+  "last_grooming_at": "ISO date (optional)",
+  "last_visit_at": "ISO date (optional)",
+  "memberships": [
+    {
+      "membership_id": "MongoDB ObjectId (required)",
+      "start_date": "ISO date (required)",
+      "end_date": "ISO date (required)",
+      "status": "active | inactive | expired (required)",
+      "usage_count": "number (optional)",
+      "max_usage": "number (optional)"
+    }
+  ],
+  "is_active": "boolean (optional, default: true)"
+}
+```
+
+**Success Response (201):**
+
+```json
+{
+  "message": "Create pet successfully",
+  "pet": {
+    "_id": "507f1f77bcf86cd799439020",
+    "name": "Buddy",
+    "customer_id": "507f1f77bcf86cd799439011",
+    "pet_type_id": "507f1f77bcf86cd799439012",
+    "size_category_id": "507f1f77bcf86cd799439014",
+    "breed_category_id": "507f1f77bcf86cd799439015",
+    "is_active": true,
+    "isDeleted": false,
+    "createdAt": "2026-03-11T10:00:00.000Z",
+    "updatedAt": "2026-03-11T10:00:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- **401 Unauthorized:** Missing or invalid token
+- **400 Bad Request:** Validation error
+
+**Notes:**
+
+- `customer_id` is automatically set from the JWT — no need to include it in the request body
+
+---
+
+### 5. Get My Pets
+
+**Endpoint:** `GET /users/me/pets`
+
+**Authentication:** Required (JWT Token)
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Query Parameters:**
+
+- `page` (optional, number): Page number (default: 1)
+- `limit` (optional, number): Items per page (default: 10)
+- `search` (optional, string): Search by name, description, tags
+- `is_active` (optional, boolean): Filter by active status
+- `pet_type_id` (optional, MongoDB ObjectId): Filter by pet type
+- `size_category_id` (optional, MongoDB ObjectId): Filter by size
+- `breed_category_id` (optional, MongoDB ObjectId): Filter by breed
+- `member_category_id` (optional, MongoDB ObjectId): Filter by membership category
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch pets successfully",
+  "pets": [
+    {
+      "_id": "507f1f77bcf86cd799439020",
+      "name": "Buddy",
+      "pet_type": { "_id": "507f1f77bcf86cd799439012", "name": "Dog" },
+      "size": { "_id": "507f1f77bcf86cd799439014", "name": "Medium" },
+      "breed": {
+        "_id": "507f1f77bcf86cd799439015",
+        "name": "Golden Retriever"
+      },
+      "is_active": true,
+      "isDeleted": false,
+      "createdAt": "2026-03-11T10:00:00.000Z",
+      "updatedAt": "2026-03-11T10:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "total": 3,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 1
+  }
+}
+```
+
+**Notes:**
+
+- Results are automatically filtered to only show pets belonging to the authenticated user
+- Deleted pets (`isDeleted: true`) are excluded
+
+---
+
+### 6. Get My Pet by ID
+
+**Endpoint:** `GET /users/me/pets/:petId`
+
+**Authentication:** Required (JWT Token)
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Parameters:**
+
+- `petId` (path): MongoDB ObjectId of the pet
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Fetch pet successfully",
+  "pet": {
+    "_id": "507f1f77bcf86cd799439020",
+    "name": "Buddy",
+    "description": "Friendly dog",
+    "pet_type": { "_id": "507f1f77bcf86cd799439012", "name": "Dog" },
+    "hair": { "_id": "507f1f77bcf86cd799439013", "name": "Short" },
+    "size": { "_id": "507f1f77bcf86cd799439014", "name": "Medium" },
+    "breed": { "_id": "507f1f77bcf86cd799439015", "name": "Golden Retriever" },
+    "is_active": true,
+    "isDeleted": false,
+    "createdAt": "2026-03-11T10:00:00.000Z",
+    "updatedAt": "2026-03-11T10:00:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- **401 Unauthorized:** Token missing or invalid
+- **404 Not Found:** Pet not found or does not belong to the authenticated user
+
+```json
+{
+  "statusCode": 404,
+  "message": "Pet not found",
+  "error": "Not Found"
+}
+```
+
+---
+
+### 7. Update My Pet
+
+**Endpoint:** `PUT /users/me/pets/:petId`
+
+**Authentication:** Required (JWT Token)
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Parameters:**
+
+- `petId` (path): MongoDB ObjectId of the pet
+
+**Request Body:** (All fields optional)
+
+```json
+{
+  "name": "string",
+  "description": "string",
+  "internal_note": "string",
+  "profile_image": { "secure_url": "string", "public_id": "string" },
+  "pet_type_id": "MongoDB ObjectId",
+  "hair_category_id": "MongoDB ObjectId",
+  "birthday": "ISO date",
+  "size_category_id": "MongoDB ObjectId",
+  "breed_category_id": "MongoDB ObjectId",
+  "weight": "number",
+  "member_category_id": "MongoDB ObjectId",
+  "tags": ["string"],
+  "last_grooming_at": "ISO date",
+  "last_visit_at": "ISO date",
+  "is_active": "boolean"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Update pet successfully"
+}
+```
+
+**Error Responses:**
+
+- **401 Unauthorized:** Token missing or invalid
+- **404 Not Found:** Pet not found or does not belong to the authenticated user
+
+---
+
+### 8. Delete My Pet (Soft Delete)
+
+**Endpoint:** `DELETE /users/me/pets/:petId`
+
+**Authentication:** Required (JWT Token)
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Parameters:**
+
+- `petId` (path): MongoDB ObjectId of the pet
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Delete pet successfully"
+}
+```
+
+**Error Responses:**
+
+- **401 Unauthorized:** Token missing or invalid
+- **404 Not Found:** Pet not found or does not belong to the authenticated user
+
+**Notes:**
+
+- Performs a soft delete (`isDeleted: true`); the pet is not removed from the database
+
+---
+
+### 9. Get User By ID
 
 **Endpoint:** `GET /users/:id`
 
@@ -423,6 +795,10 @@ For customer users:
     "email": "john@example.com",
     "phone_number": "+628123456789",
     "role": "customer",
+    "profile": {
+      "full_name": "Jane Customer",
+      "customer_category_id": "507f1f77bcf86cd799439033"
+    },
     "is_active": true,
     "isDeleted": false,
     "createdAt": "2026-02-12T09:52:34.717Z",
@@ -511,7 +887,7 @@ For customer users:
 
 ---
 
-### 4. Create User
+### 10. Create User
 
 **Endpoint:** `POST /users`
 
@@ -538,7 +914,7 @@ For customer users:
 
 ---
 
-### 5. Update User
+### 11. Update User
 
 **Endpoint:** `PUT /users/:id`
 
@@ -576,7 +952,7 @@ For customer users:
 
 ---
 
-### 6. Update User Password
+### 12. Update User Password
 
 **Endpoint:** `PATCH /users/update-password/:id`
 
@@ -630,7 +1006,7 @@ For customer users:
 
 ---
 
-### 7. Toggle User Status (Activate/Deactivate)
+### 13. Toggle User Status (Activate/Deactivate)
 
 **Endpoint:** `PATCH /users/toggle-status/:id`
 
@@ -694,7 +1070,7 @@ When deactivating user:
 
 ---
 
-### 8. Delete User (Soft Delete)
+### 14. Delete User (Soft Delete)
 
 **Endpoint:** `DELETE /users/:id`
 
