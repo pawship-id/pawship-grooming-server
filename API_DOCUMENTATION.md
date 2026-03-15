@@ -1296,6 +1296,7 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
         "default_daily_capacity_minutes": 960,
         "overbooking_limit_minutes": 120
       },
+      "is_default_store": true,
       "is_active": true,
       "isDeleted": false,
       "deletedAt": null,
@@ -1381,6 +1382,7 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
       "overbooking_limit_minutes": 60
     },
     "sessions": ["09.00 - 12.00", "13.00 - 16.00", "17.00 - 20.00"],
+    "is_default_store": false,
     "is_active": true,
     "createdAt": "2024-01-15T08:00:00.000Z",
     "updatedAt": "2024-01-15T08:00:00.000Z",
@@ -1505,6 +1507,7 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
     "overbooking_limit_minutes": "number (default: 120)"
   },
   "sessions": ["string (optional)"],
+  "is_default_store": "boolean (optional, default: false)",
   "is_active": "boolean (optional, default: true)",
   "zones": [
     {
@@ -1528,7 +1531,7 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
 
 **Error Responses:**
 
-- **400 Bad Request:** Duplicate code or validation error
+- **400 Bad Request:** Duplicate code, default store already exists, or validation error
 
 ```json
 {
@@ -1538,10 +1541,19 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
 }
 ```
 
+```json
+{
+  "statusCode": 400,
+  "message": "A default store already exists. Only one store can be set as default.",
+  "error": "Bad Request"
+}
+```
+
 **Notes:**
 
 - `code`: Must be unique (e.g., STR001, STR002)
 - `name`: Store name
+- `is_default_store`: Only one store in the system can have this set to `true`. If you attempt to set another store as default while one already exists, the operation will fail with a 400 error
 - `capacity.default_daily_capacity_minutes`: Total minutes available per day (e.g., 480 for 8 hours)
 - `capacity.overbooking_limit_minutes`: Additional minutes allowed beyond default capacity (e.g., 60 for up to 1 hour overbooking)
 - `operational_days`: Valid values are Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday
@@ -1587,6 +1599,7 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
     "overbooking_limit_minutes": "number (optional)"
   },
   "sessions": ["string (optional)"],
+  "is_default_store": "boolean (optional)",
   "is_active": "boolean (optional)",
   "zones": [
     {
@@ -1604,18 +1617,26 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
 
 ```json
 {
-  "message": "Update store successfully"
+  "message": "Store updated successfully"
 }
 ```
 
 **Error Responses:**
 
-- **400 Bad Request:** Invalid ID or duplicate code
+- **400 Bad Request:** Invalid ID, duplicate code, or default store already exists
 
 ```json
 {
   "statusCode": 400,
   "message": "code already exists",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": "A default store already exists. Only one store can be set as default.",
   "error": "Bad Request"
 }
 ```
@@ -1629,6 +1650,10 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
   "error": "Not Found"
 }
 ```
+
+**Notes:**
+
+- `is_default_store`: Only one store in the system can have this set to `true`. If you attempt to set another store as default while one already exists, the operation will fail with a 400 error
 
 ---
 

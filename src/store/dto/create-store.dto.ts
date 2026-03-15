@@ -51,6 +51,10 @@ export class CreateStoreDto {
   sessions?: string[] = [];
 
   @IsOptional()
+  @IsBoolean({ message: 'is_default_store must be a boolean' })
+  is_default_store?: boolean = false;
+
+  @IsOptional()
   @IsBoolean()
   is_active?: boolean = true;
 

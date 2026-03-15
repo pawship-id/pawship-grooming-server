@@ -24,6 +24,20 @@ export class StoreService {
 
   async create(body: CreateStoreDto) {
     try {
+      // Check if trying to set as default store
+      if (body.is_default_store) {
+        const existingDefaultStore = await this.storeModel.findOne({
+          is_default_store: true,
+          isDeleted: false,
+        });
+
+        if (existingDefaultStore) {
+          throw new BadRequestException(
+            'A default store already exists. Only one store can be set as default.',
+          );
+        }
+      }
+
       const store = new this.storeModel(body);
 
       return await store.save();
@@ -185,6 +199,21 @@ export class StoreService {
 
   async update(id: ObjectId, body: UpdateStoreDto) {
     try {
+      // Check if trying to set as default store
+      if (body.is_default_store) {
+        const existingDefaultStore = await this.storeModel.findOne({
+          is_default_store: true,
+          _id: { $ne: id },
+          isDeleted: false,
+        });
+
+        if (existingDefaultStore) {
+          throw new BadRequestException(
+            'A default store already exists. Only one store can be set as default.',
+          );
+        }
+      }
+
       const store = await this.storeModel.findByIdAndUpdate(
         id,
         { $set: body },

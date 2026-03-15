@@ -114,6 +114,9 @@ export class Store {
   @Prop({ type: [String], default: [] })
   sessions: string[];
 
+  @Prop({ default: false })
+  is_default_store: boolean;
+
   @Prop({ default: true })
   is_active: boolean;
 
