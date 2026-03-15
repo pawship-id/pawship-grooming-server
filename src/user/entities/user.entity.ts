@@ -21,6 +21,12 @@ export class UserAddress {
 
   @Prop()
   zone?: string;
+
+  @Prop({ type: Number })
+  latitude?: number;
+
+  @Prop({ type: Number })
+  longitude?: number;
 }
 
 export const UserAddressSchema = SchemaFactory.createForClass(UserAddress);

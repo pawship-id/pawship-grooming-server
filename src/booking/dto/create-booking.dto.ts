@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsEnum,
   IsMongoId,
   IsNotEmpty,
@@ -191,4 +192,8 @@ export class CreateBookingDto {
   @ValidateNested({ each: true })
   @Type(() => BookingStatusLogDto)
   status_logs?: BookingStatusLogDto[];
+
+  @IsOptional()
+  @IsBoolean({ message: 'pick_up must be a boolean' })
+  pick_up?: boolean = false;
 }

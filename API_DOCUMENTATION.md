@@ -1297,6 +1297,7 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
         "overbooking_limit_minutes": 120
       },
       "is_default_store": true,
+      "is_pick_up_available": true,
       "is_active": true,
       "isDeleted": false,
       "deletedAt": null,
@@ -1383,6 +1384,7 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
     },
     "sessions": ["09.00 - 12.00", "13.00 - 16.00", "17.00 - 20.00"],
     "is_default_store": false,
+    "is_pick_up_available": true,
     "is_active": true,
     "createdAt": "2024-01-15T08:00:00.000Z",
     "updatedAt": "2024-01-15T08:00:00.000Z",
@@ -1508,6 +1510,7 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
   },
   "sessions": ["string (optional)"],
   "is_default_store": "boolean (optional, default: false)",
+  "is_pick_up_available": "boolean (optional, default: false)",
   "is_active": "boolean (optional, default: true)",
   "zones": [
     {
@@ -1554,6 +1557,7 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
 - `code`: Must be unique (e.g., STR001, STR002)
 - `name`: Store name
 - `is_default_store`: Only one store in the system can have this set to `true`. If you attempt to set another store as default while one already exists, the operation will fail with a 400 error
+- `is_pick_up_available`: When `true`, this store supports pick-up service. Customers can request pick-up bookings if their location falls within the configured delivery zones. Requires at least one zone to be configured with `min_radius_km` and `max_radius_km` values
 - `capacity.default_daily_capacity_minutes`: Total minutes available per day (e.g., 480 for 8 hours)
 - `capacity.overbooking_limit_minutes`: Additional minutes allowed beyond default capacity (e.g., 60 for up to 1 hour overbooking)
 - `operational_days`: Valid values are Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday
@@ -1600,6 +1604,7 @@ GET /stores?page=1&limit=5&search=grooming&is_active=true&city=jakarta
   },
   "sessions": ["string (optional)"],
   "is_default_store": "boolean (optional)",
+  "is_pick_up_available": "boolean (optional)",
   "is_active": "boolean (optional)",
   "zones": [
     {
@@ -1814,6 +1819,7 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
       "createdAt": "2026-03-01T15:12:52.848Z",
       "updatedAt": "2026-03-07T01:09:10.113Z",
       "service_location_type": "in store",
+      "is_pick_up_available": false,
       "service_type": {
         "_id": "69a22d75a9d735a33014cc8b",
         "title": "Grooming"
@@ -2087,6 +2093,7 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
   "show_in_homepage": false,
   "order": 0,
   "service_location_type": "in store",
+  "is_pick_up_available": false,
   "is_active": true
 }
 ```
@@ -2127,6 +2134,7 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
   "show_in_homepage": false,
   "order": 0,
   "service_location_type": "in store",
+  "is_pick_up_available": false,
   "is_active": true
 }
 ```
@@ -2152,6 +2160,7 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
 - `show_in_homepage`: Whether to show this service on the homepage (optional, default: false)
 - `order`: Display order/sort priority (optional, default: 0)
 - `service_location_type`: Location where the service is performed — `in home` or `in store` (optional, default: `in store`)
+- `is_pick_up_available`: Whether this service can be booked as a pick-up service (optional, default: false). When true, customers can request pick-up delivery if the store supports it and their location is within a delivery zone
 - `is_active`: Active status (optional, default: true)
 
 **Success Response (201):**
@@ -2237,6 +2246,7 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
   ],
   "show_in_homepage": true,
   "order": 1,
+  "is_pick_up_available": true,
   "is_active": true
 }
 ```
@@ -4332,6 +4342,7 @@ If user not found:
   "service_id": "MongoDB ObjectId (required)",
   "date": "2026-03-08 (required, format: YYYY-MM-DD)",
   "time_range": "09.00 - 12.00 (required)",
+  "pick_up": "boolean (optional, default: false)",
   "service_addon_ids": ["MongoDB ObjectId (optional)"],
   "travel_fee": "number (optional)",
   "discount_ids": ["MongoDB ObjectId (optional)"],
@@ -4359,6 +4370,7 @@ If user not found:
   "time_range": "09.00 - 12.00",
   "store_id": "698be0cd80c319b74fe2f073",
   "service_id": "69a45774ecf65d9a74d53fe6",
+  "pick_up": false,
   "service_addon_ids": ["69ace8ab7fbc3acb5e61f94d"],
   "note": "hewan takut suara bising"
 }
@@ -4367,6 +4379,12 @@ If user not found:
 > `pet_snapshot` dan `service_snapshot` di-generate otomatis oleh server berdasarkan `pet_id` dan `service_id`.
 > `sub_total_service` dan `total_price` dihitung otomatis oleh server.
 > Field `sessions` hanya berlaku untuk booking yang dibuat oleh admin/ops. Jika booking dibuat oleh customer/guest, `sessions` default `[]` dan diabaikan meski dikirim.
+> When `pick_up` is `true`, the system validates that:
+> 1. Customer has latitude/longitude in their profile address
+> 2. The store has `is_pick_up_available: true`
+> 3. The service has `is_pick_up_available: true`
+> 4. Customer location falls within one of the store's delivery zones
+> If validation fails, a `BadRequestException` is returned with a descriptive error message.
 
 **Success Response (200):**
 
@@ -4383,6 +4401,12 @@ If user not found:
 - System calculates pricing based on service and pet size (including addons)
 - Initial `booking_status` is "requested"
 - Creates initial status log entry
+- **Pick-up Service:**
+  - When `pick_up: true`, system validates customer location and store/service capabilities
+  - Calculates distance from customer's home location to store using Haversine formula
+  - Matches customer location against store's configured delivery zones
+  - Stores matched zone info in `pick_up_zone` field with area name, radius, travel time, and travel fee
+  - If customer location is outside all zones, booking fails with error: "Customer location is outside all delivery zones"
 - **Capacity Management:**
   - Validates against store's daily capacity (checks StoreDailyCapacity override or uses default)
   - Atomically increments StoreDailyUsage for the date
@@ -4410,6 +4434,46 @@ If user not found:
   "statusCode": 404,
   "message": "Harga addon tidak ditemukan untuk hewan dengan jenis, ukuran, dan jenis bulu yang dipilih",
   "error": "Not Found"
+}
+```
+
+- **400 Bad Request:** Pick-up validation failed - customer has no location
+
+```json
+{
+  "statusCode": 400,
+  "message": "Customer profile must have location (latitude/longitude) to use pick-up service",
+  "error": "Bad Request"
+}
+```
+
+- **400 Bad Request:** Pick-up validation failed - store doesn't support pick-up
+
+```json
+{
+  "statusCode": 400,
+  "message": "This store does not support pick-up service",
+  "error": "Bad Request"
+}
+```
+
+- **400 Bad Request:** Pick-up validation failed - service doesn't support pick-up
+
+```json
+{
+  "statusCode": 400,
+  "message": "This service does not support pick-up",
+  "error": "Bad Request"
+}
+```
+
+- **400 Bad Request:** Pick-up validation failed - customer location outside delivery zones
+
+```json
+{
+  "statusCode": 400,
+  "message": "Customer location is outside all delivery zones",
+  "error": "Bad Request"
 }
 ```
 

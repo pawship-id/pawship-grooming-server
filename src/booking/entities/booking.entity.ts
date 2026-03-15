@@ -9,6 +9,24 @@ import {
 
 export type BookingDocument = HydratedDocument<Booking>;
 
+@Schema({ _id: false })
+export class ZoneSnapshot {
+  @Prop()
+  area_name?: string;
+
+  @Prop({ type: Number })
+  min_radius_km?: number;
+
+  @Prop({ type: Number })
+  max_radius_km?: number;
+
+  @Prop({ type: Number })
+  travel_time_minutes?: number;
+
+  @Prop({ type: Number })
+  travel_fee?: number;
+}
+
 @Schema({
   toJSON: {
     virtuals: true,
@@ -342,6 +360,13 @@ export class Booking {
     default: [],
   })
   sessions: GroomingSession[];
+
+  /* ===== Pick-up Service ===== */
+  @Prop({ default: false })
+  pick_up: boolean;
+
+  @Prop({ type: ZoneSnapshot })
+  pick_up_zone?: ZoneSnapshot;
 
   /* ===== Soft Delete ===== */
   @Prop({ default: false })

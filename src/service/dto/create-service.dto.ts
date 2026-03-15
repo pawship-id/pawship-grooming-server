@@ -134,6 +134,10 @@ export class CreateServiceDto {
   service_location_type?: string = 'in store';
 
   @IsOptional()
+  @IsBoolean({ message: 'is_pick_up_available must be a boolean' })
+  is_pick_up_available?: boolean = false;
+
+  @IsOptional()
   @IsBoolean()
   @Transform(({ value }) => {
     if (value === 'true') return true;

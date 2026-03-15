@@ -117,6 +117,9 @@ export class Store {
   @Prop({ default: false })
   is_default_store: boolean;
 
+  @Prop({ default: false })
+  is_pick_up_available: boolean;
+
   @Prop({ default: true })
   is_active: boolean;
 

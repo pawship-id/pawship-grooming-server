@@ -163,6 +163,9 @@ export class Service {
   @Prop({ enum: ['in home', 'in store'], default: 'in store' })
   service_location_type: string;
 
+  @Prop({ default: false })
+  is_pick_up_available: boolean;
+
   @Prop({ default: true })
   is_active: boolean;
 

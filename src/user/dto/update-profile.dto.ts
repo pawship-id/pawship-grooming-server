@@ -23,6 +23,14 @@ export class UpdateAddressDto {
   @IsOptional()
   @IsString({ message: 'zone must be a string' })
   zone?: string;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'latitude must be a number' })
+  latitude?: number;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'longitude must be a number' })
+  longitude?: number;
 }
 
 /**

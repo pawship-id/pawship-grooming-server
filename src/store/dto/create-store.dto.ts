@@ -55,6 +55,10 @@ export class CreateStoreDto {
   is_default_store?: boolean = false;
 
   @IsOptional()
+  @IsBoolean({ message: 'is_pick_up_available must be a boolean' })
+  is_pick_up_available?: boolean = false;
+
+  @IsOptional()
   @IsBoolean()
   is_active?: boolean = true;
 

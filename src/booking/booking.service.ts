@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import {
   BookingStatusLogDto,
   CreateBookingDto,
@@ -13,6 +17,7 @@ import { ServiceService } from 'src/service/service.service';
 import { BookingStatus, GroomingType, SessionStatus } from './dto/booking.dto';
 import { Store, StoreDocument } from 'src/store/entities/store.entity';
 import { Service, ServiceDocument } from 'src/service/entities/service.entity';
+import { User, UserDocument } from 'src/user/entities/user.entity';
 import {
   StoreDailyUsage,
   StoreDailyUsageDocument,
@@ -31,6 +36,8 @@ export class BookingService {
     private readonly storeModel: Model<StoreDocument>,
     @InjectModel(Service.name)
     private readonly serviceModel: Model<ServiceDocument>,
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
     @InjectModel(StoreDailyUsage.name)
     private readonly storeDailyUsageModel: Model<StoreDailyUsageDocument>,
     @InjectModel(StoreDailyCapacity.name)
@@ -40,6 +47,62 @@ export class BookingService {
     private readonly petService: PetService,
     private readonly serviceService: ServiceService,
   ) {}
+
+  /**
+   * Haversine formula to calculate distance between two lat/long points in km
+   */
+  private calculateDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
+    const R = 6371; // Earth radius in km
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  /**
+   * Find matching zone for pick-up based on customer location and store zones
+   */
+  private async findPickUpZone(
+    store: StoreDocument,
+    customerLatitude: number,
+    customerLongitude: number,
+  ): Promise<any> {
+    if (!store.location?.latitude || !store.location?.longitude) {
+      throw new BadRequestException('Store location not properly configured');
+    }
+
+    const distance = this.calculateDistance(
+      customerLatitude,
+      customerLongitude,
+      store.location.latitude,
+      store.location.longitude,
+    );
+
+    // Find zone that matches the distance
+    const matchingZone = store.zones?.find(
+      (zone) =>
+        distance >= zone.min_radius_km && distance <= zone.max_radius_km,
+    );
+
+    if (!matchingZone) {
+      throw new BadRequestException(
+        `Customer location is outside all delivery zones. Distance: ${distance.toFixed(2)}km`,
+      );
+    }
+
+    return matchingZone;
+  }
 
   async create(
     body: CreateBookingDto,
@@ -73,6 +136,46 @@ export class BookingService {
         .session(session);
 
       if (!store) throw new NotFoundException('Store not found');
+
+      // Handle pick-up service validation and zone matching
+      let pickUpZone = null;
+      if (body.pick_up) {
+        // Get customer location from profile
+        const customer = await this.userModel.findById(body.customer_id);
+        if (
+          !customer?.profile?.address?.latitude ||
+          !customer?.profile?.address?.longitude
+        ) {
+          throw new BadRequestException(
+            'Customer profile must have location (latitude/longitude) to use pick-up service',
+          );
+        }
+
+        // Check if store and service support pick-up
+        if (!store.is_pick_up_available) {
+          throw new BadRequestException(
+            'This store does not support pick-up service',
+          );
+        }
+
+        const serviceDoc = await this.serviceModel.findById(body.service_id);
+        if (!serviceDoc?.is_pick_up_available) {
+          throw new BadRequestException(
+            'This service does not support pick-up',
+          );
+        }
+
+        pickUpZone = await this.findPickUpZone(
+          store,
+          customer.profile.address.latitude,
+          customer.profile.address.longitude,
+        );
+      }
+
+      // Attach pick_up_zone to booking if determined
+      if (pickUpZone) {
+        (body as any).pick_up_zone = pickUpZone;
+      }
 
       // 2️⃣ Ambil Service dan Addons
       // Handle service price calculation
