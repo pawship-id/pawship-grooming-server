@@ -1,0 +1,228 @@
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { comparePassword, hashPassword } from 'src/helpers/bcrypt';
+import { JwtService } from '@nestjs/jwt';
+import { User, UserDocument } from 'src/user/entities/user.entity';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { CreateUserDto } from 'src/user/dto/create-user.dto';
+import { ConfigService } from '@nestjs/config';
+import { ObjectId } from 'mongodb';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    private jwtService: JwtService,
+    private configService: ConfigService,
+  ) {}
+
+  async createUser(body: CreateUserDto) {
+    try {
+      const hash = await hashPassword(body.password);
+
+      const user = new this.userModel({
+        username: body.username,
+        email: body.email,
+        phone_number: body.phone_number,
+        password: hash,
+        role: body.role,
+        is_active: body.is_active,
+      });
+
+      return await user.save();
+    } catch (error) {
+      if (error.code === 11000) {
+        const duplicatedField = Object.keys(error.keyPattern)[0]; // ambil field yang duplicate
+        throw new BadRequestException(`${duplicatedField} already exists`);
+      }
+    }
+  }
+
+  async findUserByEmail(email: string) {
+    const user = await this.userModel.findOne({ email: email });
+
+    return user;
+  }
+
+  async signIn(email: string, password: string) {
+    const findUser = await this.findUserByEmail(email);
+    if (!findUser) throw new UnauthorizedException('invalid email or password');
+
+    if (findUser.isDeleted) {
+      throw new UnauthorizedException('user not found');
+    }
+
+    if (findUser.is_active === false) {
+      throw new UnauthorizedException('user is inactive');
+    }
+
+    const isMatch = await comparePassword(password, findUser.password);
+    if (!isMatch) throw new UnauthorizedException('invalid email or password');
+
+    const payload = {
+      _id: findUser._id.toString(),
+      email: findUser.email,
+      username: findUser.username,
+      role: findUser.role,
+    };
+
+    const tokens = await this.generateTokens(payload);
+    await this.updateRefreshToken(findUser._id, tokens.refresh_token);
+
+    return tokens;
+  }
+
+  async refreshTokens(refreshToken: string) {
+    try {
+      const payload = await this.jwtService.verifyAsync(refreshToken, {
+        secret: this.getRefreshTokenSecret(),
+      });
+
+      const user = await this.userModel.findById(payload._id).exec();
+      if (!user || user.isDeleted) {
+        throw new UnauthorizedException('user not found');
+      }
+
+      if (user.is_active === false) {
+        throw new UnauthorizedException('user is inactive');
+      }
+
+      if (!user.refresh_token) {
+        throw new UnauthorizedException('refresh token is invalid');
+      }
+
+      if (user.refresh_token_expires_at) {
+        const isExpired = new Date() > user.refresh_token_expires_at;
+        if (isExpired) {
+          throw new UnauthorizedException('refresh token is expired');
+        }
+      }
+
+      const isMatch = await comparePassword(refreshToken, user.refresh_token);
+      if (!isMatch) {
+        throw new UnauthorizedException('refresh token is invalid');
+      }
+
+      const newPayload = {
+        _id: user._id.toString(),
+        email: user.email,
+        username: user.username,
+        role: user.role,
+      };
+
+      const tokens = await this.generateTokens(newPayload);
+      await this.updateRefreshToken(user._id, tokens.refresh_token);
+
+      return tokens;
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
+      throw new UnauthorizedException('refresh token is invalid');
+    }
+  }
+
+  async revokeRefreshToken(userId: string) {
+    await this.userModel.findByIdAndUpdate(userId, {
+      $set: { refresh_token: null, refresh_token_expires_at: null },
+    });
+  }
+
+  private async generateTokens(payload: {
+    _id: string;
+    email: string;
+    username: string;
+    role: string;
+  }) {
+    const accessToken = await this.jwtService.signAsync(payload, {
+      secret: this.getAccessTokenSecret(),
+      expiresIn: this.parseExpiresInToSeconds(this.getAccessTokenExpiresIn()),
+    });
+
+    const refreshToken = await this.jwtService.signAsync(payload, {
+      secret: this.getRefreshTokenSecret(),
+      expiresIn: this.parseExpiresInToSeconds(this.getRefreshTokenExpiresIn()),
+    });
+
+    return {
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    };
+  }
+
+  private async updateRefreshToken(
+    userId: ObjectId | string,
+    refreshToken: string,
+  ) {
+    const refreshTokenHash = await hashPassword(refreshToken);
+    const expiresAt = this.getExpiryDate(this.getRefreshTokenExpiresIn());
+
+    await this.userModel.findByIdAndUpdate(userId, {
+      $set: {
+        refresh_token: refreshTokenHash,
+        refresh_token_expires_at: expiresAt,
+      },
+    });
+  }
+
+  private getAccessTokenSecret() {
+    return this.configService.get<string>('JWT_SECRET_KEY');
+  }
+
+  private getRefreshTokenSecret() {
+    return (
+      this.configService.get<string>('JWT_REFRESH_SECRET_KEY') ||
+      this.configService.get<string>('JWT_SECRET_KEY')
+    );
+  }
+
+  private getAccessTokenExpiresIn() {
+    return this.configService.get<string>('JWT_EXPIRES_IN') || '3600s';
+  }
+
+  private getRefreshTokenExpiresIn() {
+    return this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '7d';
+  }
+
+  private getExpiryDate(expiresIn: string | number) {
+    const ms = this.parseExpiresInToMs(expiresIn);
+    return ms ? new Date(Date.now() + ms) : null;
+  }
+
+  private parseExpiresInToSeconds(expiresIn: string | number) {
+    const ms = this.parseExpiresInToMs(expiresIn);
+    return ms ? Math.floor(ms / 1000) : 0;
+  }
+
+  private parseExpiresInToMs(expiresIn: string | number) {
+    if (typeof expiresIn === 'number') {
+      return expiresIn * 1000;
+    }
+
+    const match = expiresIn.match(/^(\d+)(s|m|h|d)$/);
+    if (!match) {
+      return 0;
+    }
+
+    const value = Number(match[1]);
+    const unit = match[2];
+
+    switch (unit) {
+      case 's':
+        return value * 1000;
+      case 'm':
+        return value * 60 * 1000;
+      case 'h':
+        return value * 60 * 60 * 1000;
+      case 'd':
+        return value * 24 * 60 * 60 * 1000;
+      default:
+        return 0;
+    }
+  }
+}
