@@ -5353,12 +5353,27 @@ FINISHED = 'finished';
 REQUESTED = 'requested';
 CONFIRMED = 'confirmed';
 WAITLIST = 'waitlist';
+DRIVER_ON_THE_WAY = 'driver on the way';
+GROOMER_ON_THE_WAY = 'groomer on the way';
 ARRIVED = 'arrived';
 IN_PROGRESS = 'in progress';
 COMPLETED = 'completed';
 RESCHEDULED = 'rescheduled';
 CANCELLED = 'cancelled';
 ```
+
+**Status Descriptions:**
+
+- `REQUESTED` — Booking created and pending confirmation
+- `CONFIRMED` — Booking confirmed by admin/system
+- `WAITLIST` — Booking in waitlist due to capacity exceeded
+- `DRIVER_ON_THE_WAY` — Driver is on the way to pick up the pet (pick-up service)
+- `GROOMER_ON_THE_WAY` — Groomer is on the way to customer's location (home service)
+- `ARRIVED` — Customer/groomer/driver has arrived at location
+- `IN_PROGRESS` — Grooming service in progress
+- `COMPLETED` — Service completed successfully
+- `RESCHEDULED` — Booking rescheduled to different date/time
+- `CANCELLED` — Booking cancelled
 
 ### GroomingType
 

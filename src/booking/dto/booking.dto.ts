@@ -2,6 +2,8 @@ export enum BookingStatus {
   REQUESTED = 'requested',
   CONFIRMED = 'confirmed',
   WAITLIST = 'waitlist',
+  DRIVER_ON_THE_WAY = 'driver on the way',
+  GROOMER_ON_THE_WAY = 'groomer on the way',
   ARRIVED = 'arrived',
   IN_PROGRESS = 'in progress',
   COMPLETED = 'completed',

@@ -651,7 +651,7 @@ export class BookingService {
     user?: { username: string; role: string },
   ) {
     try {
-      // status yang diupdate dari API ini hanya untuk CONFIRMED, RESCHEDULED, CANCELLED
+      // status yang diupdate dari API ini hanya untuk CONFIRMED, RESCHEDULED, CANCELLED, GROOMER ON THE WAY, DRIVER ON THE WAY
 
       // validasi: jika status RESCHEDULED, date dan time_range harus ada
       if (status === BookingStatus.RESCHEDULED) {
