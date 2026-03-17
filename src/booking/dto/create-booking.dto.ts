@@ -113,8 +113,8 @@ export class CreateBookingDto {
   service_type_id: string;
 
   @IsMongoId({ message: 'customer must be a valid ID' })
-  @IsNotEmpty({ message: 'customer is required' })
-  customer_id: string;
+  @IsOptional()
+  customer_id?: string;
 
   @IsMongoId({ message: 'pet must be a valid ID' })
   @IsNotEmpty({ message: 'pet is required' })

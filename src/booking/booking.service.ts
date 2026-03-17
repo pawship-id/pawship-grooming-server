@@ -112,7 +112,7 @@ export class BookingService {
     session.startTransaction();
 
     try {
-      // Get pet snapshot
+      // 1. get pet snapshot
       const pet = await this.petService.getPetSnapshot(
         new ObjectId(body.pet_id),
       );
@@ -122,6 +122,7 @@ export class BookingService {
         _id: pet._id.toString(),
       };
 
+      // 2. get service snapshot
       body.service_snapshot = (await this.serviceService.getServiceSnapshot(
         new ObjectId(body.service_id),
         pet.pet_type._id ? new ObjectId(pet.pet_type._id) : undefined,
@@ -130,17 +131,17 @@ export class BookingService {
         body.service_addon_ids?.map((id) => new ObjectId(id)),
       )) as any;
 
-      // 1️⃣ Ambil Store dengan session
+      // 3. get Store with session
       const store = await this.storeModel
         .findById(body.store_id)
         .session(session);
 
       if (!store) throw new NotFoundException('Store not found');
 
-      // Handle pick-up service validation and zone matching
+      // 4. handle pick-up service validation and zone matching
       let pickUpZone = null;
       if (body.pick_up) {
-        // Get customer location from profile
+        // 4.1 get customer location from profile
         const customer = await this.userModel.findById(body.customer_id);
         if (
           !customer?.profile?.address?.latitude ||
@@ -151,7 +152,7 @@ export class BookingService {
           );
         }
 
-        // Check if store and service support pick-up
+        // 4.2 check if store and service support pick-up
         if (!store.is_pick_up_available) {
           throw new BadRequestException(
             'This store does not support pick-up service',
@@ -172,13 +173,13 @@ export class BookingService {
         );
       }
 
-      // Attach pick_up_zone to booking if determined
+      // 5. attach pick_up_zone to booking if determined
       if (pickUpZone) {
         (body as any).pick_up_zone = pickUpZone;
       }
 
-      // 2️⃣ Ambil Service dan Addons
-      // Handle service price calculation
+      // 6. get service and addons
+      // 6.1 handle service price calculation
       const service = await this.serviceService.getServiceForBooking(
         new ObjectId(body.service_id),
         pet.size._id ? new ObjectId(pet.size._id) : undefined,
@@ -186,7 +187,7 @@ export class BookingService {
         pet.hair._id ? new ObjectId(pet.hair._id) : undefined,
       );
 
-      // Handle add-ons jika ada
+      // 6.2 handle add-ons (if any)
       let addonsTotal = 0;
       let addonsTotalDuration = 0;
       if (body.service_addon_ids && body.service_addon_ids.length > 0) {
@@ -211,15 +212,18 @@ export class BookingService {
         );
       }
 
+      // 7. calculate service and addons duration
       const serviceDuration =
         (Number(service.duration) || 0) + addonsTotalDuration;
+
+      // 8. calculate service and addons price
       body.sub_total_service = service.price + addonsTotal;
       body.total_price = (body.sub_total_service || 0) + (body.travel_fee || 0);
 
-      // assign body.type base on service.service_location_type
+      // 9. assign body.type base on service.service_location_type
       body.type = service.service_location_type as GroomingType;
 
-      // Handle sessions — admin can provide sessions[], guest/customer gets []
+      // 10. handle sessions — admin can provide sessions[], guest/customer gets []
       if (
         user &&
         user.role !== 'customer' &&
@@ -241,7 +245,7 @@ export class BookingService {
         (body as any).sessions = [];
       }
 
-      // 3️⃣ Ambil Capacity (override atau default)
+      // 11. get capacity by store_id and date (override or default)
       const dailyOverride = await this.storeDailyCapacityModel
         .findOne({
           store_id: new ObjectId(body.store_id),
@@ -256,7 +260,7 @@ export class BookingService {
       const overbookingLimit = store.capacity.overbooking_limit_minutes;
       const maxAllowedCapacity = totalCapacity + overbookingLimit;
 
-      // 4️⃣ Atomic increment usage
+      // 12. atomic increment usage store by date
       const usage = await this.storeDailyUsageModel.findOneAndUpdate(
         {
           store_id: new ObjectId(body.store_id),
@@ -272,7 +276,7 @@ export class BookingService {
         },
       );
 
-      // 5️⃣ Validasi Overbooking Limit
+      // 13. validate overbooking Limit
       if (usage.used_minutes > maxAllowedCapacity) {
         // Rollback increment
         await this.storeDailyUsageModel.findOneAndUpdate(
@@ -306,14 +310,14 @@ export class BookingService {
         return waitlistBooking[0];
       }
 
-      // 6️⃣ Hitung overbooked_minutes
+      // 14. calculate overbooked_minutes
       let overbookedMinutes = 0;
 
       if (usage.used_minutes > totalCapacity) {
         overbookedMinutes = usage.used_minutes - totalCapacity;
       }
 
-      // 7️⃣ Create CONFIRMED Booking
+      // 15. create CONFIRMED booking
       const statusLog: BookingStatusLogDto = {
         status: BookingStatus.REQUESTED,
         timestamp: new Date(),

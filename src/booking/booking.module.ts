@@ -24,6 +24,7 @@ import {
 } from 'src/store-daily-capacity/entities/store-daily-capacity.entity';
 import { GuestService } from './guest.service';
 import { OptionModule } from 'src/option/option.module';
+import { UserService } from 'src/user/user.service';
 
 @Module({
   imports: [
@@ -44,7 +45,7 @@ import { OptionModule } from 'src/option/option.module';
     OptionModule,
   ],
   controllers: [BookingController, SessionController],
-  providers: [BookingService, SessionService, GuestService],
+  providers: [BookingService, SessionService, GuestService, UserService],
   exports: [BookingService],
 })
 export class BookingModule {}

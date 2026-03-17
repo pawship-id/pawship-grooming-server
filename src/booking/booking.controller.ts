@@ -27,6 +27,9 @@ import { CreateGuestPetDto } from './dto/create-guest-pet.dto';
 import { StoreService } from 'src/store/store.service';
 import { ServiceService } from 'src/service/service.service';
 import { OptionService } from 'src/option/option.service';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { UserService } from 'src/user/user.service';
 
 @Controller('bookings')
 @UseGuards(AuthGuard)
@@ -37,6 +40,9 @@ export class BookingController {
     private readonly storeService: StoreService,
     private readonly serviceService: ServiceService,
     private readonly optionService: OptionService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+    private readonly userService: UserService,
   ) {}
 
   // ─── Public (Guest) Endpoints ──────────────────────────────────────────────
@@ -118,13 +124,54 @@ export class BookingController {
     };
   }
 
-  // Create guest booking (public)
+  // Create booking only customer (public)
   @Public()
   @Post('public')
-  async createGuestBooking(@Body() body: CreateBookingDto) {
-    await this.bookingService.create(body);
+  async createGuestBooking(
+    @Body() body: CreateBookingDto,
+    @Req() request: any,
+  ) {
+    let user: { username: string; role: string } | undefined;
+
+    // try to extract and verify token if present
+    const authHeader = request.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7); // Remove 'Bearer ' prefix
+      try {
+        const payload = await this.jwtService.verifyAsync(token, {
+          secret: this.configService.get<string>('JWT_SECRET_KEY'),
+        });
+        user = payload;
+
+        body.customer_id = payload._id;
+      } catch (error) {
+        // token is invalid or expired, proceed as guest
+        console.warn('Invalid token provided, proceeding as guest');
+      }
+    }
+
+    // if the user is not logged in
+    if (!user) {
+      // and does not send customer_id
+      if (!body.customer_id) {
+        // throw bad request
+        throw new BadRequestException('customer_id is required');
+      }
+
+      // find one user by customer_id (because even if the user hasn't logged in, the user data has already been created)
+      let find_user = await this.userService.findById(
+        new ObjectId(body.customer_id),
+      );
+
+      if (find_user) {
+        user = find_user;
+      }
+    }
+
+    await this.bookingService.create(body, user);
+
     return {
-      message: 'Guest booking created successfully',
+      message: 'Booking created successfully',
     };
   }
 
@@ -133,6 +180,10 @@ export class BookingController {
   // create booking (admin)
   @Post()
   async create(@Body() body: CreateBookingDto, @Req() request: any) {
+    if (!body.customer_id) {
+      throw new BadRequestException('customer_id is required');
+    }
+
     await this.bookingService.create(body, request.user);
 
     return {
