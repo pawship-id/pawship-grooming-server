@@ -4268,10 +4268,10 @@ If user not found:
     "date": "2026-03-08T00:00:00.000Z",
     "time_range": "09.00 - 12.00",
     "type": "in store",
-    "booking_status": "requested",
+    "booking_status": "waitlist",
     "status_logs": [
       {
-        "status": "requested",
+        "status": "waitlist",
         "timestamp": "2026-03-08T04:24:19.117Z",
         "note": "Booking is waitlisted (capacity exceeded) - created by Jhon (admin)"
       }
@@ -4380,11 +4380,12 @@ If user not found:
 > `sub_total_service` dan `total_price` dihitung otomatis oleh server.
 > Field `sessions` hanya berlaku untuk booking yang dibuat oleh admin/ops. Jika booking dibuat oleh customer/guest, `sessions` default `[]` dan diabaikan meski dikirim.
 > When `pick_up` is `true`, the system validates that:
+>
 > 1. Customer has latitude/longitude in their profile address
 > 2. The store has `is_pick_up_available: true`
 > 3. The service has `is_pick_up_available: true`
 > 4. Customer location falls within one of the store's delivery zones
-> If validation fails, a `BadRequestException` is returned with a descriptive error message.
+>    If validation fails, a `BadRequestException` is returned with a descriptive error message.
 
 **Success Response (200):**
 
@@ -4410,8 +4411,8 @@ If user not found:
 - **Capacity Management:**
   - Validates against store's daily capacity (checks StoreDailyCapacity override or uses default)
   - Atomically increments StoreDailyUsage for the date
-  - If capacity exceeded beyond overbooking_limit_minutes, creates WAITLIST booking
-  - If within overbooking limit, creates CONFIRMED booking with overbooked note
+  - If capacity exceeded beyond overbooking_limit_minutes, creates booking with `WAITLIST` status
+  - If within overbooking limit, creates booking with `REQUESTED` status
   - Uses MongoDB transactions to ensure data consistency
 - All operations are atomic - if any step fails, entire transaction is rolled back
 
@@ -5317,9 +5318,10 @@ FINISHED = 'finished';
 ```typescript
 REQUESTED = 'requested';
 CONFIRMED = 'confirmed';
+WAITLIST = 'waitlist';
 ARRIVED = 'arrived';
-GROOMING_IN_PROGRESS = 'grooming in progress';
-GROOMING_FINISHED = 'grooming finished';
+IN_PROGRESS = 'in progress';
+COMPLETED = 'completed';
 RESCHEDULED = 'rescheduled';
 CANCELLED = 'cancelled';
 ```

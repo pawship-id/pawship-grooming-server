@@ -292,13 +292,13 @@ export class BookingService {
 
         // Create status log for WAITLIST
         const waitlistStatusLog: BookingStatusLogDto = {
-          status: BookingStatus.REQUESTED,
+          status: BookingStatus.WAITLIST,
           timestamp: new Date(),
           note: `Booking is waitlisted (capacity exceeded) - created by ${user?.username || 'unknown'} (${user?.role || 'unknown'})`,
         };
 
         body.status_logs = [waitlistStatusLog];
-        body.booking_status = BookingStatus.REQUESTED;
+        body.booking_status = BookingStatus.WAITLIST;
 
         const waitlistBooking = await this.bookingModel.create([body], {
           session,

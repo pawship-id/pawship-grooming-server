@@ -1,6 +1,7 @@
 export enum BookingStatus {
   REQUESTED = 'requested',
   CONFIRMED = 'confirmed',
+  WAITLIST = 'waitlist',
   ARRIVED = 'arrived',
   IN_PROGRESS = 'in progress',
   COMPLETED = 'completed',
