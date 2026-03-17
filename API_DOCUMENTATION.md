@@ -4047,18 +4047,30 @@ If user not found:
 
 ```json
 {
-  "message": "Guest booking created successfully"
+  "message": "Booking created successfully"
 }
 ```
+
+**Booking Status After Creation:**
+
+The actual booking status depends on capacity availability:
+
+- **Status: `REQUESTED`** — Booking accepted and scheduled
+  - Booking fits within store's daily capacity + overbooking limit
+
+- **Status: `WAITLIST`** — Booking accepted but placed in waitlist
+  - Store has exceeded its overbooking limit for the requested date/time
+  - Booking is created but flagged for manual review
 
 **Business Logic:**
 
 - Same capacity validation as authenticated booking
-- If capacity exceeded beyond overbooking limit, booking is created as WAITLIST
+- If capacity exceeded beyond overbooking limit, booking is created with `WAITLIST` status
+- If within overbooking limit, booking is created with `REQUESTED` status
 - System automatically calculates pricing based on pet size
 - Creates `pet_snapshot` automatically from pet data
 - Creates `service_snapshot` automatically — stores service code, name, description, service type, and the best-matched price based on the pet's pet type, size, and hair
-- Initial `booking_status` is `requested`
+- Creates initial status log entry with appropriate status and notes
 
 ---
 
@@ -4389,31 +4401,53 @@ If user not found:
 
 **Success Response (200):**
 
+Booking creation is asynchronous - the endpoint returns immediately with status:
+
 ```json
 {
   "message": "Create booking successfully"
 }
 ```
 
+**Booking Status After Creation:**
+
+The actual booking status depends on capacity availability:
+
+- **Status: `REQUESTED`** — Booking accepted and scheduled
+  - Booking fits within store's daily capacity + overbooking limit
+  - Can include a note if overbooking occurred: "overbooked by X minutes"
+
+- **Status: `WAITLIST`** — Booking accepted but placed in waitlist
+  - Store has exceeded its overbooking limit for the requested date/time
+  - Booking is created but flagged for manual review
+  - Status log note: "Booking is waitlisted (capacity exceeded)"
+  - Customer should be notified and may need to reschedule
+
+**Note:** To check the actual booking status created, query the booking details endpoint `GET /bookings/:id`
+
 **Business Logic:**
 
 - System automatically creates `pet_snapshot` from pet data
 - System automatically creates `service_snapshot` — stores service code, name, description, service type, and the exact-matched price entry based on the pet's pet type, size, and hair (all three must match)
 - System calculates pricing based on service and pet size (including addons)
-- Initial `booking_status` is "requested"
 - Creates initial status log entry
+- **Capacity Management & Status Assignment:**
+  - Validates against store's daily capacity (checks StoreDailyCapacity override or uses default)
+  - Atomically increments StoreDailyUsage for the date
+  - **If capacity exceeded beyond overbooking_limit_minutes:**
+    - Creates booking with `WAITLIST` status (capacity has been exceeded beyond acceptable limit)
+    - Rolls back the capacity usage increment
+    - Status log note: "Booking is waitlisted (capacity exceeded)"
+  - **If within overbooking limit:**
+    - Creates booking with `REQUESTED` status
+    - If usage > total capacity (but within overbooking limit): status log includes "overbooked by X minutes" note
+  - Uses MongoDB transactions to ensure data consistency
 - **Pick-up Service:**
   - When `pick_up: true`, system validates customer location and store/service capabilities
   - Calculates distance from customer's home location to store using Haversine formula
   - Matches customer location against store's configured delivery zones
   - Stores matched zone info in `pick_up_zone` field with area name, radius, travel time, and travel fee
   - If customer location is outside all zones, booking fails with error: "Customer location is outside all delivery zones"
-- **Capacity Management:**
-  - Validates against store's daily capacity (checks StoreDailyCapacity override or uses default)
-  - Atomically increments StoreDailyUsage for the date
-  - If capacity exceeded beyond overbooking_limit_minutes, creates booking with `WAITLIST` status
-  - If within overbooking limit, creates booking with `REQUESTED` status
-  - Uses MongoDB transactions to ensure data consistency
 - All operations are atomic - if any step fails, entire transaction is rolled back
 
 **Error Responses:**

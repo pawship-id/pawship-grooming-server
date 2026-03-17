@@ -319,12 +319,19 @@ export class BookingService {
 
       // 15. create CONFIRMED booking
       const statusLog: BookingStatusLogDto = {
-        status: BookingStatus.REQUESTED,
+        status:
+          user?.role === 'admin'
+            ? BookingStatus.CONFIRMED
+            : BookingStatus.REQUESTED,
         timestamp: new Date(),
         note: `Booking is created by ${user?.username || 'unknown'} (${user?.role || 'unknown'})${overbookedMinutes > 0 ? ` - overbooked by ${overbookedMinutes} minutes` : ''}`,
       };
 
       body.status_logs = [statusLog];
+      body.booking_status =
+        user?.role === 'admin'
+          ? BookingStatus.CONFIRMED
+          : BookingStatus.REQUESTED;
 
       const booking = await this.bookingModel.create([body], { session });
 
