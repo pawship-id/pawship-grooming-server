@@ -1,38 +1,11 @@
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
-  IsEnum,
   IsMongoId,
   IsNotEmpty,
   IsOptional,
   ValidateNested,
 } from 'class-validator';
-import { MembershipStatus } from './pet.dto';
-
-export class MembershipItemDto {
-  @IsMongoId({ message: 'membership must be a valid ID' })
-  @IsNotEmpty({ message: 'membership is required' })
-  membership_id: string;
-
-  @IsNotEmpty({ message: 'start date is required' })
-  start_date: Date;
-
-  @IsNotEmpty({ message: 'end date is required' })
-  end_date: Date;
-
-  @IsEnum(MembershipStatus, {
-    each: true,
-    message: 'status must be in the options',
-  })
-  @IsNotEmpty({ message: 'status is required' })
-  status: string;
-
-  @IsOptional()
-  usage_count: number;
-
-  @IsOptional()
-  max_usage: number;
-}
 
 export class ProfileImageDto {
   @IsOptional() secure_url?: string;
@@ -92,11 +65,6 @@ export class CreatePetDto {
   @IsMongoId({ message: 'pet owner must be a valid ID' })
   @IsNotEmpty({ message: 'pet owner is required' })
   customer_id: string;
-
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => MembershipItemDto)
-  memberships?: MembershipItemDto[];
 
   @IsOptional()
   @IsBoolean()

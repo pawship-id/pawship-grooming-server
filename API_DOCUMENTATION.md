@@ -3097,16 +3097,6 @@ Key: folder | Type: text
       "_id": "507f1f77bcf86cd799439017",
       "username": "john_doe"
     },
-    "memberships": [
-      {
-        "membership_id": "507f1f77bcf86cd799439018",
-        "start_date": "2026-01-01T00:00:00.000Z",
-        "end_date": "2026-12-31T00:00:00.000Z",
-        "status": "active",
-        "usage_count": 2,
-        "max_usage": 12
-      }
-    ],
     "is_active": true,
     "createdAt": "2026-01-10T10:30:00.000Z",
     "updatedAt": "2026-02-01T10:30:00.000Z"
@@ -3130,6 +3120,7 @@ Key: folder | Type: text
 
 - Returns only non-deleted pets (`isDeleted: false`)
 - All relationships are populated with their respective names
+- Pet memberships are now managed through the dedicated **PetMemberships API** (`GET /pet-memberships/:pet_id/active` to view active memberships for a pet)
 
 ---
 
@@ -3159,16 +3150,6 @@ Key: folder | Type: text
   "last_grooming_at": "Date (optional)",
   "last_visit_at": "Date (optional)",
   "customer_id": "MongoDB ObjectId (required)",
-  "memberships": [
-    {
-      "membership_id": "MongoDB ObjectId (required)",
-      "start_date": "Date (required)",
-      "end_date": "Date (required)",
-      "status": "string (required)",
-      "usage_count": "number (optional)",
-      "max_usage": "number (optional)"
-    }
-  ] (optional array),
   "is_active": "boolean (optional)"
 }
 ```
@@ -3180,6 +3161,10 @@ Key: folder | Type: text
   "message": "Create pet successfully"
 }
 ```
+
+**Notes:**
+
+- Pet memberships are now managed through the dedicated **PetMemberships API** (`POST /pet-memberships` to assign memberships to a pet)
 
 ---
 
