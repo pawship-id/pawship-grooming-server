@@ -3926,7 +3926,27 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
       }
     ],
     "createdAt": "2026-03-19T10:30:00.000Z",
-    "updatedAt": "2026-03-19T10:30:00.000Z"
+    "updatedAt": "2026-03-19T10:30:00.000Z",
+    "pet": {
+      "_id": "699a6285a99f14a4be787c77",
+      "name": "Pet 1",
+      "tags": ["Cat", "Grooming"],
+      "pet_type": {
+        "_id": "698bf0d362f5760ac021c595",
+        "name": "Cat"
+      },
+      "owner": {
+        "_id": "699a5d240d322c3d4e81dfbc",
+        "username": "Cantika"
+      }
+    },
+    "membership": {
+      "_id": "69bb920087f62205055d6ae9",
+      "name": "Unlimited Grooming Bronze (6 Month)",
+      "description": "Booking jadwal prioritas, Biaya sudah pasti, Groomer terpercaya, Ter-dia in-store dan dari rumah",
+      "duration_months": 6,
+      "price": 1500000
+    }
   }
 }
 ```

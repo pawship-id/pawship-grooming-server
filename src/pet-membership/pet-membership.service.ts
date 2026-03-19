@@ -165,12 +165,28 @@ export class PetMembershipService {
     }
 
     const now = new Date();
-    const petMembership = await this.petMembershipModel.findOne({
-      pet_id: new Types.ObjectId(petId),
-      start_date: { $lte: now },
-      end_date: { $gte: now },
-      isDeleted: false,
-    });
+    const petMembership = await this.petMembershipModel
+      .findOne({
+        pet_id: new Types.ObjectId(petId),
+        start_date: { $lte: now },
+        end_date: { $gte: now },
+        isDeleted: false,
+      })
+      .populate({
+        path: 'pet',
+        select: 'name tags pet_type_id customer_id',
+        populate: [
+          {
+            path: 'pet_type',
+            select: 'name',
+          },
+          {
+            path: 'owner',
+            select: 'username',
+          },
+        ],
+      })
+      .populate('membership', 'name description duration_months price');
 
     return petMembership || null;
   }
