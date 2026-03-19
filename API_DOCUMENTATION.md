@@ -3575,6 +3575,14 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
           "applies_to": "service",
           "period": "unlimited",
           "service_id": "69a45774ecf65d9a74d53fe6",
+          "service": {
+            "_id": "69a45774ecf65d9a74d53fe6",
+            "code": "BATH_PREMIUM",
+            "name": "Premium Bath Service",
+            "price": 150000,
+            "description": "Premium bathing with premium shampoo",
+            "service_location_type": "store"
+          },
           "limit": 1,
           "used": 0,
           "period_reset_date": "2026-03-19T07:35:08.749Z",
@@ -3586,6 +3594,14 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
           "applies_to": "service",
           "period": "unlimited",
           "service_id": "69ad38fa00e9af98d2941074",
+          "service": {
+            "_id": "69ad38fa00e9af98d2941074",
+            "code": "HOTEL_STANDARD",
+            "name": "Standard Hotel Service",
+            "price": 200000,
+            "description": "Standard overnight hotel stay",
+            "service_location_type": "store"
+          },
           "limit": -1,
           "used": 0,
           "period_reset_date": "2026-03-19T07:35:08.749Z",
@@ -3596,6 +3612,8 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
           "type": "discount",
           "applies_to": "addon",
           "period": "unlimited",
+          "service_id": null,
+          "service": null,
           "value": 10,
           "limit": -1,
           "used": 0,
@@ -3607,6 +3625,8 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
           "type": "quota",
           "applies_to": "service",
           "period": "unlimited",
+          "service_id": null,
+          "service": null,
           "limit": 1,
           "used": 0,
           "period_reset_date": "2026-03-19T07:35:08.749Z",
@@ -3617,6 +3637,8 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
           "type": "discount",
           "applies_to": "service",
           "period": "unlimited",
+          "service_id": null,
+          "service": null,
           "value": 20,
           "limit": -1,
           "used": 0,
@@ -3656,6 +3678,17 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 }
 ```
 
+**Notes:**
+
+- `benefits_snapshot` is a denormalized copy of membership benefits with usage tracking
+- Each benefit in the array is automatically populated with a full `service` object if `service_id` is set:
+  - `service` object includes: `_id`, `code`, `name`, `price`, `description`, `service_location_type`
+  - `service: null` if benefit doesn't reference a specific service (e.g., general discounts on addons/orders)
+- `used`: Current usage count for this period
+- `period_reset_date`: When the usage counter last reset (null for UNLIMITED period)
+- `pet` includes nested `owner` (customer) and `pet_type` details
+- `membership` is an array containing the applicable membership plan(s)
+
 ---
 
 ### 2. Get Pet Membership By ID
@@ -3684,6 +3717,14 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
         "applies_to": "service",
         "period": "unlimited",
         "service_id": "69a45774ecf65d9a74d53fe6",
+        "service": {
+          "_id": "69a45774ecf65d9a74d53fe6",
+          "code": "SVC-0001",
+          "name": "Basic Grooming",
+          "price": 89000,
+          "description": "Perawatan dasar yang bikin pawfriends bersih, wangi, dan nyaman lagi",
+          "service_location_type": "in store"
+        },
         "limit": 1,
         "used": 0,
         "period_reset_date": "2026-03-19T07:35:08.749Z",
@@ -3695,6 +3736,14 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
         "applies_to": "service",
         "period": "unlimited",
         "service_id": "69ad38fa00e9af98d2941074",
+        "service": {
+          "_id": "69ad38fa00e9af98d2941074",
+          "code": "SVC-0005",
+          "name": "Premium Detailing",
+          "price": 125000,
+          "description": "Premium grooming dengan extra detailing services",
+          "service_location_type": "in home"
+        },
         "limit": -1,
         "used": 0,
         "period_reset_date": "2026-03-19T07:35:08.749Z",
@@ -3706,6 +3755,7 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
         "applies_to": "addon",
         "period": "unlimited",
         "value": 10,
+        "service": null,
         "limit": -1,
         "used": 0,
         "period_reset_date": "2026-03-19T07:35:08.749Z",
@@ -3716,6 +3766,8 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
         "type": "quota",
         "applies_to": "service",
         "period": "unlimited",
+        "service_id": null,
+        "service": null,
         "limit": 1,
         "used": 0,
         "period_reset_date": "2026-03-19T07:35:08.749Z",
@@ -3727,6 +3779,7 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
         "applies_to": "service",
         "period": "unlimited",
         "value": 20,
+        "service": null,
         "limit": -1,
         "used": 0,
         "period_reset_date": "2026-03-19T07:35:08.749Z",
@@ -3783,6 +3836,15 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
   "error": "Not Found"
 }
 ```
+
+**Notes:**
+
+- `benefits_snapshot` is a denormalized copy of membership benefits with usage tracking
+- Each benefit in the array is automatically populated with a full `service` object if `service_id` is set:
+  - `service` object includes: `_id`, `code`, `name`, `price`, `description`, `service_location_type`
+  - `service: null` if benefit doesn't reference a specific service (e.g., general discounts on addons/orders)
+- `used`: Current usage count for this period
+- `period_reset_date`: When the usage counter last reset (null for UNLIMITED period)
 
 ---
 
@@ -3920,6 +3982,7 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
         "period": "monthly",
         "value": 10,
         "service_id": null,
+        "service": null,
         "limit": 5,
         "used": 2,
         "period_reset_date": "2026-04-01T00:00:00.000Z"
@@ -4008,6 +4071,7 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
         "period": "monthly",
         "value": 10,
         "service_id": null,
+        "service": null,
         "limit": 5,
         "used": 2,
         "remaining": 3,
@@ -4022,6 +4086,14 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
         "period": "unlimited",
         "value": 150000,
         "service_id": "69a45774ecf65d9a74d53fe6",
+        "service": {
+          "_id": "69a45774ecf65d9a74d53fe6",
+          "code": "BATH_PREMIUM",
+          "name": "Premium Bath Service",
+          "price": 150000,
+          "description": "Premium bathing with premium shampoo",
+          "service_location_type": "store"
+        },
         "limit": 12,
         "used": 1,
         "remaining": 11,
@@ -4053,6 +4125,7 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 - `period_reset_date`: when the period counter was last reset
 - `next_reset_date`: when the counter will reset next (null for unlimited)
 - For benefits with period-based resets (weekly/monthly), the `used` counter is automatically reset to 0 when querying if the reset date has passed
+- `service`: Populated service object for benefits with `service_id`; `null` for benefits without service reference. Includes: `_id`, `code`, `name`, `price`, `description`, `service_location_type`
 
 ---
 

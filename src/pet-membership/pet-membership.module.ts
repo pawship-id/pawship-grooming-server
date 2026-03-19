@@ -11,12 +11,14 @@ import {
 } from '../membership/entities/membership.entity';
 import { AuthModule } from 'src/auth/auth.module';
 import { PetMembershipController } from './pet-membership.controller';
+import { Service, ServiceSchema } from 'src/service/entities/service.entity';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: PetMembership.name, schema: PetMembershipSchema },
       { name: Membership.name, schema: MembershipSchema },
+      { name: Service.name, schema: ServiceSchema },
     ]),
     AuthModule,
   ],

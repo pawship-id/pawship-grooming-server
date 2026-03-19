@@ -14,6 +14,7 @@ import {
   MembershipDocument,
   BenefitPeriod,
 } from '../membership/entities/membership.entity';
+import { Service, ServiceDocument } from '../service/entities/service.entity';
 import { CreatePetMembershipDto } from './dto/create-pet-membership.dto';
 import { UpdatePetMembershipDto } from './dto/update-pet-membership.dto';
 import { GetPetMembershipQueryDto } from './dto/get-pet-membership-query.dto';
@@ -25,6 +26,8 @@ export class PetMembershipService {
     private petMembershipModel: Model<PetMembershipDocument>,
     @InjectModel(Membership.name)
     private membershipModel: Model<MembershipDocument>,
+    @InjectModel(Service.name)
+    private serviceModel: Model<ServiceDocument>,
   ) {}
 
   async create(
@@ -77,7 +80,7 @@ export class PetMembershipService {
     return petMembership.save();
   }
 
-  async findAll(query: GetPetMembershipQueryDto): Promise<PetMembership[]> {
+  async findAll(query: GetPetMembershipQueryDto): Promise<any[]> {
     const conditions: any = { isDeleted: false };
 
     if (query.pet_id) {
@@ -123,10 +126,11 @@ export class PetMembershipService {
       }
     }
 
-    return petMemberships;
+    // Populate services in benefits_snapshot
+    return this.populateBenefitsWithServices(petMemberships);
   }
 
-  async findById(id: string): Promise<PetMembership> {
+  async findById(id: string): Promise<any> {
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException('invalid pet membership ID');
     }
@@ -156,10 +160,11 @@ export class PetMembershipService {
       throw new NotFoundException('pet membership not found');
     }
 
-    return petMembership;
+    // Populate services in benefits_snapshot
+    return this.populateBenefitsWithServices(petMembership);
   }
 
-  async getActiveMembership(petId: string): Promise<PetMembership | null> {
+  async getActiveMembership(petId: string): Promise<any | null> {
     if (!Types.ObjectId.isValid(petId)) {
       throw new BadRequestException('invalid pet ID');
     }
@@ -186,9 +191,15 @@ export class PetMembershipService {
           },
         ],
       })
-      .populate('membership', 'name description duration_months price');
+      .populate('membership', 'name description duration_months price')
+      .exec();
 
-    return petMembership || null;
+    if (!petMembership) {
+      return null;
+    }
+
+    // Populate services in benefits_snapshot
+    return this.populateBenefitsWithServices(petMembership);
   }
 
   async getAvailableBenefits(petId: string): Promise<any> {
@@ -202,7 +213,7 @@ export class PetMembershipService {
     }
 
     const now = new Date();
-    const benefits = petMembership.benefits_snapshot.map((b) => {
+    const benefits = petMembership.benefits_snapshot.map((b: any) => {
       // Cek apakah period sudah reset
       const hasResetSincePeriod = this.shouldResetPeriod(
         b.period_reset_date,
@@ -219,6 +230,7 @@ export class PetMembershipService {
         period: b.period,
         value: b.value,
         service_id: b.service_id?.toString(),
+        service: b.service || null,
         limit: b.limit,
         used: currentUsed,
         remaining,
@@ -233,7 +245,7 @@ export class PetMembershipService {
 
     const petMembershipAny = petMembership as any;
     const petMembershipId =
-      petMembershipAny.toObject()._id?.toString() || petMembershipAny.id;
+      petMembershipAny._id?.toString() || petMembershipAny.id;
     return {
       has_active_membership: true,
       pet_membership_id: petMembershipId,
@@ -265,7 +277,7 @@ export class PetMembershipService {
     // For now, return structure
     const petMembershipAny = petMembership as any;
     const petMembershipId =
-      petMembershipAny.toObject()._id?.toString() || petMembershipAny.id;
+      petMembershipAny._id?.toString() || petMembershipAny.id;
     return {
       has_active_membership: true,
       pet_membership_id: petMembershipId,
@@ -411,6 +423,65 @@ export class PetMembershipService {
     }
 
     return now >= lastResetDate;
+  }
+
+  /**
+   * Populate service details in benefits_snapshot array
+   */
+  private async populateBenefitsWithServices(
+    petMemberships: PetMembership | PetMembership[],
+  ): Promise<any | any[]> {
+    const isArray = Array.isArray(petMemberships);
+    const docs = isArray ? petMemberships : [petMemberships];
+
+    // Convert all Mongoose documents to plain objects
+    const plainDocs = docs.map((doc: any) =>
+      typeof doc.toObject === 'function' ? doc.toObject() : { ...doc },
+    );
+
+    // Extract unique service_ids
+    const serviceIds = new Set<string>();
+    plainDocs.forEach((doc) => {
+      if (doc.benefits_snapshot) {
+        doc.benefits_snapshot.forEach((benefit: any) => {
+          if (benefit.service_id) {
+            serviceIds.add(benefit.service_id.toString());
+          }
+        });
+      }
+    });
+
+    // Fetch all services if there are any service_ids
+    const serviceMap = new Map<string, any>();
+    if (serviceIds.size > 0) {
+      const services = await this.serviceModel
+        .find({
+          _id: {
+            $in: Array.from(serviceIds).map((id) => new Types.ObjectId(id)),
+          },
+        })
+        .select('_id code name price description service_location_type')
+        .lean()
+        .exec();
+
+      services.forEach((service: any) => {
+        serviceMap.set(service._id.toString(), service);
+      });
+    }
+
+    // Add service object to each benefit in plain docs
+    plainDocs.forEach((doc) => {
+      if (doc.benefits_snapshot) {
+        doc.benefits_snapshot = doc.benefits_snapshot.map((benefit: any) => ({
+          ...benefit,
+          service: benefit.service_id
+            ? (serviceMap.get(benefit.service_id.toString()) ?? null)
+            : null,
+        }));
+      }
+    });
+
+    return isArray ? plainDocs : plainDocs[0];
   }
 
   private canApplyBenefit(benefit: any): boolean {
