@@ -3674,38 +3674,92 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 {
   "message": "pet membership retrieved successfully",
   "data": {
-    "_id": "507f1f77bcf86cd799439030",
-    "pet_id": "507f1f77bcf86cd799439020",
-    "membership_plan_id": "507f1f77bcf86cd799439011",
-    "start_date": "2026-03-19T00:00:00.000Z",
-    "end_date": "2027-03-19T00:00:00.000Z",
-    "is_active": true,
+    "_id": "69bba72cb163fca04487f97a",
+    "start_date": "2026-03-19T07:35:08.749Z",
+    "end_date": "2026-09-19T07:35:08.749Z",
     "benefits_snapshot": [
       {
-        "_id": "607f1f77bcf86cd799439021",
-        "type": "discount",
-        "applies_to": "service",
-        "period": "monthly",
-        "value": 10,
-        "service_id": null,
-        "limit": 5,
-        "used": 2,
-        "period_reset_date": "2026-04-01T00:00:00.000Z"
-      },
-      {
-        "_id": "607f1f77bcf86cd799439022",
-        "type": "free_service",
+        "_id": "69bb9d015c840eeb3bb38c80",
+        "type": "quota",
         "applies_to": "service",
         "period": "unlimited",
-        "value": 150000,
         "service_id": "69a45774ecf65d9a74d53fe6",
-        "limit": 12,
-        "used": 1,
-        "period_reset_date": null
+        "limit": 1,
+        "used": 0,
+        "period_reset_date": "2026-03-19T07:35:08.749Z",
+        "id": "69bb9d015c840eeb3bb38c80"
+      },
+      {
+        "_id": "69bb9d015c840eeb3bb38c81",
+        "type": "quota",
+        "applies_to": "service",
+        "period": "unlimited",
+        "service_id": "69ad38fa00e9af98d2941074",
+        "limit": -1,
+        "used": 0,
+        "period_reset_date": "2026-03-19T07:35:08.749Z",
+        "id": "69bb9d015c840eeb3bb38c81"
+      },
+      {
+        "_id": "69bb9d015c840eeb3bb38c82",
+        "type": "discount",
+        "applies_to": "addon",
+        "period": "unlimited",
+        "value": 10,
+        "limit": -1,
+        "used": 0,
+        "period_reset_date": "2026-03-19T07:35:08.749Z",
+        "id": "69bb9d015c840eeb3bb38c82"
+      },
+      {
+        "_id": "69bb9d015c840eeb3bb38c83",
+        "type": "quota",
+        "applies_to": "service",
+        "period": "unlimited",
+        "limit": 1,
+        "used": 0,
+        "period_reset_date": "2026-03-19T07:35:08.749Z",
+        "id": "69bb9d015c840eeb3bb38c83"
+      },
+      {
+        "_id": "69bb9d015c840eeb3bb38c84",
+        "type": "discount",
+        "applies_to": "service",
+        "period": "unlimited",
+        "value": 20,
+        "limit": -1,
+        "used": 0,
+        "period_reset_date": "2026-03-19T07:35:08.749Z",
+        "id": "69bb9d015c840eeb3bb38c84"
       }
     ],
-    "createdAt": "2026-03-19T10:30:00.000Z",
-    "updatedAt": "2026-03-19T10:30:00.000Z"
+    "isDeleted": false,
+    "deletedAt": null,
+    "createdAt": "2026-03-19T07:35:08.758Z",
+    "updatedAt": "2026-03-19T07:35:08.758Z",
+    "is_active": true,
+    "pet": {
+      "_id": "699a6285a99f14a4be787c77",
+      "name": "Pet 1",
+      "tags": ["Cat", "Grooming"],
+      "pet_type": {
+        "_id": "698bf0d362f5760ac021c595",
+        "name": "Cat"
+      },
+      "owner": {
+        "_id": "699a5d240d322c3d4e81dfbc",
+        "username": "Cantika"
+      }
+    },
+    "membership": [
+      {
+        "_id": "69bb920087f62205055d6ae9",
+        "name": "Unlimited Grooming Bronze (6 Month)",
+        "description": "Booking jadwal prioritas, Biaya sudah pasti, Groomer terpercaya, Ter-dia in-store dan dari rumah",
+        "duration_months": 6,
+        "price": 1500000
+      }
+    ]
   }
 }
 ```

@@ -131,10 +131,26 @@ export class PetMembershipService {
       throw new BadRequestException('invalid pet membership ID');
     }
 
-    const petMembership = await this.petMembershipModel.findOne({
-      _id: new Types.ObjectId(id),
-      isDeleted: false,
-    });
+    const petMembership = await this.petMembershipModel
+      .findOne({
+        _id: new Types.ObjectId(id),
+        isDeleted: false,
+      })
+      .populate({
+        path: 'pet',
+        select: 'name tags pet_type_id customer_id',
+        populate: [
+          {
+            path: 'pet_type',
+            select: 'name',
+          },
+          {
+            path: 'owner',
+            select: 'username',
+          },
+        ],
+      })
+      .populate('membership', 'name description duration_months price');
 
     if (!petMembership) {
       throw new NotFoundException('pet membership not found');
