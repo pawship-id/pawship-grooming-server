@@ -3359,13 +3359,13 @@ Memberships provide benefits to pets, including discounts, free services, and qu
   "duration_months": "number (required, min: 1)",
   "price": "number (required, min: 0)",
   "note": "string (optional)",
-  "pet_type_ids": ["MongoDB ObjectId (optional)"],
+  "pet_type_ids": ["MongoDB ObjectId (required, min. 1)"],
   "benefits": [
     {
       "type": "discount | free_service | quota (required)",
       "applies_to": "service | addon | order (required)",
       "period": "weekly | monthly | unlimited (optional, default: unlimited)",
-      "value": "number (optional, required for discount/free_service)",
+      "value": "number (optional, required for discount)",
       "service_id": "MongoDB ObjectId (optional, for service-specific benefits)",
       "limit": "number (optional, default: -1 for unlimited)"
     }
@@ -3751,15 +3751,13 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
         "username": "Cantika"
       }
     },
-    "membership": [
-      {
-        "_id": "69bb920087f62205055d6ae9",
-        "name": "Unlimited Grooming Bronze (6 Month)",
-        "description": "Booking jadwal prioritas, Biaya sudah pasti, Groomer terpercaya, Ter-dia in-store dan dari rumah",
-        "duration_months": 6,
-        "price": 1500000
-      }
-    ]
+    "membership": {
+      "_id": "69bb920087f62205055d6ae9",
+      "name": "Unlimited Grooming Bronze (6 Month)",
+      "description": "Booking jadwal prioritas, Biaya sudah pasti, Groomer terpercaya, Ter-dia in-store dan dari rumah",
+      "duration_months": 6,
+      "price": 1500000
+    }
   }
 }
 ```

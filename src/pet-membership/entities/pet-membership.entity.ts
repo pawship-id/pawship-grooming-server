@@ -116,4 +116,5 @@ PetMembershipSchema.virtual('membership', {
   ref: 'Membership',
   localField: 'membership_plan_id',
   foreignField: '_id',
+  justOne: true,
 });
