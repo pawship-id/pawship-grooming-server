@@ -27,6 +27,27 @@ export class ZoneSnapshot {
   travel_fee?: number;
 }
 
+@Schema({ _id: false })
+export class AppliedBenefit {
+  @Prop({ type: Types.ObjectId, required: true })
+  benefit_id: Types.ObjectId;
+
+  @Prop({ required: true })
+  benefit_type: string; // 'discount', 'free_service', 'quota'
+
+  @Prop({ required: true })
+  benefit_period: string; // 'weekly', 'monthly', 'unlimited'
+
+  @Prop()
+  benefit_value?: number; // percentage, amount, or quantity
+
+  @Prop({ required: true })
+  amount_deducted: number; // amount berkurang dari total harga
+
+  @Prop({ required: true })
+  applied_at: Date;
+}
+
 @Schema({
   toJSON: {
     virtuals: true,
@@ -336,7 +357,13 @@ export class Booking {
   sub_total_service: number;
 
   @Prop({ required: true })
-  total_price: number;
+  original_total_price: number; // harga sebelum benefit
+
+  @Prop({ required: true })
+  final_total_price: number; // harga setelah benefit diterapkan
+
+  @Prop({ default: null })
+  total_price: number; // deprecated, gunakan final_total_price
 
   @Prop({
     type: [{ type: Types.ObjectId, ref: 'Promo' }],
@@ -367,6 +394,13 @@ export class Booking {
 
   @Prop({ type: ZoneSnapshot })
   pick_up_zone?: ZoneSnapshot;
+
+  /* ===== Membership Benefits ===== */
+  @Prop({ type: [Types.ObjectId], default: [] })
+  selected_benefit_ids: Types.ObjectId[];
+
+  @Prop({ type: [AppliedBenefit], default: [] })
+  applied_benefits: AppliedBenefit[];
 
   /* ===== Soft Delete ===== */
   @Prop({ default: false })

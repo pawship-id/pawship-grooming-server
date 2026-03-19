@@ -165,6 +165,12 @@ export class CreateBookingDto {
   total_price: number;
 
   @IsOptional()
+  original_total_price?: number;
+
+  @IsOptional()
+  final_total_price?: number;
+
+  @IsOptional()
   @IsArray()
   @IsMongoId({ each: true, message: 'Each discount on must be a valid ID' })
   discount_ids?: string[];
@@ -196,4 +202,12 @@ export class CreateBookingDto {
   @IsOptional()
   @IsBoolean({ message: 'pick_up must be a boolean' })
   pick_up?: boolean = false;
+
+  @IsOptional()
+  @IsArray({ message: 'selected_benefit_ids must be an array' })
+  @IsMongoId({
+    each: true,
+    message: 'each benefit ID must be a valid MongoDB ID',
+  })
+  selected_benefit_ids?: string[];
 }

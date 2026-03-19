@@ -16,6 +16,7 @@ import {
 import { BookingService } from './booking.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
+import { BookingPreviewRequestDto } from './dto/booking-preview.dto';
 import { ObjectId } from 'mongodb';
 import { BookingStatus } from './dto/booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
@@ -27,6 +28,7 @@ import { CreateGuestPetDto } from './dto/create-guest-pet.dto';
 import { StoreService } from 'src/store/store.service';
 import { ServiceService } from 'src/service/service.service';
 import { OptionService } from 'src/option/option.service';
+import { PetMembershipService } from 'src/pet-membership/pet-membership.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UserService } from 'src/user/user.service';
@@ -40,6 +42,7 @@ export class BookingController {
     private readonly storeService: StoreService,
     private readonly serviceService: ServiceService,
     private readonly optionService: OptionService,
+    private readonly petMembershipService: PetMembershipService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly userService: UserService,
@@ -176,6 +179,17 @@ export class BookingController {
   }
 
   // ─── Admin Endpoints ────────────────────────────────────────────────────────
+
+  // booking preview with benefit calculation
+  @Post('preview')
+  async preview(@Body() dto: BookingPreviewRequestDto, @Req() request: any) {
+    const preview = await this.bookingService.getBookingPreview(dto);
+
+    return {
+      message: 'Booking preview calculated successfully',
+      ...preview,
+    };
+  }
 
   // create booking (admin)
   @Post()

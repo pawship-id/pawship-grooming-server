@@ -25,6 +25,8 @@ import {
 import { GuestService } from './guest.service';
 import { OptionModule } from 'src/option/option.module';
 import { UserService } from 'src/user/user.service';
+import { PetMembershipModule } from 'src/pet-membership/pet-membership.module';
+import { BenefitUsageModule } from 'src/benefit-usage/benefit-usage.module';
 
 @Module({
   imports: [
@@ -43,6 +45,8 @@ import { UserService } from 'src/user/user.service';
     CloudinaryModule,
     AuthModule,
     OptionModule,
+    PetMembershipModule,
+    BenefitUsageModule,
   ],
   controllers: [BookingController, SessionController],
   providers: [BookingService, SessionService, GuestService, UserService],

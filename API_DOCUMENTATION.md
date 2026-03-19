@@ -16,9 +16,11 @@ Base URL: `http://localhost:3000`
 8. [Upload File](#upload-file)
 9. [Pets](#pets)
 10. [Memberships](#memberships)
-11. [Bookings](#bookings) _(includes public/guest endpoints)_
-12. [Grooming Sessions](#grooming-sessions)
-13. [Promotions](#promotions)
+11. [Pet Memberships](#pet-memberships)
+12. [Benefit Usages](#benefit-usages)
+13. [Bookings](#bookings) _(includes public/guest endpoints)_
+14. [Grooming Sessions](#grooming-sessions)
+15. [Promotions](#promotions)
 
 ---
 
@@ -3218,29 +3220,72 @@ Key: folder | Type: text
 
 ## Memberships
 
+Memberships provide benefits to pets, including discounts, free services, and quota-based benefits. Benefits can have period-based resets (weekly, monthly, or unlimited).
+
+**Benefit Structure:**
+
+- `type`: `discount` (percentage), `free_service` (fixed amount), `quota` (session count)
+- `applies_to`: `service`, `addon`, `order`
+- `period`: `weekly` (resets Monday 00:00), `monthly` (resets 1st day 00:00), `unlimited` (no reset)
+- `service_id`: Reference to a Service (populated with full service details on retrieval)
+- `limit`: Max usage count per period (-1 = unlimited)
+
+---
+
 ### 1. Get All Memberships
 
 **Endpoint:** `GET /memberships`
+
+**Authentication:** Required (JWT)
+
+**Query Parameters:**
+
+- `pet_type_id` (optional): Filter by pet type MongoDB ObjectId
+- `is_active` (optional): Filter by active status (true/false)
 
 **Success Response (200):**
 
 ```json
 {
-  "message": "Fetch memberships successfully",
-  "memberships": [
+  "message": "memberships retrieved successfully",
+  "data": [
     {
       "_id": "507f1f77bcf86cd799439011",
       "name": "Gold Membership",
       "description": "Premium membership package",
-      "pet_type_ids": ["507f1f77bcf86cd799439012"],
       "duration_months": 12,
       "price": 1200000,
-      "max_usage": 12,
-      "service_include_ids": [
-        "507f1f77bcf86cd799439013",
-        "507f1f77bcf86cd799439014"
+      "note": "Includes 12 free grooming sessions",
+      "pet_type_ids": ["507f1f77bcf86cd799439012"],
+      "is_active": true,
+      "benefits": [
+        {
+          "_id": "607f1f77bcf86cd799439021",
+          "type": "discount",
+          "applies_to": "service",
+          "period": "monthly",
+          "value": 10,
+          "service_id": null,
+          "limit": 5
+        },
+        {
+          "_id": "607f1f77bcf86cd799439022",
+          "type": "free_service",
+          "applies_to": "service",
+          "period": "unlimited",
+          "value": 150000,
+          "service_id": {
+            "_id": "69a45774ecf65d9a74d53fe6",
+            "name": "Basic Grooming",
+            "price": 350000,
+            "duration": 90,
+            "code": "SVC-0001"
+          },
+          "limit": 12
+        }
       ],
-      "is_active": true
+      "createdAt": "2026-01-15T10:30:00.000Z",
+      "updatedAt": "2026-03-19T08:45:00.000Z"
     }
   ]
 }
@@ -3252,6 +3297,8 @@ Key: folder | Type: text
 
 **Endpoint:** `GET /memberships/:id`
 
+**Authentication:** Required (JWT)
+
 **Parameters:**
 
 - `id` (path): MongoDB ObjectId
@@ -3260,14 +3307,52 @@ Key: folder | Type: text
 
 ```json
 {
-  "message": "Fetch membership successfully",
-  "membership": { ... }
+  "message": "membership retrieved successfully",
+  "data": {
+    "_id": "507f1f77bcf86cd799439011",
+    "name": "Gold Membership",
+    "description": "Premium membership package",
+    "duration_months": 12,
+    "price": 1200000,
+    "note": "Includes 12 free grooming sessions",
+    "pet_type_ids": ["507f1f77bcf86cd799439012"],
+    "is_active": true,
+    "benefits": [
+      {
+        "_id": "607f1f77bcf86cd799439021",
+        "type": "discount",
+        "applies_to": "service",
+        "period": "monthly",
+        "value": 10,
+        "service_id": null,
+        "limit": 5
+      },
+      {
+        "_id": "607f1f77bcf86cd799439022",
+        "type": "free_service",
+        "applies_to": "service",
+        "period": "unlimited",
+        "value": 150000,
+        "service_id": {
+          "_id": "69a45774ecf65d9a74d53fe6",
+          "name": "Basic Grooming",
+          "price": 350000,
+          "duration": 90,
+          "code": "SVC-0001"
+        },
+        "limit": 12
+      }
+    ],
+    "createdAt": "2026-01-15T10:30:00.000Z",
+    "updatedAt": "2026-03-19T08:45:00.000Z"
+  }
 }
 ```
 
 **Error Responses:**
 
 - **404 Not Found:** Membership not found
+- **400 Bad Request:** Invalid membership ID format
 
 ---
 
@@ -3275,26 +3360,115 @@ Key: folder | Type: text
 
 **Endpoint:** `POST /memberships`
 
+**Authentication:** Required (JWT)
+
 **Request Body:**
 
 ```json
 {
-  "name": "string (required)",
+  "name": "string (required, max 100 chars, unique)",
   "description": "string (optional)",
-  "pet_type_ids": ["MongoDB ObjectId"] (optional array),
   "duration_months": "number (required, min: 1)",
   "price": "number (required, min: 0)",
-  "max_usage": "number (optional)",
-  "service_include_ids": ["MongoDB ObjectId"] (optional array),
-  "is_active": "boolean (optional, default: true)"
+  "note": "string (optional)",
+  "pet_type_ids": ["MongoDB ObjectId (optional)"],
+  "benefits": [
+    {
+      "type": "discount | free_service | quota (required)",
+      "applies_to": "service | addon | order (required)",
+      "period": "weekly | monthly | unlimited (optional, default: unlimited)",
+      "value": "number (optional, required for discount/free_service)",
+      "service_id": "MongoDB ObjectId (optional, for service-specific benefits)",
+      "limit": "number (optional, default: -1 for unlimited)"
+    }
+  ]
 }
 ```
 
-**Success Response (200):**
+**Example Request Body:**
 
 ```json
 {
-  "message": "Create membership successfully"
+  "name": "Gold Membership",
+  "description": "Premium membership package",
+  "duration_months": 12,
+  "price": 1200000,
+  "note": "Includes 12 free grooming sessions",
+  "pet_type_ids": ["507f1f77bcf86cd799439012"],
+  "benefits": [
+    {
+      "type": "discount",
+      "applies_to": "service",
+      "period": "monthly",
+      "value": 10,
+      "limit": 5
+    },
+    {
+      "type": "free_service",
+      "applies_to": "service",
+      "period": "unlimited",
+      "value": 150000,
+      "service_id": "69a45774ecf65d9a74d53fe6",
+      "limit": 12
+    }
+  ]
+}
+```
+
+**Success Response (201):**
+
+```json
+{
+  "message": "membership created successfully",
+  "data": {
+    "_id": "507f1f77bcf86cd799439011",
+    "name": "Gold Membership",
+    "description": "Premium membership package",
+    "duration_months": 12,
+    "price": 1200000,
+    "note": "Includes 12 free grooming sessions",
+    "pet_type_ids": ["507f1f77bcf86cd799439012"],
+    "is_active": true,
+    "benefits": [
+      {
+        "_id": "607f1f77bcf86cd799439021",
+        "type": "discount",
+        "applies_to": "service",
+        "period": "monthly",
+        "value": 10,
+        "service_id": null,
+        "limit": 5
+      },
+      {
+        "_id": "607f1f77bcf86cd799439022",
+        "type": "free_service",
+        "applies_to": "service",
+        "period": "unlimited",
+        "value": 150000,
+        "service_id": {
+          "_id": "69a45774ecf65d9a74d53fe6",
+          "name": "Basic Grooming",
+          "price": 350000,
+          "duration": 90
+        },
+        "limit": 12
+      }
+    ],
+    "createdAt": "2026-03-19T10:30:00.000Z",
+    "updatedAt": "2026-03-19T10:30:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Validation error or duplicate name
+
+```json
+{
+  "statusCode": 400,
+  "message": "membership with this name already exists",
+  "error": "Bad Request"
 }
 ```
 
@@ -3302,7 +3476,9 @@ Key: folder | Type: text
 
 ### 4. Update Membership
 
-**Endpoint:** `PUT /memberships/:id`
+**Endpoint:** `POST /memberships/:id`
+
+**Authentication:** Required (JWT)
 
 **Parameters:**
 
@@ -3314,15 +3490,35 @@ Key: folder | Type: text
 
 ```json
 {
-  "message": "Update membership successfully"
+  "message": "membership updated successfully",
+  "data": {
+    "_id": "507f1f77bcf86cd799439011",
+    "name": "Gold Membership Updated",
+    "description": "Premium membership package",
+    "duration_months": 12,
+    "price": 1300000,
+    "note": "Updated benefits",
+    "pet_type_ids": ["507f1f77bcf86cd799439012"],
+    "is_active": true,
+    "benefits": [],
+    "createdAt": "2026-01-15T10:30:00.000Z",
+    "updatedAt": "2026-03-19T11:45:00.000Z"
+  }
 }
 ```
 
+**Error Responses:**
+
+- **404 Not Found:** Membership not found
+- **400 Bad Request:** Invalid ID format or validation error
+
 ---
 
-### 5. Delete Membership
+### 5. Delete Membership (Soft Delete)
 
 **Endpoint:** `DELETE /memberships/:id`
+
+**Authentication:** Required (JWT)
 
 **Parameters:**
 
@@ -3332,9 +3528,989 @@ Key: folder | Type: text
 
 ```json
 {
-  "message": "Delete membership successfully"
+  "message": "membership deleted successfully",
+  "data": {
+    "_id": "507f1f77bcf86cd799439011",
+    "name": "Gold Membership",
+    "isDeleted": true,
+    "deletedAt": "2026-03-19T12:00:00.000Z"
+  }
 }
 ```
+
+**Error Responses:**
+
+- **404 Not Found:** Membership not found
+- **400 Bad Request:** Invalid membership ID format
+
+---
+
+## Pet Memberships
+
+Pet Memberships represent the purchased membership plans for individual pets. Each pet membership tracks the pet, membership plan, dates, and benefits snapshot with usage tracking. Benefits have period-based resets to track usage per week/month, and unlimited benefits never reset.
+
+**Key Concepts:**
+
+- **benefits_snapshot**: Denormalized copy of membership benefits at purchase time, includes `used` counter and `period_reset_date` for tracking
+- **Period Resets**: Weekly (every Monday 00:00), Monthly (1st day 00:00), or Unlimited (never)
+- **used counter**: Tracks how many times a benefit has been used in the current period
+- **is_active virtual**: True if pet membership is between start_date and end_date (not deleted)
+
+---
+
+### 1. Get All Pet Memberships
+
+**Endpoint:** `GET /pet-memberships`
+
+**Authentication:** Required (JWT)
+
+**Query Parameters:**
+
+- `pet_id` (optional, MongoDB ObjectId): Filter by pet ID
+- `membership_plan_id` (optional, MongoDB ObjectId): Filter by membership plan ID
+- `is_active` (optional, boolean): Filter by active status (true = within date range, false = expired or not started)
+
+**Success Response (200):**
+
+```json
+{
+  "message": "pet memberships retrieved successfully",
+  "data": [
+    {
+      "_id": "507f1f77bcf86cd799439030",
+      "pet_id": "507f1f77bcf86cd799439020",
+      "membership_plan_id": "507f1f77bcf86cd799439011",
+      "start_date": "2026-03-19T00:00:00.000Z",
+      "end_date": "2027-03-19T00:00:00.000Z",
+      "is_active": true,
+      "benefits_snapshot": [
+        {
+          "_id": "607f1f77bcf86cd799439021",
+          "type": "discount",
+          "applies_to": "service",
+          "period": "monthly",
+          "value": 10,
+          "service_id": null,
+          "limit": 5,
+          "used": 2,
+          "period_reset_date": "2026-04-01T00:00:00.000Z"
+        },
+        {
+          "_id": "607f1f77bcf86cd799439022",
+          "type": "free_service",
+          "applies_to": "service",
+          "period": "unlimited",
+          "value": 150000,
+          "service_id": "69a45774ecf65d9a74d53fe6",
+          "limit": 12,
+          "used": 1,
+          "period_reset_date": null
+        }
+      ],
+      "createdAt": "2026-03-19T10:30:00.000Z",
+      "updatedAt": "2026-03-19T10:30:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### 2. Get Pet Membership By ID
+
+**Endpoint:** `GET /pet-memberships/:id`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId of the pet membership
+
+**Success Response (200):**
+
+```json
+{
+  "message": "pet membership retrieved successfully",
+  "data": {
+    "_id": "507f1f77bcf86cd799439030",
+    "pet_id": "507f1f77bcf86cd799439020",
+    "membership_plan_id": "507f1f77bcf86cd799439011",
+    "start_date": "2026-03-19T00:00:00.000Z",
+    "end_date": "2027-03-19T00:00:00.000Z",
+    "is_active": true,
+    "benefits_snapshot": [
+      {
+        "_id": "607f1f77bcf86cd799439021",
+        "type": "discount",
+        "applies_to": "service",
+        "period": "monthly",
+        "value": 10,
+        "service_id": null,
+        "limit": 5,
+        "used": 2,
+        "period_reset_date": "2026-04-01T00:00:00.000Z"
+      },
+      {
+        "_id": "607f1f77bcf86cd799439022",
+        "type": "free_service",
+        "applies_to": "service",
+        "period": "unlimited",
+        "value": 150000,
+        "service_id": "69a45774ecf65d9a74d53fe6",
+        "limit": 12,
+        "used": 1,
+        "period_reset_date": null
+      }
+    ],
+    "createdAt": "2026-03-19T10:30:00.000Z",
+    "updatedAt": "2026-03-19T10:30:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Invalid pet membership ID format
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid pet membership ID",
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** Pet membership not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "pet membership not found",
+  "error": "Not Found"
+}
+```
+
+---
+
+### 3. Purchase Pet Membership (Create)
+
+**Endpoint:** `POST /pet-memberships`
+
+**Authentication:** Required (JWT)
+
+**Request Body:**
+
+```json
+{
+  "pet_id": "MongoDB ObjectId (required)",
+  "membership_plan_id": "MongoDB ObjectId (required)"
+}
+```
+
+**Example:**
+
+```json
+{
+  "pet_id": "507f1f77bcf86cd799439020",
+  "membership_plan_id": "507f1f77bcf86cd799439011"
+}
+```
+
+**Success Response (201):**
+
+```json
+{
+  "message": "pet membership purchased successfully",
+  "data": {
+    "_id": "507f1f77bcf86cd799439030",
+    "pet_id": "507f1f77bcf86cd799439020",
+    "membership_plan_id": "507f1f77bcf86cd799439011",
+    "start_date": "2026-03-19T10:30:00.000Z",
+    "end_date": "2027-03-19T10:30:00.000Z",
+    "is_active": true,
+    "benefits_snapshot": [
+      {
+        "_id": "607f1f77bcf86cd799439021",
+        "type": "discount",
+        "applies_to": "service",
+        "period": "monthly",
+        "value": 10,
+        "service_id": null,
+        "limit": 5,
+        "used": 0,
+        "period_reset_date": "2026-04-01T00:00:00.000Z"
+      },
+      {
+        "_id": "607f1f77bcf86cd799439022",
+        "type": "free_service",
+        "applies_to": "service",
+        "period": "unlimited",
+        "value": 150000,
+        "service_id": "69a45774ecf65d9a74d53fe6",
+        "limit": 12,
+        "used": 0,
+        "period_reset_date": null
+      }
+    ],
+    "createdAt": "2026-03-19T10:30:00.000Z",
+    "updatedAt": "2026-03-19T10:30:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Pet ID or membership plan ID is invalid/missing
+
+```json
+{
+  "statusCode": 400,
+  "message": "pet_id is required",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": "membership_plan_id must be a valid MongoDB ID",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": "membership plan not found",
+  "error": "Bad Request"
+}
+```
+
+**Notes:**
+
+- When a pet membership is created, `benefits_snapshot` is populated from the membership plan's benefits
+- `used` counter starts at 0 for each benefit
+- `period_reset_date` is calculated based on the benefit's period type (weekly, monthly, or null for unlimited)
+- `start_date` is the current date/time
+- `end_date` is calculated by adding `membership_plan.duration_months` to the start_date
+
+---
+
+### 4. Get Active Membership for Pet
+
+**Endpoint:** `GET /pet-memberships/:pet_id/active`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `pet_id` (path): MongoDB ObjectId of the pet
+
+**Success Response (200) — With Active Membership:**
+
+```json
+{
+  "message": "active membership found",
+  "data": {
+    "_id": "507f1f77bcf86cd799439030",
+    "pet_id": "507f1f77bcf86cd799439020",
+    "membership_plan_id": "507f1f77bcf86cd799439011",
+    "start_date": "2026-03-19T00:00:00.000Z",
+    "end_date": "2027-03-19T00:00:00.000Z",
+    "is_active": true,
+    "benefits_snapshot": [
+      {
+        "_id": "607f1f77bcf86cd799439021",
+        "type": "discount",
+        "applies_to": "service",
+        "period": "monthly",
+        "value": 10,
+        "service_id": null,
+        "limit": 5,
+        "used": 2,
+        "period_reset_date": "2026-04-01T00:00:00.000Z"
+      }
+    ],
+    "createdAt": "2026-03-19T10:30:00.000Z",
+    "updatedAt": "2026-03-19T10:30:00.000Z"
+  }
+}
+```
+
+**Success Response (200) — No Active Membership:**
+
+```json
+{
+  "message": "no active membership",
+  "data": null
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Invalid pet ID format
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid pet ID",
+  "error": "Bad Request"
+}
+```
+
+**Notes:**
+
+- A membership is "active" if the current date/time is between `start_date` and `end_date`
+- Returns null if no active membership exists
+
+---
+
+### 5. Get Benefits Summary
+
+**Endpoint:** `GET /pet-memberships/:pet_id/benefits-summary`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `pet_id` (path): MongoDB ObjectId of the pet
+
+**Success Response (200) — With Active Membership:**
+
+```json
+{
+  "message": "benefits summary retrieved successfully",
+  "data": {
+    "has_active_membership": true,
+    "pet_membership_id": "507f1f77bcf86cd799439030",
+    "membership_plan_id": "507f1f77bcf86cd799439011",
+    "start_date": "2026-03-19T00:00:00.000Z",
+    "end_date": "2027-03-19T00:00:00.000Z",
+    "benefits": [
+      {
+        "_id": "607f1f77bcf86cd799439021",
+        "type": "discount",
+        "applies_to": "service",
+        "period": "monthly",
+        "value": 10,
+        "service_id": null,
+        "limit": 5,
+        "used": 2,
+        "remaining": 3,
+        "can_apply": true,
+        "period_reset_date": "2026-03-20T00:00:00.000Z",
+        "next_reset_date": "2026-04-01T00:00:00.000Z"
+      },
+      {
+        "_id": "607f1f77bcf86cd799439022",
+        "type": "free_service",
+        "applies_to": "service",
+        "period": "unlimited",
+        "value": 150000,
+        "service_id": "69a45774ecf65d9a74d53fe6",
+        "limit": 12,
+        "used": 1,
+        "remaining": 11,
+        "can_apply": true,
+        "period_reset_date": null,
+        "next_reset_date": null
+      }
+    ]
+  }
+}
+```
+
+**Success Response (200) — No Active Membership:**
+
+```json
+{
+  "message": "benefits summary retrieved successfully",
+  "data": {
+    "has_active_membership": false,
+    "benefits": []
+  }
+}
+```
+
+**Notes:**
+
+- `can_apply`: true if benefit has remaining quota (limit is -1 or used < limit)
+- `remaining`: -1 for unlimited (limit = -1), otherwise limit - used
+- `period_reset_date`: when the period counter was last reset
+- `next_reset_date`: when the counter will reset next (null for unlimited)
+- For benefits with period-based resets (weekly/monthly), the `used` counter is automatically reset to 0 when querying if the reset date has passed
+
+---
+
+### 6. Get Benefits History
+
+**Endpoint:** `GET /pet-memberships/:pet_id/benefits-history`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `pet_id` (path): MongoDB ObjectId of the pet
+
+**Query Parameters:**
+
+- `limit` (optional, number): Max records to return (default: 100)
+- `skip` (optional, number): Offset for pagination (default: 0)
+
+**Success Response (200) — With Active Membership:**
+
+```json
+{
+  "message": "benefits history retrieved successfully",
+  "data": {
+    "has_active_membership": true,
+    "pet_membership_id": "507f1f77bcf86cd799439030",
+    "benefits_history": [
+      {
+        "_id": "607f1f77bcf86cd799439051",
+        "benefit_id": "607f1f77bcf86cd799439021",
+        "type": "discount",
+        "applied_date": "2026-03-18T14:30:00.000Z",
+        "booking_id": "507f1f77bcf86cd799439040",
+        "amount_deducted": 35000
+      },
+      {
+        "_id": "607f1f77bcf86cd799439052",
+        "benefit_id": "607f1f77bcf86cd799439021",
+        "type": "discount",
+        "applied_date": "2026-03-10T10:15:00.000Z",
+        "booking_id": "507f1f77bcf86cd799439041",
+        "amount_deducted": 35000
+      }
+    ]
+  }
+}
+```
+
+**Success Response (200) — No Active Membership:**
+
+```json
+{
+  "message": "benefits history retrieved successfully",
+  "data": {
+    "has_active_membership": false,
+    "benefits_history": []
+  }
+}
+```
+
+**Notes:**
+
+- Currently returns empty benefits_history; will be populated once BenefitUsage tracking is integrated
+- Shows audit trail of when benefits were applied to bookings
+
+---
+
+### 7. Update Pet Membership
+
+**Endpoint:** `POST /pet-memberships/:id`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId of the pet membership
+
+**Request Body:** (All fields optional)
+
+```json
+{
+  "pet_id": "MongoDB ObjectId (optional)",
+  "membership_plan_id": "MongoDB ObjectId (optional)",
+  "start_date": "ISO date (optional)",
+  "end_date": "ISO date (optional)"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "pet membership updated successfully",
+  "data": {
+    "_id": "507f1f77bcf86cd799439030",
+    "pet_id": "507f1f77bcf86cd799439020",
+    "membership_plan_id": "507f1f77bcf86cd799439011",
+    "start_date": "2026-03-19T00:00:00.000Z",
+    "end_date": "2027-03-19T00:00:00.000Z",
+    "is_active": true,
+    "benefits_snapshot": [],
+    "createdAt": "2026-03-19T10:30:00.000Z",
+    "updatedAt": "2026-03-19T12:00:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Invalid ID format or validation error
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid pet membership ID",
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** Pet membership not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "pet membership not found",
+  "error": "Not Found"
+}
+```
+
+**Notes:**
+
+- Typically used to extend membership dates or reassign to a different pet
+- Updating `membership_plan_id` does NOT update `benefits_snapshot` — snapshot is locked at purchase time
+
+---
+
+### 8. Cancel Pet Membership (Soft Delete)
+
+**Endpoint:** `DELETE /pet-memberships/:id`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId of the pet membership
+
+**Success Response (200):**
+
+```json
+{
+  "message": "pet membership cancelled successfully",
+  "data": {
+    "_id": "507f1f77bcf86cd799439030",
+    "pet_id": "507f1f77bcf86cd799439020",
+    "membership_plan_id": "507f1f77bcf86cd799439011",
+    "isDeleted": true,
+    "deletedAt": "2026-03-19T12:30:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Invalid ID format
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid pet membership ID",
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** Pet membership not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "pet membership not found",
+  "error": "Not Found"
+}
+```
+
+**Notes:**
+
+- This is a soft delete operation
+- Pet membership is marked with `isDeleted: true` and `deletedAt` timestamp
+- Deleted memberships are excluded from GET endpoints
+- Benefits are no longer available after deletion
+
+---
+
+## Benefit Usages
+
+Benefit Usages track when and how membership benefits are applied to bookings. Each usage record documents which benefit was used, which booking it was applied to, and how much of the benefit was consumed (amount_used).
+
+**Key Concepts:**
+
+- **pet_membership_id**: Reference to the pet membership that owns the benefit
+- **benefit_id**: Reference to the specific benefit in the membership's benefits_snapshot
+- **booking_id**: The booking where the benefit was applied
+- **scope**: Type of benefit applied (service, addon, or order)
+- **target_id**: The service or addon that was the target of the benefit (if service-scoped)
+- **amount_used**: How much of the benefit was consumed (discount $ amount, free session count, etc.)
+- **used_at**: When the benefit was applied
+
+---
+
+### 1. Record Benefit Usage
+
+**Endpoint:** `POST /benefit-usage`
+
+**Authentication:** Required (JWT)
+
+**Request Body:**
+
+```json
+{
+  "pet_membership_id": "MongoDB ObjectId (required)",
+  "benefit_id": "MongoDB ObjectId (required, _id from benefits_snapshot)",
+  "booking_id": "MongoDB ObjectId (required)",
+  "target_id": "MongoDB ObjectId (required, service or addon ID)",
+  "amount_used": "number (required, min: 0)"
+}
+```
+
+**Example Request:**
+
+```json
+{
+  "pet_membership_id": "507f1f77bcf86cd799439030",
+  "benefit_id": "607f1f77bcf86cd799439021",
+  "booking_id": "507f1f77bcf86cd799439040",
+  "target_id": "69a45774ecf65d9a74d53fe6",
+  "amount_used": 35000
+}
+```
+
+**Success Response (201):**
+
+```json
+{
+  "message": "benefit usage recorded successfully",
+  "data": {
+    "_id": "607f1f77bcf86cd799439051",
+    "pet_membership_id": "507f1f77bcf86cd799439030",
+    "benefit_id": "607f1f77bcf86cd799439021",
+    "booking_id": "507f1f77bcf86cd799439040",
+    "used_at": "2026-03-19T14:30:00.000Z",
+    "scope": "service",
+    "target_id": "69a45774ecf65d9a74d53fe6",
+    "amount_used": 35000,
+    "isDeleted": false,
+    "createdAt": "2026-03-19T14:30:00.000Z",
+    "updatedAt": "2026-03-19T14:30:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Missing required fields or invalid IDs
+
+```json
+{
+  "statusCode": 400,
+  "message": "pet_membership_id is required",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": "amount_used must be >= 0",
+  "error": "Bad Request"
+}
+```
+
+**Notes:**
+
+- `scope` is auto-derived from the benefit's `applies_to` field in the pet membership
+- This endpoint is typically called automatically by the booking system when a benefit is applied during booking creation
+- `used_at` is automatically set to the current date/time
+- `amount_used` represents the monetary value (in currency units) or count (for quota benefits) consumed
+- Each usage record is immutable once created; updates require deleting and re-creating
+
+---
+
+### 2. Get All Benefit Usage Records
+
+**Endpoint:** `GET /benefit-usage`
+
+**Authentication:** Required (JWT)
+
+**Query Parameters:**
+
+- `pet_membership_id` (optional, MongoDB ObjectId): Filter by pet membership
+- `booking_id` (optional, MongoDB ObjectId): Filter by booking
+
+**Example Requests:**
+
+```bash
+# Get all usage records
+GET /benefit-usage
+
+# Filter by pet membership
+GET /benefit-usage?pet_membership_id=507f1f77bcf86cd799439030
+
+# Filter by booking
+GET /benefit-usage?booking_id=507f1f77bcf86cd799439040
+
+# Combined filters
+GET /benefit-usage?pet_membership_id=507f1f77bcf86cd799439030&booking_id=507f1f77bcf86cd799439040
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "benefit usage records retrieved successfully",
+  "data": [
+    {
+      "_id": "607f1f77bcf86cd799439051",
+      "pet_membership_id": "507f1f77bcf86cd799439030",
+      "benefit_id": "607f1f77bcf86cd799439021",
+      "booking_id": "507f1f77bcf86cd799439040",
+      "booking_id_details": {
+        "_id": "507f1f77bcf86cd799439040",
+        "code": "BK-2026-001",
+        "status": "completed",
+        "total_price": 300000
+      },
+      "used_at": "2026-03-19T14:30:00.000Z",
+      "scope": "service",
+      "target_id": "69a45774ecf65d9a74d53fe6",
+      "amount_used": 35000,
+      "isDeleted": false,
+      "createdAt": "2026-03-19T14:30:00.000Z",
+      "updatedAt": "2026-03-19T14:30:00.000Z"
+    },
+    {
+      "_id": "607f1f77bcf86cd799439052",
+      "pet_membership_id": "507f1f77bcf86cd799439030",
+      "benefit_id": "607f1f77bcf86cd799439021",
+      "booking_id": "507f1f77bcf86cd799439041",
+      "booking_id_details": {
+        "_id": "507f1f77bcf86cd799439041",
+        "code": "BK-2026-002",
+        "status": "completed",
+        "total_price": 280000
+      },
+      "used_at": "2026-03-10T10:15:00.000Z",
+      "scope": "service",
+      "target_id": "69a45774ecf65d9a74d53fe6",
+      "amount_used": 35000,
+      "isDeleted": false,
+      "createdAt": "2026-03-10T10:15:00.000Z",
+      "updatedAt": "2026-03-10T10:15:00.000Z"
+    }
+  ]
+}
+```
+
+**Notes:**
+
+- Results are sorted by `used_at` (newest first)
+- The `booking_id` field is populated with booking details
+- Query filters are AND-ed together (must match all provided filters)
+
+---
+
+### 3. Get Benefit Usage By ID
+
+**Endpoint:** `GET /benefit-usage/:id`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId of the benefit usage record
+
+**Success Response (200):**
+
+```json
+{
+  "message": "benefit usage record retrieved successfully",
+  "data": {
+    "_id": "607f1f77bcf86cd799439051",
+    "pet_membership_id": "507f1f77bcf86cd799439030",
+    "benefit_id": "607f1f77bcf86cd799439021",
+    "booking_id": "507f1f77bcf86cd799439040",
+    "booking_id_details": {
+      "_id": "507f1f77bcf86cd799439040",
+      "code": "BK-2026-001",
+      "status": "completed",
+      "total_price": 300000
+    },
+    "used_at": "2026-03-19T14:30:00.000Z",
+    "scope": "service",
+    "target_id": "69a45774ecf65d9a74d53fe6",
+    "amount_used": 35000,
+    "isDeleted": false,
+    "createdAt": "2026-03-19T14:30:00.000Z",
+    "updatedAt": "2026-03-19T14:30:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Invalid benefit usage ID format
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid benefit usage ID",
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** Benefit usage record not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "benefit usage not found",
+  "error": "Not Found"
+}
+```
+
+---
+
+### 4. Get Usage History for Pet Membership
+
+**Endpoint:** `GET /benefit-usage/:pet_membership_id/history`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `pet_membership_id` (path): MongoDB ObjectId of the pet membership
+
+**Query Parameters:**
+
+- `limit` (optional, number): Max records to return (default: 100)
+- `skip` (optional, number): Offset for pagination (default: 0)
+
+**Example Requests:**
+
+```bash
+# Get all usage history
+GET /benefit-usage/507f1f77bcf86cd799439030/history
+
+# Paginate results
+GET /benefit-usage/507f1f77bcf86cd799439030/history?limit=10&skip=20
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "usage history retrieved successfully",
+  "data": [
+    {
+      "_id": "607f1f77bcf86cd799439051",
+      "pet_membership_id": "507f1f77bcf86cd799439030",
+      "benefit_id": "607f1f77bcf86cd799439021",
+      "booking_id": "507f1f77bcf86cd799439040",
+      "booking_id_details": {
+        "_id": "507f1f77bcf86cd799439040",
+        "code": "BK-2026-001",
+        "status": "completed"
+      },
+      "used_at": "2026-03-19T14:30:00.000Z",
+      "scope": "service",
+      "target_id": "69a45774ecf65d9a74d53fe6",
+      "amount_used": 35000
+    },
+    {
+      "_id": "607f1f77bcf86cd799439052",
+      "pet_membership_id": "507f1f77bcf86cd799439030",
+      "benefit_id": "607f1f77bcf86cd799439021",
+      "booking_id": "507f1f77bcf86cd799439041",
+      "booking_id_details": {
+        "_id": "507f1f77bcf86cd799439041",
+        "code": "BK-2026-002",
+        "status": "completed"
+      },
+      "used_at": "2026-03-10T10:15:00.000Z",
+      "scope": "service",
+      "target_id": "69a45774ecf65d9a74d53fe6",
+      "amount_used": 35000
+    }
+  ]
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Invalid pet membership ID format
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid pet membership ID",
+  "error": "Bad Request"
+}
+```
+
+**Notes:**
+
+- Results are sorted by `used_at` (newest first)
+- Paginated results help with large usage histories
+- Useful for auditing benefit consumption over time
+
+---
+
+### 5. Delete Benefit Usage Record (Soft Delete)
+
+**Endpoint:** `DELETE /benefit-usage/:id`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId of the benefit usage record
+
+**Success Response (200):**
+
+```json
+{
+  "message": "benefit usage record deleted successfully",
+  "data": {
+    "_id": "607f1f77bcf86cd799439051",
+    "pet_membership_id": "507f1f77bcf86cd799439030",
+    "benefit_id": "607f1f77bcf86cd799439021",
+    "booking_id": "507f1f77bcf86cd799439040",
+    "isDeleted": true,
+    "deletedAt": "2026-03-19T15:45:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Invalid benefit usage ID format
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid benefit usage ID",
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** Benefit usage record not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "benefit usage not found",
+  "error": "Not Found"
+}
+```
+
+**Notes:**
+
+- This is a soft delete operation
+- Record is marked with `isDeleted: true` and `deletedAt` timestamp
+- Useful for reversing/canceling benefit applications if a booking is cancelled
+- Deleted records are excluded from GET endpoints
 
 ---
 
@@ -4337,6 +5513,105 @@ The actual booking status depends on capacity availability:
 
 ---
 
+### 2. Get Booking Preview with Benefits
+
+**Endpoint:** `POST /bookings/preview`
+
+**Headers:** `Authorization: Bearer {access_token}` (required)
+
+**Description:** Calculate booking price with benefit options and pricing breakdown. Shows available membership benefits that can be applied to reduce the final price.
+
+**Request Body:**
+
+```json
+{
+  "pet_id": "MongoDB ObjectId (required)",
+  "service_id": "MongoDB ObjectId (required)",
+  "addon_ids": ["MongoDB ObjectId (optional)"],
+  "date": "Date (required)",
+  "time_range": "string (optional)"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "Booking preview calculated successfully",
+  "pet_id": "699a6285a99f14a4be787c77",
+  "pet_name": "Fluffy",
+  "service_id": "69a45774ecf65d9a74d53fe6",
+  "service_name": "Basic Grooming",
+  "pricing": {
+    "original_service_price": 350000,
+    "addon_prices": [
+      {
+        "_id": "69b10c52a58f123456789abc",
+        "name": "Extra Nail Trim",
+        "price": 50000
+      }
+    ],
+    "subtotal_before_benefits": 400000,
+    "has_active_membership": true,
+    "available_benefits": [
+      {
+        "_id": "607f1f77bcf86cd799439011",
+        "type": "discount",
+        "period": "monthly",
+        "value": 10,
+        "limit": 5,
+        "used": 2,
+        "remaining": 3,
+        "can_apply": true,
+        "period_reset_date": "2026-03-21T00:00:00.000Z",
+        "next_reset_date": "2026-04-01T00:00:00.000Z",
+        "amount_discount": 40000,
+        "description": "Discount: 10% (Monthly) - 3/5 remaining"
+      },
+      {
+        "_id": "607f1f77bcf86cd799439012",
+        "type": "free_service",
+        "period": "weekly",
+        "value": 50000,
+        "limit": 1,
+        "used": 0,
+        "remaining": 1,
+        "can_apply": true,
+        "period_reset_date": "2026-03-16T00:00:00.000Z",
+        "next_reset_date": "2026-03-23T00:00:00.000Z",
+        "amount_discount": 50000,
+        "description": "Free Service: 50000 (Weekly) - 1/1 remaining"
+      }
+    ],
+    "estimated_total_discount": 90000,
+    "estimated_final_price": 310000
+  },
+  "pricing_breakdown": {
+    "service": {
+      "name": "Basic Grooming",
+      "price": 350000
+    },
+    "addons": [
+      {
+        "_id": "69b10c52a58f123456789abc",
+        "name": "Extra Nail Trim",
+        "price": 50000
+      }
+    ],
+    "subtotal": 400000,
+    "discount": 90000,
+    "final": 310000
+  }
+}
+```
+
+**Error Responses:**
+
+- **404 Not Found:** Pet or service not found
+- **400 Bad Request:** Invalid pet_id or service_id format
+
+---
+
 ### 3. Create Booking
 
 **Endpoint:** `POST /bookings`
@@ -4358,6 +5633,9 @@ The actual booking status depends on capacity availability:
   "service_addon_ids": ["MongoDB ObjectId (optional)"],
   "travel_fee": "number (optional)",
   "discount_ids": ["MongoDB ObjectId (optional)"],
+  "selected_benefit_ids": [
+    "MongoDB ObjectId (optional, benefit IDs from pet membership to apply to booking)"
+  ],
   "sessions": [
     {
       "type": "string (required, e.g. 'bathing', 'styling')",
@@ -4399,6 +5677,67 @@ The actual booking status depends on capacity availability:
 > 4. Customer location falls within one of the store's delivery zones
 >    If validation fails, a `BadRequestException` is returned with a descriptive error message.
 
+**Field Explanations: Membership Benefits**
+
+**`selected_benefit_ids`** (Optional)
+
+- **Purpose:** Array of benefit IDs from the pet's active membership that customer wants to apply to this booking
+- **When to use:**
+  - Customer has an active membership with benefits
+  - Customer wants to use/redeem membership benefits to reduce the booking cost
+  - Call `POST /bookings/preview` first to see available benefits and calculated discounts
+- **How it works:**
+  1. Get the benefit IDs from the returned `available_benefits[]._id` in the preview response
+  2. Select which benefits to apply (e.g., a 10% discount benefit and a free service benefit)
+  3. Include the benefit IDs in the `selected_benefit_ids` array when creating the booking
+  4. System automatically validates and applies selected benefits
+- **Example:**
+  ```json
+  "selected_benefit_ids": [
+    "607f1f77bcf86cd799439011",
+    "607f1f77bcf86cd799439012"
+  ]
+  ```
+
+**`applied_benefits`** (Read-only, returned in response)
+
+- **Purpose:** Audit trail showing which benefits were actually applied to the booking and how much discount/credit was given
+- **Appears in:** GET `/bookings/:id` response (not in POST request)
+- **Contains:**
+  - `benefit_id` — Reference to the benefit that was applied
+  - `benefit_type` — Type of benefit: `discount` (percentage), `free_service` (fixed amount), `quota` (session count)
+  - `benefit_period` — How often the benefit resets: `weekly`, `monthly`, or `unlimited`
+  - `benefit_value` — The benefit's base value (10 for 10% discount, 50000 for fixed 50k discount, etc.)
+  - `amount_deducted` — Actual amount deducted from the booking total price
+  - `applied_at` — Timestamp when the benefit was applied
+- **Example:**
+  ```json
+  "applied_benefits": [
+    {
+      "benefit_id": "607f1f77bcf86cd799439011",
+      "benefit_type": "discount",
+      "benefit_period": "monthly",
+      "benefit_value": 10,
+      "amount_deducted": 40000,
+      "applied_at": "2026-03-19T14:30:00.000Z"
+    },
+    {
+      "benefit_id": "607f1f77bcf86cd799439012",
+      "benefit_type": "free_service",
+      "benefit_period": "unlimited",
+      "benefit_value": 50000,
+      "amount_deducted": 50000,
+      "applied_at": "2026-03-19T14:30:00.000Z"
+    }
+  ]
+  ```
+
+**Price Fields** (Understanding the pricing with benefits)
+
+- `original_total_price` — Total price BEFORE benefits are applied (service + addons + travel fee)
+- `final_total_price` — Total price AFTER selected benefits are applied (original_total_price - total_discount)
+- `total_price` — Deprecated field, always equals `final_total_price` for backward compatibility
+
 **Success Response (200):**
 
 Booking creation is asynchronous - the endpoint returns immediately with status:
@@ -4406,6 +5745,42 @@ Booking creation is asynchronous - the endpoint returns immediately with status:
 ```json
 {
   "message": "Create booking successfully"
+}
+```
+
+> **Note:** To view the actual applied benefits in detail, query the booking via `GET /bookings/:id` - the response will include the complete `applied_benefits[]` array with all benefit details and amounts deducted.
+
+**Example: Viewing Applied Benefits in GET Response**
+
+When you fetch the created booking with `GET /bookings/:id`, the response includes:
+
+```json
+{
+  "message": "Fetch booking successfully",
+  "booking": {
+    "_id": "69acf9f3ec21849a308137c5",
+    "original_total_price": 400000,
+    "final_total_price": 310000,
+    "total_price": 310000,
+    "applied_benefits": [
+      {
+        "benefit_id": "607f1f77bcf86cd799439011",
+        "benefit_type": "discount",
+        "benefit_period": "monthly",
+        "benefit_value": 10,
+        "amount_deducted": 40000,
+        "applied_at": "2026-03-19T14:30:00.000Z"
+      },
+      {
+        "benefit_id": "607f1f77bcf86cd799439012",
+        "benefit_type": "free_service",
+        "benefit_period": "unlimited",
+        "benefit_value": 50000,
+        "amount_deducted": 50000,
+        "applied_at": "2026-03-19T14:30:00.000Z"
+      }
+    ]
+  }
 }
 ```
 
@@ -4430,6 +5805,17 @@ The actual booking status depends on capacity availability:
 - System automatically creates `pet_snapshot` from pet data
 - System automatically creates `service_snapshot` — stores service code, name, description, service type, and the exact-matched price entry based on the pet's pet type, size, and hair (all three must match)
 - System calculates pricing based on service and pet size (including addons)
+- **Benefit Application (if `selected_benefit_ids` provided):**
+  - Validates each selected benefit exists in the pet's active membership
+  - Checks if benefit is still applicable (within period, usage count available)
+  - Calculates discount based on benefit type:
+    - `discount` type: applies percentage discount to subtotal
+    - `free_service` type: applies fixed amount discount
+  - Auto-deducts benefit usage upon successful booking creation
+  - Stores applied benefits as audit trail in `applied_benefits[]` with:
+    - benefit_id, benefit_type, benefit_period, benefit_value, amount_deducted, applied_at
+  - Updates `original_total_price` (before benefits) and `final_total_price` (after benefits)
+  - For backward compatibility, `total_price` is set to `final_total_price`
 - Creates initial status log entry
 - **Capacity Management & Status Assignment:**
   - Validates against store's daily capacity (checks StoreDailyCapacity override or uses default)

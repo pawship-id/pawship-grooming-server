@@ -1,45 +1,90 @@
 import { Type } from 'class-transformer';
 import {
-  IsArray,
-  IsBoolean,
-  IsMongoId,
   IsNotEmpty,
-  IsNumber,
   IsOptional,
+  IsNumber,
+  IsString,
+  IsArray,
+  IsMongoId,
+  IsEnum,
   Min,
+  ValidateNested,
+  ArrayMinSize,
+  MaxLength,
 } from 'class-validator';
+import {
+  BenefitType,
+  BenefitScope,
+  BenefitPeriod,
+} from '../entities/membership.entity';
+
+class CreateMembershipBenefitDto {
+  @IsEnum(BenefitType, {
+    message: 'type must be one of: discount, free_service, quota',
+  })
+  type: BenefitType;
+
+  @IsEnum(BenefitScope, {
+    message: 'applies_to must be one of: service, addon, order',
+  })
+  applies_to: BenefitScope;
+
+  @IsOptional()
+  period?: BenefitPeriod = BenefitPeriod.UNLIMITED;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'value must be a number' })
+  @Min(0, { message: 'value must be >= 0' })
+  value?: number;
+
+  @IsOptional()
+  @IsMongoId({ message: 'service_id must be a valid MongoDB ID' })
+  service_id?: string;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'limit must be a number' })
+  @Min(-1, { message: 'limit must be >= -1 (-1 for unlimited)' })
+  limit?: number;
+}
 
 export class CreateMembershipDto {
-  @IsNotEmpty({ message: 'name membership is required' })
+  @IsNotEmpty({ message: 'name is required' })
+  @IsString({ message: 'name must be a string' })
+  @MaxLength(100, { message: 'name must be at most 100 characters' })
   name: string;
 
   @IsOptional()
-  description: string;
+  @IsString({ message: 'description must be a string' })
+  description?: string;
 
-  @IsArray()
-  @IsMongoId({ each: true, message: 'each pet type must be a valid ID' })
-  @IsOptional()
-  pet_type_ids?: string[];
-
+  @IsNotEmpty({ message: 'duration_months is required' })
   @Type(() => Number)
-  @IsNumber({}, { message: 'duration months must be a number' })
-  @Min(1, { message: 'duration months must be at least 1 month' })
+  @IsNumber({}, { message: 'duration_months must be a number' })
+  @Min(1, { message: 'duration_months must be >= 1' })
   duration_months: number;
 
+  @IsNotEmpty({ message: 'price is required' })
   @Type(() => Number)
   @IsNumber({}, { message: 'price must be a number' })
-  @Min(0, { message: 'price cannot be negative' })
+  @Min(0, { message: 'price must be >= 0' })
   price: number;
 
   @IsOptional()
-  max_usage: number;
-
-  @IsArray()
-  @IsMongoId({ each: true, message: 'each service include must be a valid ID' })
-  @IsOptional()
-  service_include_ids?: string[];
+  @IsString({ message: 'note must be a string' })
+  note?: string;
 
   @IsOptional()
-  @IsBoolean()
-  is_active?: boolean = true;
+  @IsArray({ message: 'pet_type_ids must be an array' })
+  @ArrayMinSize(0, { message: 'pet_type_ids must have at least 0 items' })
+  @IsMongoId({
+    message: 'each pet_type_id must be a valid MongoDB ID',
+    each: true,
+  })
+  pet_type_ids?: string[];
+
+  @IsOptional()
+  @IsArray({ message: 'benefits must be an array' })
+  @ValidateNested({ each: true })
+  @Type(() => CreateMembershipBenefitDto)
+  benefits?: CreateMembershipBenefitDto[];
 }
