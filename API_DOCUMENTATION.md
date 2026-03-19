@@ -2096,7 +2096,8 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
   "order": 0,
   "service_location_type": "in store",
   "is_pick_up_available": false,
-  "is_active": true
+  "is_active": true,
+  "sessions": ["bathing", "styling", "nail_trimming"]
 }
 ```
 
@@ -2137,7 +2138,8 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
   "order": 0,
   "service_location_type": "in store",
   "is_pick_up_available": false,
-  "is_active": true
+  "is_active": true,
+  "sessions": ["bathing", "styling", "nail_trimming"]
 }
 ```
 
@@ -2164,6 +2166,7 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
 - `service_location_type`: Location where the service is performed — `in home` or `in store` (optional, default: `in store`)
 - `is_pick_up_available`: Whether this service can be booked as a pick-up service (optional, default: false). When true, customers can request pick-up delivery if the store supports it and their location is within a delivery zone
 - `is_active`: Active status (optional, default: true)
+- `sessions`: Array of session type strings that will be auto-generated for all bookings of this service (required, minimum 1 item). Examples: `["bathing", "styling", "nail_trimming"]`. These sessions are created automatically when a booking is made, regardless of who creates it (admin, customer, or guest)
 
 **Success Response (201):**
 
@@ -5489,6 +5492,19 @@ The actual booking status depends on capacity availability:
         }
       }
     ],
+    "media": [
+      {
+        "type": "image",
+        "secure_url": "https://res.cloudinary.com/example/image/upload/v1/pawship-grooming/bookings/IMG_001.jpg",
+        "public_id": "pawship-grooming/bookings/IMG_001",
+        "note": "Before grooming photo",
+        "created_by": {
+          "user_id": "699a5d240d322c3d4e81dfbd",
+          "name_snapshot": "groomer_andi"
+        },
+        "uploaded_at": "2026-03-08T05:00:00.000Z"
+      }
+    ],
     "createdAt": "2026-03-08T04:24:19.137Z",
     "updatedAt": "2026-03-08T04:24:19.137Z",
     "customer": {
@@ -5506,6 +5522,8 @@ The actual booking status depends on capacity availability:
 ```
 
 > **Note:** `sessions[].groomer_detail` berisi data User groomer yang di-assign ke sesi tertentu. Field `groomer_id` (raw ObjectId) tidak akan muncul di response.
+>
+> **Note:** `media[]` adalah array of media (photos/videos) yang di-upload untuk keseluruhan booking. Berbeda dengan session-level media yang ada di masa lalu, semua media sekarang di-store di level booking untuk kemudahan manajemen. Media dapat di-upload kapan saja selama booking aktif.
 
 **Error Responses:**
 
@@ -5668,7 +5686,7 @@ The actual booking status depends on capacity availability:
 
 > `pet_snapshot` dan `service_snapshot` di-generate otomatis oleh server berdasarkan `pet_id` dan `service_id`.
 > `sub_total_service` dan `total_price` dihitung otomatis oleh server.
-> Field `sessions` hanya berlaku untuk booking yang dibuat oleh admin/ops. Jika booking dibuat oleh customer/guest, `sessions` default `[]` dan diabaikan meski dikirim.
+> **IMPORTANT:** Field `sessions` in the request body is **ignored** for all booking types (admin, customer, guest). Sessions are **automatically generated** on the server-side based on the `service.sessions` array defined when the service was created. For example, if a service defines `sessions: ["bathing", "styling", "nail_trimming"]`, all bookings of that service will automatically have these three sessions created. If a service has no sessions defined, the booking will have an empty sessions array.
 > When `pick_up` is `true`, the system validates that:
 >
 > 1. Customer has latitude/longitude in their profile address

@@ -388,6 +388,13 @@ export class Booking {
   })
   sessions: GroomingSession[];
 
+  /* ===== Media - Per-booking media uploads (photos/videos) ===== */
+  @Prop({
+    type: [SessionMedia],
+    default: [],
+  })
+  media: SessionMedia[];
+
   /* ===== Pick-up Service ===== */
   @Prop({ default: false })
   pick_up: boolean;

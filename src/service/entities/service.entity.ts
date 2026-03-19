@@ -166,6 +166,9 @@ export class Service {
   @Prop({ default: false })
   is_pick_up_available: boolean;
 
+  @Prop({ type: [String], default: [] })
+  sessions: string[];
+
   @Prop({ default: true })
   is_active: boolean;
 

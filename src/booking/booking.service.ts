@@ -484,23 +484,17 @@ export class BookingService {
       // 10. assign body.type base on service.service_location_type
       body.type = service.service_location_type as GroomingType;
 
-      // 11. handle sessions — admin can provide sessions[], guest/customer gets []
-      if (
-        user &&
-        user.role !== 'customer' &&
-        body.sessions &&
-        body.sessions.length > 0
-      ) {
-        (body as any).sessions = body.sessions.map((s, index) => ({
-          type: s.type,
-          groomer_id: new Types.ObjectId(s.groomer_id),
+      // 11. auto-generate sessions from service.sessions array for all booking types
+      if (service.sessions && service.sessions.length > 0) {
+        (body as any).sessions = service.sessions.map((sessionType, index) => ({
+          type: sessionType,
+          groomer_id: null,
           status: SessionStatus.NOT_STARTED,
           started_at: null,
           finished_at: null,
           notes: null,
           internal_note: null,
-          order: s.order ?? index,
-          media: [],
+          order: index,
         }));
       } else {
         (body as any).sessions = [];

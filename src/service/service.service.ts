@@ -198,7 +198,7 @@ export class ServiceService {
     const service = await this.serviceModel
       .findById(serviceId)
       .select(
-        'code name price price_type prices isDeleted duration service_location_type',
+        'code name price price_type prices isDeleted duration service_location_type sessions',
       )
       .lean();
 
@@ -243,6 +243,7 @@ export class ServiceService {
       price: resolvedPrice,
       duration: service.duration,
       service_location_type: service.service_location_type,
+      sessions: (service as any).sessions || [],
     };
   }
 
