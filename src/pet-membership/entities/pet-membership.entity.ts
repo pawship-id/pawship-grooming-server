@@ -38,7 +38,22 @@ export class PetMembershipBenefit {
   period_reset_date: Date | null; // Kapan counter reset terakhir
 }
 
-@Schema({ timestamps: true })
+@Schema({
+  timestamps: true,
+  toJSON: {
+    virtuals: true,
+    transform: (_: any, ret: any) => {
+      delete ret.id;
+      delete ret.__v;
+
+      delete ret.pet_id;
+      delete ret.membership_plan_id;
+
+      return ret;
+    },
+  },
+  toObject: { virtuals: true },
+})
 export class PetMembership {
   @Prop({ type: Types.ObjectId, ref: 'Pet', required: true, index: true })
   pet_id: Types.ObjectId;
@@ -90,5 +105,15 @@ PetMembershipSchema.virtual('is_active').get(function () {
   return now >= this.start_date && now <= this.end_date;
 });
 
-PetMembershipSchema.set('toJSON', { virtuals: true });
-PetMembershipSchema.set('toObject', { virtuals: true });
+PetMembershipSchema.virtual('pet', {
+  ref: 'Pet',
+  localField: 'pet_id',
+  foreignField: '_id',
+  justOne: true,
+});
+
+PetMembershipSchema.virtual('membership', {
+  ref: 'Membership',
+  localField: 'membership_plan_id',
+  foreignField: '_id',
+});

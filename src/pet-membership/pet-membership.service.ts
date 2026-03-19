@@ -90,7 +90,24 @@ export class PetMembershipService {
       );
     }
 
-    let petMemberships = await this.petMembershipModel.find(conditions).exec();
+    let petMemberships = await this.petMembershipModel
+      .find(conditions)
+      .populate({
+        path: 'pet',
+        select: 'name tags pet_type_id customer_id',
+        populate: [
+          {
+            path: 'pet_type',
+            select: 'name',
+          },
+          {
+            path: 'owner',
+            select: 'username',
+          },
+        ],
+      })
+      .populate('membership', 'name description duration_months price')
+      .exec();
 
     // Filter by is_active (date range check in virtual field)
     if (query.is_active !== undefined) {
