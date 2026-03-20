@@ -5,14 +5,13 @@ export type MembershipDocument = HydratedDocument<Membership>;
 
 export enum BenefitType {
   DISCOUNT = 'discount',
-  FREE_SERVICE = 'free_service',
   QUOTA = 'quota',
 }
 
 export enum BenefitScope {
   SERVICE = 'service',
   ADDON = 'addon',
-  ORDER = 'order',
+  PICKUP = 'pickup',
 }
 
 export enum BenefitPeriod {
@@ -26,23 +25,26 @@ export class MembershipBenefit {
   @Prop({ type: Types.ObjectId, default: () => new Types.ObjectId() })
   _id: Types.ObjectId;
 
-  @Prop({ enum: BenefitType, required: true })
-  type: BenefitType;
-
   @Prop({ enum: BenefitScope, required: true })
   applies_to: BenefitScope;
+
+  @Prop({ type: Types.ObjectId, ref: 'Service' })
+  service_id?: Types.ObjectId;
+
+  @Prop()
+  label?: string; // Required when service_id is not set
+
+  @Prop({ enum: BenefitType, required: true })
+  type: BenefitType;
 
   @Prop({ enum: BenefitPeriod, default: BenefitPeriod.UNLIMITED })
   period: BenefitPeriod;
 
   @Prop()
-  value?: number; // percentage, amount, or quantity
+  limit?: number; // null/omitted = unlimited
 
-  @Prop({ type: Types.ObjectId, ref: 'Service' })
-  service_id?: Types.ObjectId; // Required for free_service type
-
-  @Prop({ default: -1 })
-  limit: number; // -1 = unlimited
+  @Prop()
+  value?: number; // Required for discount type (percentage)
 }
 
 @Schema({
@@ -89,11 +91,17 @@ export class Membership {
     type: [
       {
         _id: { type: Types.ObjectId, default: () => new Types.ObjectId() },
-        type: { type: String, enum: Object.values(BenefitType) },
         applies_to: { type: String, enum: Object.values(BenefitScope) },
-        value: { type: Number },
         service_id: { type: Types.ObjectId, ref: 'Service' },
-        limit: { type: Number, default: -1 },
+        label: { type: String },
+        type: { type: String, enum: Object.values(BenefitType) },
+        period: {
+          type: String,
+          enum: Object.values(BenefitPeriod),
+          default: BenefitPeriod.UNLIMITED,
+        },
+        limit: { type: Number },
+        value: { type: Number },
       },
     ],
     default: [],

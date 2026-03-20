@@ -13,23 +13,26 @@ export class PetMembershipBenefit {
   @Prop({ type: Types.ObjectId })
   _id: Types.ObjectId;
 
-  @Prop({ enum: BenefitType, required: true })
-  type: BenefitType;
-
   @Prop({ enum: BenefitScope, required: true })
   applies_to: BenefitScope;
+
+  @Prop({ type: Types.ObjectId, ref: 'Service' })
+  service_id?: Types.ObjectId;
+
+  @Prop()
+  label?: string;
+
+  @Prop({ enum: BenefitType, required: true })
+  type: BenefitType;
 
   @Prop({ enum: BenefitPeriod, default: BenefitPeriod.UNLIMITED })
   period: BenefitPeriod;
 
   @Prop()
+  limit?: number; // null/omitted = unlimited
+
+  @Prop()
   value?: number;
-
-  @Prop({ type: Types.ObjectId, ref: 'Service' })
-  service_id?: Types.ObjectId;
-
-  @Prop({ default: -1 })
-  limit: number;
 
   @Prop({ default: 0 })
   used: number; // Track usage untuk periode saat ini
@@ -71,16 +74,17 @@ export class PetMembership {
     type: [
       {
         _id: { type: Types.ObjectId },
-        type: { type: String, enum: Object.values(BenefitType) },
         applies_to: { type: String, enum: Object.values(BenefitScope) },
+        service_id: { type: Types.ObjectId, ref: 'Service' },
+        label: { type: String },
+        type: { type: String, enum: Object.values(BenefitType) },
         period: {
           type: String,
           enum: Object.values(BenefitPeriod),
           default: BenefitPeriod.UNLIMITED,
         },
+        limit: { type: Number },
         value: { type: Number },
-        service_id: { type: Types.ObjectId, ref: 'Service' },
-        limit: { type: Number, default: -1 },
         used: { type: Number, default: 0 },
         period_reset_date: { type: Date, default: null },
       },

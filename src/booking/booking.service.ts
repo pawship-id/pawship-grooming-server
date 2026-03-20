@@ -120,10 +120,14 @@ export class BookingService {
       const availableBenefits = hasActiveMembership
         ? (membershipData.benefits || []).map((b: any) => ({
             _id: b._id,
+            applies_to: b.applies_to,
+            service_id: b.service_id,
+            label: b.label,
+            service: b.service,
             type: b.type,
             period: b.period,
-            value: b.value,
             limit: b.limit,
+            value: b.value,
             used: b.used,
             remaining: b.remaining,
             can_apply: b.can_apply,
@@ -188,7 +192,6 @@ export class BookingService {
     const typeLabel =
       {
         discount: 'Discount',
-        free_service: 'Free Service',
         quota: 'Free Sessions',
       }[benefit.type] || 'Benefit';
 
@@ -202,7 +205,11 @@ export class BookingService {
         unlimited: 'Unlimited',
       }[benefit.period] || benefit.period;
 
-    return `${typeLabel}: ${valueStr} (${periodLabel}) - ${benefit.remaining}/${benefit.limit} remaining`;
+    const remainingStr =
+      benefit.remaining === null ? '∞' : `${benefit.remaining}`;
+    const limitStr = benefit.limit === null ? '∞' : `${benefit.limit}`;
+
+    return `${typeLabel}: ${valueStr} (${periodLabel}) - ${remainingStr}/${limitStr} remaining`;
   }
 
   /**
@@ -283,9 +290,8 @@ export class BookingService {
       // Calculate discount based on benefit type
       if (benefit.type === 'discount') {
         discountAmount = (benefit.value / 100) * subtotalPrice;
-      } else if (benefit.type === 'free_service') {
-        discountAmount = benefit.value;
       }
+      // quota type = free sessions counter; no monetary deduction
 
       if (discountAmount > 0) {
         totalDiscount += discountAmount;

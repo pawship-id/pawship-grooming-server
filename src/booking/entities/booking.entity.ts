@@ -33,7 +33,7 @@ export class AppliedBenefit {
   benefit_id: Types.ObjectId;
 
   @Prop({ required: true })
-  benefit_type: string; // 'discount', 'free_service', 'quota'
+  benefit_type: string; // 'discount', 'quota'
 
   @Prop({ required: true })
   benefit_period: string; // 'weekly', 'monthly', 'unlimited'

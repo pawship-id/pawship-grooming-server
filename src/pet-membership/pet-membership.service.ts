@@ -58,12 +58,13 @@ export class PetMembershipService {
       );
       return {
         _id: b._id,
-        type: b.type,
         applies_to: b.applies_to,
-        period: b.period,
-        value: b.value,
         service_id: b.service_id,
+        label: b.label,
+        type: b.type,
+        period: b.period,
         limit: b.limit,
+        value: b.value,
         used: 0,
         period_reset_date: periodResetDate,
       };
@@ -221,20 +222,21 @@ export class PetMembershipService {
         now,
       );
       const currentUsed = hasResetSincePeriod ? 0 : b.used;
-      const remaining = b.limit === -1 ? -1 : b.limit - currentUsed;
+      const remaining = b.limit == null ? null : b.limit - currentUsed;
 
       return {
         _id: b._id.toString(),
-        type: b.type,
         applies_to: b.applies_to,
-        period: b.period,
-        value: b.value,
         service_id: b.service_id?.toString(),
+        label: b.label || null,
         service: b.service || null,
-        limit: b.limit,
+        type: b.type,
+        period: b.period,
+        limit: b.limit ?? null,
+        value: b.value,
         used: currentUsed,
         remaining,
-        can_apply: b.limit === -1 || currentUsed < b.limit,
+        can_apply: b.limit == null || currentUsed < b.limit,
         period_reset_date: b.period_reset_date,
         next_reset_date: this.calculateNextPeriodResetDate(
           b.period_reset_date,
@@ -325,7 +327,7 @@ export class PetMembershipService {
     }
 
     // Validate dapat deduct atau tidak
-    if (benefit.limit !== -1 && benefit.used + amountUsed > benefit.limit) {
+    if (benefit.limit != null && benefit.used + amountUsed > benefit.limit) {
       throw new BadRequestException(
         `cannot deduct ${amountUsed} from benefit. limit: ${benefit.limit}, used: ${benefit.used}`,
       );

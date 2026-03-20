@@ -47,6 +47,7 @@ export class MembershipService {
       benefits: benefits.map((b) => ({
         ...b,
         period: b.period || 'unlimited', // default unlimited jika tidak diisi
+        label: b.label,
         service_id: b.service_id ? new Types.ObjectId(b.service_id) : undefined,
         _id: new Types.ObjectId(),
       })),
@@ -203,6 +204,7 @@ export class MembershipService {
       updateData.benefits = benefits.map((b: any) => ({
         ...b,
         period: b.period || 'unlimited', // default unlimited
+        label: b.label,
         service_id: b.service_id ? new Types.ObjectId(b.service_id) : undefined,
         _id: b._id ? new Types.ObjectId(b._id) : new Types.ObjectId(),
       }));

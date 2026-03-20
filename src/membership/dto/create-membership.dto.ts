@@ -11,6 +11,7 @@ import {
   ValidateNested,
   ArrayMinSize,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
 import {
   BenefitType,
@@ -19,32 +20,41 @@ import {
 } from '../entities/membership.entity';
 
 class CreateMembershipBenefitDto {
-  @IsEnum(BenefitType, {
-    message: 'type must be one of: discount, free_service, quota',
-  })
-  type: BenefitType;
-
   @IsEnum(BenefitScope, {
-    message: 'applies_to must be one of: service, addon, order',
+    message: 'applies_to must be one of: service, addon, pickup',
   })
   applies_to: BenefitScope;
-
-  @IsOptional()
-  period?: BenefitPeriod = BenefitPeriod.UNLIMITED;
-
-  @IsOptional()
-  @IsNumber({}, { message: 'value must be a number' })
-  @Min(0, { message: 'value must be >= 0' })
-  value?: number;
 
   @IsOptional()
   @IsMongoId({ message: 'service_id must be a valid MongoDB ID' })
   service_id?: string;
 
+  @ValidateIf((o) => !o.service_id)
+  @IsNotEmpty({ message: 'label is required when service_id is not provided' })
+  @IsString({ message: 'label must be a string' })
+  label?: string;
+
+  @IsEnum(BenefitType, {
+    message: 'type must be one of: discount, quota',
+  })
+  type: BenefitType;
+
+  @IsOptional()
+  @IsEnum(BenefitPeriod, {
+    message: 'period must be one of: weekly, monthly, unlimited',
+  })
+  period?: BenefitPeriod = BenefitPeriod.UNLIMITED;
+
   @IsOptional()
   @IsNumber({}, { message: 'limit must be a number' })
-  @Min(-1, { message: 'limit must be >= -1 (-1 for unlimited)' })
+  @Min(0, { message: 'limit must be >= 0' })
   limit?: number;
+
+  @ValidateIf((o) => o.type === BenefitType.DISCOUNT)
+  @IsNotEmpty({ message: 'value is required for discount type' })
+  @IsNumber({}, { message: 'value must be a number' })
+  @Min(0, { message: 'value must be >= 0' })
+  value?: number;
 }
 
 export class CreateMembershipDto {

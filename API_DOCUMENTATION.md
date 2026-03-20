@@ -3208,15 +3208,17 @@ Key: folder | Type: text
 
 ## Memberships
 
-Memberships provide benefits to pets, including discounts, free services, and quota-based benefits. Benefits can have period-based resets (weekly, monthly, or unlimited).
+Memberships provide benefits to pets, including discounts and quota-based session benefits. Benefits can have period-based resets (weekly, monthly, or unlimited).
 
 **Benefit Structure:**
 
-- `type`: `discount` (percentage), `free_service` (fixed amount), `quota` (session count)
-- `applies_to`: `service`, `addon`, `order`
+- `applies_to`: `service`, `addon`, `pickup` (scope of the benefit)
+- `service_id`: Reference to a Service (optional; populated with full service details on retrieval)
+- `label`: Human-readable label (optional; **required when `service_id` is not provided**)
+- `type`: `discount` (percentage off subtotal), `quota` (session count — no monetary deduction)
 - `period`: `weekly` (resets Monday 00:00), `monthly` (resets 1st day 00:00), `unlimited` (no reset)
-- `service_id`: Reference to a Service (populated with full service details on retrieval)
-- `limit`: Max usage count per period (-1 = unlimited)
+- `limit`: Max usage count per period (optional — omit or `null` for unlimited)
+- `value`: Discount percentage (required for `type: discount`, omit for `type: quota`)
 
 ---
 
@@ -3249,27 +3251,28 @@ Memberships provide benefits to pets, including discounts, free services, and qu
       "benefits": [
         {
           "_id": "607f1f77bcf86cd799439021",
-          "type": "discount",
           "applies_to": "service",
-          "period": "monthly",
-          "value": 10,
           "service_id": null,
-          "limit": 5
+          "label": "Monthly Service Discount",
+          "type": "discount",
+          "period": "monthly",
+          "limit": 5,
+          "value": 10
         },
         {
           "_id": "607f1f77bcf86cd799439022",
-          "type": "free_service",
           "applies_to": "service",
-          "period": "unlimited",
-          "value": 150000,
           "service_id": {
             "_id": "69a45774ecf65d9a74d53fe6",
             "name": "Basic Grooming",
             "price": 350000,
-            "duration": 90,
             "code": "SVC-0001"
           },
-          "limit": 12
+          "label": null,
+          "type": "quota",
+          "period": "unlimited",
+          "limit": 12,
+          "value": null
         }
       ],
       "createdAt": "2026-01-15T10:30:00.000Z",
@@ -3308,27 +3311,28 @@ Memberships provide benefits to pets, including discounts, free services, and qu
     "benefits": [
       {
         "_id": "607f1f77bcf86cd799439021",
-        "type": "discount",
         "applies_to": "service",
-        "period": "monthly",
-        "value": 10,
         "service_id": null,
-        "limit": 5
+        "label": "Monthly Service Discount",
+        "type": "discount",
+        "period": "monthly",
+        "limit": 5,
+        "value": 10
       },
       {
         "_id": "607f1f77bcf86cd799439022",
-        "type": "free_service",
         "applies_to": "service",
-        "period": "unlimited",
-        "value": 150000,
         "service_id": {
           "_id": "69a45774ecf65d9a74d53fe6",
           "name": "Basic Grooming",
           "price": 350000,
-          "duration": 90,
           "code": "SVC-0001"
         },
-        "limit": 12
+        "label": null,
+        "type": "quota",
+        "period": "unlimited",
+        "limit": 12,
+        "value": null
       }
     ],
     "createdAt": "2026-01-15T10:30:00.000Z",
@@ -3362,12 +3366,13 @@ Memberships provide benefits to pets, including discounts, free services, and qu
   "pet_type_ids": ["MongoDB ObjectId (required, min. 1)"],
   "benefits": [
     {
-      "type": "discount | free_service | quota (required)",
-      "applies_to": "service | addon | order (required)",
+      "applies_to": "service | addon | pickup (required)",
+      "service_id": "MongoDB ObjectId (optional)",
+      "label": "string (required when service_id is not provided)",
+      "type": "discount | quota (required)",
       "period": "weekly | monthly | unlimited (optional, default: unlimited)",
-      "value": "number (optional, required for discount)",
-      "service_id": "MongoDB ObjectId (optional, for service-specific benefits)",
-      "limit": "number (optional, default: -1 for unlimited)"
+      "limit": "number (optional, omit or null = unlimited, min: 0)",
+      "value": "number (required for type: discount, percentage 0-100)"
     }
   ]
 }
@@ -3385,19 +3390,26 @@ Memberships provide benefits to pets, including discounts, free services, and qu
   "pet_type_ids": ["507f1f77bcf86cd799439012"],
   "benefits": [
     {
-      "type": "discount",
       "applies_to": "service",
+      "label": "Monthly Service Discount",
+      "type": "discount",
       "period": "monthly",
-      "value": 10,
-      "limit": 5
+      "limit": 5,
+      "value": 10
     },
     {
-      "type": "free_service",
       "applies_to": "service",
-      "period": "unlimited",
-      "value": 150000,
       "service_id": "69a45774ecf65d9a74d53fe6",
+      "type": "quota",
+      "period": "unlimited",
       "limit": 12
+    },
+    {
+      "applies_to": "pickup",
+      "label": "Free Pickup",
+      "type": "quota",
+      "period": "monthly",
+      "limit": 2
     }
   ]
 }
@@ -3420,26 +3432,38 @@ Memberships provide benefits to pets, including discounts, free services, and qu
     "benefits": [
       {
         "_id": "607f1f77bcf86cd799439021",
-        "type": "discount",
         "applies_to": "service",
-        "period": "monthly",
-        "value": 10,
         "service_id": null,
-        "limit": 5
+        "label": "Monthly Service Discount",
+        "type": "discount",
+        "period": "monthly",
+        "limit": 5,
+        "value": 10
       },
       {
         "_id": "607f1f77bcf86cd799439022",
-        "type": "free_service",
         "applies_to": "service",
-        "period": "unlimited",
-        "value": 150000,
         "service_id": {
           "_id": "69a45774ecf65d9a74d53fe6",
           "name": "Basic Grooming",
           "price": 350000,
-          "duration": 90
+          "code": "SVC-0001"
         },
-        "limit": 12
+        "label": null,
+        "type": "quota",
+        "period": "unlimited",
+        "limit": 12,
+        "value": null
+      },
+      {
+        "_id": "607f1f77bcf86cd799439023",
+        "applies_to": "pickup",
+        "service_id": null,
+        "label": "Free Pickup",
+        "type": "quota",
+        "period": "monthly",
+        "limit": 2,
+        "value": null
       }
     ],
     "createdAt": "2026-03-19T10:30:00.000Z",
@@ -3542,6 +3566,8 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 - **benefits_snapshot**: Denormalized copy of membership benefits at purchase time, includes `used` counter and `period_reset_date` for tracking
 - **Period Resets**: Weekly (every Monday 00:00), Monthly (1st day 00:00), or Unlimited (never)
 - **used counter**: Tracks how many times a benefit has been used in the current period
+- **limit**: `null` means unlimited (no cap); a positive number sets the max per period
+- **remaining**: `null` means unlimited; a number shows how many uses are left
 - **is_active virtual**: True if pet membership is between start_date and end_date (not deleted)
 
 ---
@@ -3571,10 +3597,9 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
       "benefits_snapshot": [
         {
           "_id": "69bb9d015c840eeb3bb38c80",
-          "type": "quota",
           "applies_to": "service",
-          "period": "unlimited",
           "service_id": "69a45774ecf65d9a74d53fe6",
+          "label": null,
           "service": {
             "_id": "69a45774ecf65d9a74d53fe6",
             "code": "BATH_PREMIUM",
@@ -3583,17 +3608,18 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
             "description": "Premium bathing with premium shampoo",
             "service_location_type": "store"
           },
+          "type": "quota",
+          "period": "unlimited",
           "limit": 1,
+          "value": null,
           "used": 0,
-          "period_reset_date": "2026-03-19T07:35:08.749Z",
-          "id": "69bb9d015c840eeb3bb38c80"
+          "period_reset_date": "2026-03-19T07:35:08.749Z"
         },
         {
           "_id": "69bb9d015c840eeb3bb38c81",
-          "type": "quota",
           "applies_to": "service",
-          "period": "unlimited",
           "service_id": "69ad38fa00e9af98d2941074",
+          "label": null,
           "service": {
             "_id": "69ad38fa00e9af98d2941074",
             "code": "HOTEL_STANDARD",
@@ -3602,48 +3628,38 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
             "description": "Standard overnight hotel stay",
             "service_location_type": "store"
           },
-          "limit": -1,
+          "type": "quota",
+          "period": "unlimited",
+          "limit": null,
+          "value": null,
           "used": 0,
-          "period_reset_date": "2026-03-19T07:35:08.749Z",
-          "id": "69bb9d015c840eeb3bb38c81"
+          "period_reset_date": null
         },
         {
           "_id": "69bb9d015c840eeb3bb38c82",
-          "type": "discount",
           "applies_to": "addon",
-          "period": "unlimited",
           "service_id": null,
+          "label": "Addon Discount 10%",
           "service": null,
+          "type": "discount",
+          "period": "unlimited",
+          "limit": null,
           "value": 10,
-          "limit": -1,
           "used": 0,
-          "period_reset_date": "2026-03-19T07:35:08.749Z",
-          "id": "69bb9d015c840eeb3bb38c82"
-        },
-        {
-          "_id": "69bb9d015c840eeb3bb38c83",
-          "type": "quota",
-          "applies_to": "service",
-          "period": "unlimited",
-          "service_id": null,
-          "service": null,
-          "limit": 1,
-          "used": 0,
-          "period_reset_date": "2026-03-19T07:35:08.749Z",
-          "id": "69bb9d015c840eeb3bb38c83"
+          "period_reset_date": null
         },
         {
           "_id": "69bb9d015c840eeb3bb38c84",
-          "type": "discount",
-          "applies_to": "service",
-          "period": "unlimited",
+          "applies_to": "pickup",
           "service_id": null,
+          "label": "Free Pickup",
           "service": null,
-          "value": 20,
-          "limit": -1,
+          "type": "quota",
+          "period": "monthly",
+          "limit": 2,
+          "value": null,
           "used": 0,
-          "period_reset_date": "2026-03-19T07:35:08.749Z",
-          "id": "69bb9d015c840eeb3bb38c84"
+          "period_reset_date": "2026-04-01T00:00:00.000Z"
         }
       ],
       "isDeleted": false,
@@ -4327,7 +4343,7 @@ Benefit Usages track when and how membership benefits are applied to bookings. E
 - **pet_membership_id**: Reference to the pet membership that owns the benefit
 - **benefit_id**: Reference to the specific benefit in the membership's benefits_snapshot
 - **booking_id**: The booking where the benefit was applied
-- **scope**: Type of benefit applied (service, addon, or order)
+- **scope**: Type of benefit applied (`service`, `addon`, or `pickup`)
 - **target_id**: The service or addon that was the target of the benefit (if service-scoped)
 - **amount_used**: How much of the benefit was consumed (discount $ amount, free session count, etc.)
 - **used_at**: When the benefit was applied

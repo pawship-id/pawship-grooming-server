@@ -33,12 +33,16 @@ export class BookingPreviewRequestDto {
 
 export class PreviewBenefitDto {
   _id: string;
-  type: string; // discount, free_service, quota
+  applies_to: string; // service, addon, pickup
+  service_id?: string;
+  label?: string;
+  service?: any;
+  type: string; // discount, quota
   period: string; // weekly, monthly, unlimited
   value?: number;
-  limit: number;
+  limit: number | null;
   used: number;
-  remaining: number;
+  remaining: number | null;
   can_apply: boolean;
   period_reset_date: Date | null;
   next_reset_date: Date | null;
