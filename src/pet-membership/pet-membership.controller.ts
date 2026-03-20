@@ -86,6 +86,24 @@ export class PetMembershipController {
     };
   }
 
+  @Post(':id/renew')
+  async renew(@Param('id') id: string) {
+    const petMembership = await this.petMembershipService.renew(id);
+    return {
+      message: 'membership renewed successfully',
+      data: petMembership,
+    };
+  }
+
+  @Get(':pet_id/membership-history')
+  async getMembershipHistory(@Param('pet_id') petId: string) {
+    const history = await this.petMembershipService.getMembershipHistory(petId);
+    return {
+      message: 'membership history retrieved successfully',
+      data: history,
+    };
+  }
+
   @Put(':id')
   async update(
     @Param('id') id: string,

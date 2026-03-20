@@ -10,6 +10,11 @@ import {
   PetMembershipDocument,
 } from './entities/pet-membership.entity';
 import {
+  MembershipLog,
+  MembershipLogDocument,
+  MembershipEventType,
+} from './entities/membership-log.entity';
+import {
   Membership,
   MembershipDocument,
   BenefitPeriod,
@@ -24,6 +29,8 @@ export class PetMembershipService {
   constructor(
     @InjectModel(PetMembership.name)
     private petMembershipModel: Model<PetMembershipDocument>,
+    @InjectModel(MembershipLog.name)
+    private membershipLogModel: Model<MembershipLogDocument>,
     @InjectModel(Membership.name)
     private membershipModel: Model<MembershipDocument>,
     @InjectModel(Service.name)
@@ -78,7 +85,19 @@ export class PetMembershipService {
       benefits_snapshot: benefitsSnapshot,
     });
 
-    return petMembership.save();
+    const saved = await petMembership.save();
+
+    await this.createLog({
+      pet_id: saved.pet_id,
+      pet_membership_id: (saved as any)._id,
+      membership_plan_id: saved.membership_plan_id,
+      event_type: MembershipEventType.PURCHASED,
+      start_date: startDate,
+      end_date: endDate,
+      benefits_snapshot_before: benefitsSnapshot,
+    });
+
+    return saved;
   }
 
   async findAll(query: GetPetMembershipQueryDto): Promise<any[]> {
@@ -393,20 +412,142 @@ export class PetMembershipService {
       throw new BadRequestException('invalid pet membership ID');
     }
 
+    // Fetch first to capture snapshot before deletion
+    const existing = await this.petMembershipModel.findOne({
+      _id: new Types.ObjectId(id),
+      isDeleted: false,
+    });
+
+    if (!existing) {
+      throw new NotFoundException('pet membership not found');
+    }
+
+    const snapshotBefore = (existing as any).toObject().benefits_snapshot || [];
+
     const petMembership = await this.petMembershipModel.findByIdAndUpdate(
       new Types.ObjectId(id),
+      { isDeleted: true, deletedAt: new Date() },
+      { new: true },
+    );
+
+    await this.createLog({
+      pet_id: existing.pet_id,
+      pet_membership_id: (existing as any)._id,
+      membership_plan_id: existing.membership_plan_id,
+      event_type: MembershipEventType.CANCELLED,
+      start_date: existing.start_date,
+      end_date: existing.end_date,
+      benefits_snapshot_before: snapshotBefore,
+    });
+
+    return petMembership!;
+  }
+
+  async renew(id: string): Promise<any> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('invalid pet membership ID');
+    }
+
+    const existing = await this.petMembershipModel.findOne({
+      _id: new Types.ObjectId(id),
+      isDeleted: false,
+    });
+
+    if (!existing) {
+      throw new NotFoundException('pet membership not found');
+    }
+
+    const now = new Date();
+    if (existing.end_date >= now) {
+      throw new BadRequestException(
+        'membership is still active and cannot be renewed yet',
+      );
+    }
+
+    const membership = await this.membershipModel.findOne({
+      _id: existing.membership_plan_id,
+      isDeleted: false,
+    });
+
+    if (!membership) {
+      throw new BadRequestException('membership plan not found');
+    }
+
+    // Snapshot the current pet-membership benefits (with final used counts) before reset
+    const snapshotBefore = (existing as any).toObject().benefits_snapshot || [];
+
+    // New period: contiguous from old end_date
+    const newStartDate = new Date(existing.end_date);
+    const newEndDate = new Date(existing.end_date);
+    newEndDate.setMonth(newEndDate.getMonth() + membership.duration_months);
+
+    // Rebuild benefits snapshot fresh from membership plan (same as create)
+    const resetSnapshot = membership.benefits.map((b) => ({
+      _id: b._id,
+      applies_to: b.applies_to,
+      service_id: b.service_id,
+      label: b.label,
+      type: b.type,
+      period: b.period,
+      limit: b.limit,
+      value: b.value,
+      used: 0,
+      period_reset_date: this.calculateNextPeriodResetDate(
+        newStartDate,
+        b.period,
+      ),
+    }));
+
+    const updated = await this.petMembershipModel.findByIdAndUpdate(
+      new Types.ObjectId(id),
       {
-        isDeleted: true,
-        deletedAt: new Date(),
+        end_date: newEndDate,
+        benefits_snapshot: resetSnapshot,
       },
       { new: true },
     );
 
-    if (!petMembership) {
-      throw new NotFoundException('pet membership not found');
+    await this.createLog({
+      pet_id: existing.pet_id,
+      pet_membership_id: (existing as any)._id,
+      membership_plan_id: existing.membership_plan_id,
+      event_type: MembershipEventType.RENEWED,
+      start_date: newStartDate,
+      end_date: newEndDate,
+      benefits_snapshot_before: snapshotBefore,
+      note: `Renewed from ${existing.end_date.toISOString()} to ${newEndDate.toISOString()}`,
+    });
+
+    return updated;
+  }
+
+  async getMembershipHistory(petId: string): Promise<any[]> {
+    if (!Types.ObjectId.isValid(petId)) {
+      throw new BadRequestException('invalid pet ID');
     }
 
-    return petMembership;
+    return this.membershipLogModel
+      .find({ pet_id: new Types.ObjectId(petId), isDeleted: false })
+      .populate('membership', 'name description duration_months price')
+      .sort({ event_date: -1 })
+      .lean()
+      .exec();
+  }
+
+  private async createLog(data: {
+    pet_id: Types.ObjectId;
+    pet_membership_id: Types.ObjectId;
+    membership_plan_id: Types.ObjectId;
+    event_type: MembershipEventType;
+    start_date: Date;
+    end_date: Date;
+    benefits_snapshot_before?: any[];
+    note?: string;
+  }): Promise<void> {
+    await this.membershipLogModel.create({
+      ...data,
+      event_date: new Date(),
+    });
   }
 
   private enrichBenefits(

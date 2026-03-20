@@ -6,6 +6,10 @@ import {
   PetMembershipSchema,
 } from './entities/pet-membership.entity';
 import {
+  MembershipLog,
+  MembershipLogSchema,
+} from './entities/membership-log.entity';
+import {
   Membership,
   MembershipSchema,
 } from '../membership/entities/membership.entity';
@@ -17,6 +21,7 @@ import { Service, ServiceSchema } from 'src/service/entities/service.entity';
   imports: [
     MongooseModule.forFeature([
       { name: PetMembership.name, schema: PetMembershipSchema },
+      { name: MembershipLog.name, schema: MembershipLogSchema },
       { name: Membership.name, schema: MembershipSchema },
       { name: Service.name, schema: ServiceSchema },
     ]),
