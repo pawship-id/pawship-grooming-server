@@ -40,13 +40,13 @@ export class MembershipService {
     }
 
     // Validation if applies_to to be filled with add-ons or services, then service_id is mandatory.
-    for (const b of benefits) {
-      if (b.applies_to === 'service' && !b.service_id) {
-        throw new BadRequestException(
-          `benefit dengan applies_to '${b.applies_to}' wajib punya service_id`,
-        );
-      }
-    }
+    // for (const b of benefits) {
+    //   if (b.applies_to === 'service' && !b.service_id) {
+    //     throw new BadRequestException(
+    //       `benefit dengan applies_to '${b.applies_to}' wajib punya service_id`,
+    //     );
+    //   }
+    // }
 
     const membership = new this.membershipModel({
       name,
@@ -205,15 +205,15 @@ export class MembershipService {
     }
 
     // Validation if applies_to to be filled with add-ons or services, then service_id is mandatory.
-    if (benefits) {
-      for (const b of benefits) {
-        if (b.applies_to === 'service' && !b.service_id) {
-          throw new BadRequestException(
-            `benefit dengan applies_to '${b.applies_to}' wajib punya service_id`,
-          );
-        }
-      }
-    }
+    // if (benefits) {
+    //   for (const b of benefits) {
+    //     if (b.applies_to === 'service' && !b.service_id) {
+    //       throw new BadRequestException(
+    //         `benefit dengan applies_to '${b.applies_to}' wajib punya service_id`,
+    //       );
+    //     }
+    //   }
+    // }
 
     const updateData: any = { ...rest };
     if (name) updateData.name = name;

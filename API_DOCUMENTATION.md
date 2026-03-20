@@ -3710,14 +3710,6 @@ Memberships provide benefits to pets, including discounts and quota-based sessio
 }
 ```
 
-```json
-{
-  "statusCode": 400,
-  "message": "benefit dengan applies_to '${b.applies_to}' wajib punya service_id",
-  "error": "Bad Request"
-}
-```
-
 **Notes:**
 
 - Each benefit **must** have either `service_id` or `label` (or both)
