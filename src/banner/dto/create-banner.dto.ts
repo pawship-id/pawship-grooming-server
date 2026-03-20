@@ -6,13 +6,22 @@ import {
   IsNumber,
   IsOptional,
   IsString,
-  IsUrl,
   ValidateNested,
 } from 'class-validator';
 import {
   CtaHorizontalPosition,
   CtaVerticalPosition,
 } from '../entities/banner.entity';
+
+export class BannerImageDto {
+  @IsNotEmpty({ message: 'image_url is required' })
+  @IsString()
+  image_url: string;
+
+  @IsNotEmpty({ message: 'public_id is required' })
+  @IsString()
+  public_id: string;
+}
 
 export class CtaDto {
   @IsNotEmpty()
@@ -45,13 +54,19 @@ export class CtaDto {
 }
 
 export class CreateBannerDto {
-  @IsNotEmpty({ message: 'image_url is required' })
-  @IsString()
-  image_url: string;
+  @IsNotEmpty({ message: 'banner_desktop is required' })
+  @ValidateNested()
+  @Type(() => BannerImageDto)
+  banner_desktop: BannerImageDto;
 
-  @IsNotEmpty({ message: 'public_id is required' })
-  @IsString()
-  public_id: string;
+  @IsNotEmpty({ message: 'banner_mobile is required' })
+  @ValidateNested()
+  @Type(() => BannerImageDto)
+  banner_mobile: BannerImageDto;
+
+  @IsOptional()
+  @IsBoolean()
+  add_text?: boolean = false;
 
   @IsOptional()
   @IsString()

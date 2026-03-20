@@ -74,7 +74,9 @@ export class BannerService {
   async getPublicBanners() {
     const banners = await this.bannerModel
       .find({ isDeleted: false, is_active: true })
-      .select('_id image_url title subtitle text_align text_color cta order')
+      .select(
+        '_id banner_desktop banner_mobile add_text title subtitle text_align text_color cta order',
+      )
       .sort({ order: 1, createdAt: -1 })
       .exec();
 

@@ -28,11 +28,28 @@ export enum CtaHorizontalPosition {
   toObject: { virtuals: true },
 })
 export class Banner {
-  @Prop({ required: true })
-  image_url: string;
+  @Prop({
+    type: {
+      image_url: { type: String, required: true },
+      public_id: { type: String, required: true },
+    },
+    _id: false,
+    required: true,
+  })
+  banner_desktop: { image_url: string; public_id: string };
 
-  @Prop({ required: true })
-  public_id: string;
+  @Prop({
+    type: {
+      image_url: { type: String, required: true },
+      public_id: { type: String, required: true },
+    },
+    _id: false,
+    required: true,
+  })
+  banner_mobile: { image_url: string; public_id: string };
+
+  @Prop({ default: false })
+  add_text: boolean;
 
   @Prop()
   title: string;

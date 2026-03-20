@@ -2628,7 +2628,7 @@ GET /service-types?search=grooming&is_active=true&page=1&limit=5
 
 ## Banners
 
-Banners are promotional images displayed on the app, optionally with a CTA button. Position of text and CTA button can be configured per banner.
+Banners are promotional images displayed on the app, optionally with a CTA button. Position of text and CTA button can be configured per banner. Each banner has separate images for desktop and mobile.
 
 **Base route:** `/banners`
 
@@ -2638,23 +2638,28 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
 
 ### Schema
 
-| Field                     | Type    | Required    | Default  | Description                                |
-| ------------------------- | ------- | ----------- | -------- | ------------------------------------------ |
-| `image_url`               | string  | ✅          | —        | Cloudinary secure URL of the image         |
-| `public_id`               | string  | ✅          | —        | Cloudinary public ID                       |
-| `title`                   | string  | —           | —        | Banner title text                          |
-| `subtitle`                | string  | —           | —        | Banner subtitle / body text                |
-| `text_align`              | string  | —           | —        | Text alignment (`left`, `center`, `right`) |
-| `text_color`              | string  | —           | —        | Text color (CSS value, e.g. `#ffffff`)     |
-| `cta`                     | object  | —           | `null`   | CTA button config (see below)              |
-| `cta.label`               | string  | ✅ (if cta) | —        | Button label text                          |
-| `cta.link`                | string  | ✅ (if cta) | —        | URL the button navigates to                |
-| `cta.background_color`    | string  | —           | —        | Button background color                    |
-| `cta.text_color`          | string  | —           | —        | Button text color                          |
-| `cta.vertical_position`   | string  | —           | `bottom` | `top` \| `center` \| `bottom`              |
-| `cta.horizontal_position` | string  | —           | `center` | `left` \| `center` \| `right`              |
-| `order`                   | number  | —           | `0`      | Display order (ascending)                  |
-| `is_active`               | boolean | —           | `false`  | Whether banner is visible                  |
+| Field                      | Type    | Required    | Default  | Description                                |
+| -------------------------- | ------- | ----------- | -------- | ------------------------------------------ |
+| `banner_desktop`           | object  | ✅          | —        | Desktop image                              |
+| `banner_desktop.image_url` | string  | ✅          | —        | Cloudinary secure URL                      |
+| `banner_desktop.public_id` | string  | ✅          | —        | Cloudinary public ID                       |
+| `banner_mobile`            | object  | ✅          | —        | Mobile image                               |
+| `banner_mobile.image_url`  | string  | ✅          | —        | Cloudinary secure URL                      |
+| `banner_mobile.public_id`  | string  | ✅          | —        | Cloudinary public ID                       |
+| `add_text`                 | boolean | —           | `false`  | Whether to show text overlay on the banner |
+| `title`                    | string  | —           | —        | Banner title text                          |
+| `subtitle`                 | string  | —           | —        | Banner subtitle / body text                |
+| `text_align`               | string  | —           | —        | Text alignment (`left`, `center`, `right`) |
+| `text_color`               | string  | —           | —        | Text color (CSS value, e.g. `#ffffff`)     |
+| `cta`                      | object  | —           | `null`   | CTA button config (see below)              |
+| `cta.label`                | string  | ✅ (if cta) | —        | Button label text                          |
+| `cta.link`                 | string  | ✅ (if cta) | —        | URL the button navigates to                |
+| `cta.background_color`     | string  | —           | —        | Button background color                    |
+| `cta.text_color`           | string  | —           | —        | Button text color                          |
+| `cta.vertical_position`    | string  | —           | `bottom` | `top` \| `center` \| `bottom`              |
+| `cta.horizontal_position`  | string  | —           | `center` | `left` \| `center` \| `right`              |
+| `order`                    | number  | —           | `0`      | Display order (ascending)                  |
+| `is_active`                | boolean | —           | `false`  | Whether banner is visible                  |
 
 ---
 
@@ -2678,8 +2683,15 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
   "banners": [
     {
       "_id": "507f1f77bcf86cd799439011",
-      "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo.jpg",
-      "public_id": "banners/promo",
+      "banner_desktop": {
+        "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo-desktop.jpg",
+        "public_id": "banners/promo-desktop"
+      },
+      "banner_mobile": {
+        "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo-mobile.jpg",
+        "public_id": "banners/promo-mobile"
+      },
+      "add_text": true,
       "title": "Promo Maret!",
       "subtitle": "Diskon 20% untuk semua layanan grooming",
       "text_align": "center",
@@ -2726,7 +2738,15 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
   "banners": [
     {
       "_id": "60d21b4667d0d8992e610c85",
-      "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo.jpg",
+      "banner_desktop": {
+        "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo-desktop.jpg",
+        "public_id": "banners/promo-desktop"
+      },
+      "banner_mobile": {
+        "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo-mobile.jpg",
+        "public_id": "banners/promo-mobile"
+      },
+      "add_text": true,
       "title": "Promo Maret!",
       "subtitle": "Diskon 20% untuk semua layanan grooming",
       "text_align": "center",
@@ -2748,7 +2768,7 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
 **Notes:**
 
 - Response hanya menyertakan field yang relevan untuk tampilan publik
-- Field internal seperti `public_id`, `isDeleted`, `deletedAt`, `createdAt`, `updatedAt` tidak disertakan
+- Field internal seperti `isDeleted`, `deletedAt`, `createdAt`, `updatedAt` tidak disertakan
 
 ---
 
@@ -2787,8 +2807,15 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
 
 ```json
 {
-  "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo.jpg",
-  "public_id": "banners/promo",
+  "banner_desktop": {
+    "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo-desktop.jpg",
+    "public_id": "banners/promo-desktop"
+  },
+  "banner_mobile": {
+    "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo-mobile.jpg",
+    "public_id": "banners/promo-mobile"
+  },
+  "add_text": true,
   "title": "Promo Maret!",
   "subtitle": "Diskon 20% untuk semua layanan grooming",
   "text_align": "center",
@@ -2805,7 +2832,9 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
 }
 ```
 
-> `cta` bersifat opsional. Jika tidak dikirim, banner tidak memiliki tombol CTA.
+> `banner_desktop` dan `banner_mobile` wajib diisi, masing-masing berisi `image_url` dan `public_id` dari Cloudinary.
+>
+> `add_text` (default: `false`) — set `true` untuk menampilkan overlay teks (title, subtitle, dll) di atas banner.
 >
 > `cta.vertical_position` enum: `top` | `center` | `bottom` (default: `bottom`)
 >
@@ -2835,6 +2864,11 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
 
 ```json
 {
+  "banner_mobile": {
+    "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo-mobile-v2.jpg",
+    "public_id": "banners/promo-mobile-v2"
+  },
+  "add_text": false,
   "title": "Promo April!",
   "is_active": true,
   "order": 2,
