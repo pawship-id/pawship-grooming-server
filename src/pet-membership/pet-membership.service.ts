@@ -298,6 +298,11 @@ export class PetMembershipService {
           membership_name: (petMembership as any).membership?.name ?? null,
           start_date: petMembership.start_date,
           end_date: petMembership.end_date,
+          status: this.computeStatus(
+            petMembership.is_active,
+            petMembership.start_date,
+            petMembership.end_date,
+          ),
         },
         benefits: this.enrichBenefits(
           petMembership.benefits_snapshot || [],
@@ -325,9 +330,10 @@ export class PetMembershipService {
     // For now, return structure
     return {
       has_active_membership: true,
-      membership_ids: activeMemberships.map(
-        (pm: any) => pm._id?.toString() || pm.id,
-      ),
+      memberships: activeMemberships.map((pm: any) => ({
+        pet_membership_id: pm._id?.toString() || pm.id,
+        status: this.computeStatus(pm.is_active, pm.start_date, pm.end_date),
+      })),
       benefits_history: [],
     };
   }
@@ -574,13 +580,18 @@ export class PetMembershipService {
       throw new BadRequestException('invalid pet ID');
     }
 
-    return this.petMembershipModel
+    const results = await this.petMembershipModel
       .find({ pet_id: new Types.ObjectId(petId), isDeleted: false })
       .populate('membership', 'name description duration_months price')
       .select('-benefits_snapshot')
       .sort({ createdAt: -1 })
       .lean({ virtuals: true })
       .exec();
+
+    return results.map((pm: any) => ({
+      ...pm,
+      status: this.computeStatus(pm.is_active, pm.start_date, pm.end_date),
+    }));
   }
 
   async getMembershipHistoryDetail(
@@ -608,6 +619,15 @@ export class PetMembershipService {
       throw new NotFoundException('pet membership not found');
     }
 
+    const enrichedPetMembership = {
+      ...(petMembership as any),
+      status: this.computeStatus(
+        (petMembership as any).is_active,
+        (petMembership as any).start_date,
+        (petMembership as any).end_date,
+      ),
+    };
+
     const logs = await this.membershipLogModel
       .find({
         pet_id: new Types.ObjectId(petId),
@@ -621,7 +641,7 @@ export class PetMembershipService {
       .exec();
 
     return {
-      pet_membership: petMembership,
+      pet_membership: enrichedPetMembership,
       logs,
     };
   }
@@ -765,7 +785,7 @@ export class PetMembershipService {
       });
     }
 
-    // Add service object to each benefit in plain docs
+    // Add service object to each benefit in plain docs, and compute status
     plainDocs.forEach((doc) => {
       if (doc.benefits_snapshot) {
         doc.benefits_snapshot = doc.benefits_snapshot.map((benefit: any) => ({
@@ -775,9 +795,26 @@ export class PetMembershipService {
             : null,
         }));
       }
+      doc.status = this.computeStatus(
+        doc.is_active,
+        doc.start_date,
+        doc.end_date,
+      );
     });
 
     return isArray ? plainDocs : plainDocs[0];
+  }
+
+  private computeStatus(
+    isActive: boolean,
+    startDate: Date,
+    endDate: Date,
+  ): 'active' | 'expired' | 'pending' | 'cancelled' {
+    if (!isActive) return 'cancelled';
+    const now = new Date();
+    if (now < new Date(startDate)) return 'pending';
+    if (now > new Date(endDate)) return 'expired';
+    return 'active';
   }
 
   private canApplyBenefit(benefit: any): boolean {

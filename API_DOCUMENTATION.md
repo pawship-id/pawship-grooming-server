@@ -3924,6 +3924,7 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
       "deletedAt": null,
       "createdAt": "2026-03-19T07:35:08.758Z",
       "updatedAt": "2026-03-19T07:35:08.758Z",
+      "status": "active",
       "pet": {
         "_id": "699a6285a99f14a4be787c77",
         "name": "Pet 1",
@@ -3961,6 +3962,11 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 - `period_reset_date`: When the usage counter last reset (null for UNLIMITED period)
 - `pet` includes nested `owner` (customer) and `pet_type` details
 - `membership` is an array containing the applicable membership plan(s)
+- `status`: computed membership status — `"active"` | `"expired"` | `"pending"` | `"cancelled"`
+  - `"active"`: `is_active = true` and today is within `start_date` – `end_date`
+  - `"expired"`: `is_active = true` and today is past `end_date`
+  - `"pending"`: `is_active = true` and today is before `start_date`
+  - `"cancelled"`: `is_active = false`
 
 ---
 
@@ -4063,6 +4069,7 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
     "deletedAt": null,
     "createdAt": "2026-03-19T07:35:08.758Z",
     "updatedAt": "2026-03-19T07:35:08.758Z",
+    "status": "active",
     "pet": {
       "_id": "699a6285a99f14a4be787c77",
       "name": "Pet 1",
@@ -4297,6 +4304,7 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
       "createdAt": "2026-03-20T11:13:41.918Z",
       "updatedAt": "2026-03-20T11:13:41.918Z",
       "__v": 0,
+      "status": "active",
       "pet": {
         "_id": "69ad09a7615651455a811a52",
         "name": "Cici",
@@ -4421,6 +4429,7 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
       "createdAt": "2026-03-20T11:13:46.506Z",
       "updatedAt": "2026-03-20T11:13:46.506Z",
       "__v": 0,
+      "status": "active",
       "pet": {
         "_id": "69ad09a7615651455a811a52",
         "name": "Cici",
@@ -4486,6 +4495,11 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 
 - A membership is "active" if the current date/time is between `start_date` and `end_date`
 - Returns empty array `[]` if no active membership exists
+- `status`: computed membership status — `"active"` | `"expired"` | `"pending"` | `"cancelled"`
+  - `"active"`: `is_active = true` and today is within `start_date` – `end_date`
+  - `"expired"`: `is_active = true` and today is past `end_date`
+  - `"pending"`: `is_active = true` and today is before `start_date`
+  - `"cancelled"`: `is_active = false`
 
 ---
 
@@ -4511,7 +4525,8 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
         "membership_plan_id": "69bd2b7b55b99229f78e9cc6",
         "membership_name": "Unlimited Grooming Silver (6 Month)",
         "start_date": "2026-03-20T11:13:41.916Z",
-        "end_date": "2026-09-20T11:13:41.916Z"
+        "end_date": "2026-09-20T11:13:41.916Z",
+        "status": "active"
       },
       "benefits": [
         {
@@ -4573,7 +4588,8 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 **Notes:**
 
 - `data` is an array — one entry per active membership; empty array if no active membership
-- Each entry has `membership` (plan info) and `benefits[]` (enriched benefit objects for that membership)
+- Each entry has `membership` (plan info, including `status`) and `benefits[]` (enriched benefit objects for that membership)
+- `membership.status`: computed status — `"active"` | `"expired"` | `"pending"` | `"cancelled"`
 - `pet_membership_id`: present on every benefit to identify its source membership
 - `can_apply`: `true` if benefit has remaining quota (`limit` is `null` = unlimited, or `used < limit`)
 - `remaining`: `null` for unlimited benefits (`limit` is `null`), otherwise `limit - used`
@@ -4607,7 +4623,12 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
   "message": "benefits history retrieved successfully",
   "data": {
     "has_active_membership": true,
-    "membership_ids": ["507f1f77bcf86cd799439030"],
+    "memberships": [
+      {
+        "pet_membership_id": "507f1f77bcf86cd799439030",
+        "status": "active"
+      }
+    ],
     "benefits_history": [
       {
         "_id": "607f1f77bcf86cd799439051",
@@ -4644,8 +4665,10 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 
 **Notes:**
 
-- Currently returns empty benefits_history; will be populated once BenefitUsage tracking is integrated
+- Currently returns empty `benefits_history`; will be populated once BenefitUsage tracking is integrated
 - Shows audit trail of when benefits were applied to bookings
+- `memberships`: array of objects with `pet_membership_id` and `status` for each active membership
+- `status` values: `"active"` | `"expired"` | `"pending"` | `"cancelled"`
 
 ---
 
@@ -4884,6 +4907,7 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
       "deletedAt": null,
       "createdAt": "2026-03-20T11:13:41.918Z",
       "updatedAt": "2026-03-20T11:13:41.918Z",
+      "status": "active",
       "membership": {
         "_id": "69bd2b7b55b99229f78e9cc6",
         "name": "Unlimited Grooming Silver (6 Month)",
@@ -4903,6 +4927,7 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
       "deletedAt": "2026-03-20T11:00:00.000Z",
       "createdAt": "2025-09-20T08:00:00.001Z",
       "updatedAt": "2026-03-20T11:00:00.001Z",
+      "status": "cancelled",
       "membership": {
         "_id": "69bd231f55b99229f78e9976",
         "name": "Bronze Membership",
@@ -4940,7 +4965,11 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 
 - Returns **all** pet memberships for the pet where `isDeleted: false` — includes active, expired, and cancelled
 - `benefits_snapshot` is excluded from this list — use endpoint 11 for log detail
-- `is_active: false` = cancelled; `is_active: true` = valid (check `end_date` vs now to determine active vs expired)
+- `status`: computed membership status — `"active"` | `"expired"` | `"pending"` | `"cancelled"`
+  - `"active"`: `is_active = true` and today is within `start_date` – `end_date`
+  - `"expired"`: `is_active = true` and today is past `end_date`
+  - `"pending"`: `is_active = true` and today is before `start_date`
+  - `"cancelled"`: `is_active = false`
 - Sorted by `createdAt` descending (newest first)
 - Use `_id` of each item as `pet_membership_id` to call endpoint 11
 
@@ -4973,6 +5002,7 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
       "deletedAt": null,
       "createdAt": "2026-03-20T11:13:41.918Z",
       "updatedAt": "2026-03-20T11:13:41.918Z",
+      "status": "active",
       "membership": {
         "_id": "69bd2b7b55b99229f78e9cc6",
         "name": "Unlimited Grooming Silver (6 Month)",
@@ -5096,6 +5126,7 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 **Notes:**
 
 - `pet_membership`: the membership record without `benefits_snapshot`
+- `pet_membership.status`: computed status — `"active"` | `"expired"` | `"pending"` | `"cancelled"`
 - `logs`: all `MembershipLog` entries for this specific pet membership, filtered by `pet_id` + `pet_membership_id` + `membership_plan_id`, sorted `event_date` descending
 - `event_type` values: `"purchased"` | `"renewed"` | `"cancelled"` | `"updated"`
 - `benefits_snapshot_before` is `[]` for `updated` events; populated for `purchased`, `renewed`, `cancelled`
