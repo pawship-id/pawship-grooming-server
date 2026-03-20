@@ -12,6 +12,7 @@ import {
   ArrayMinSize,
   MaxLength,
   ValidateIf,
+  IsBoolean,
 } from 'class-validator';
 import {
   BenefitType,
@@ -97,4 +98,8 @@ export class CreateMembershipDto {
   @ValidateNested({ each: true })
   @Type(() => CreateMembershipBenefitDto)
   benefits?: CreateMembershipBenefitDto[];
+
+  @IsOptional()
+  @IsBoolean()
+  is_active?: boolean = true;
 }
