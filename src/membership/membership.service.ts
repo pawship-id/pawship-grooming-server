@@ -39,6 +39,18 @@ export class MembershipService {
       throw new BadRequestException('membership with this name already exists');
     }
 
+    // Validation if applies_to to be filled with add-ons or services, then service_id is mandatory.
+    for (const b of benefits) {
+      if (
+        (b.applies_to === 'addon' || b.applies_to === 'service') &&
+        !b.service_id
+      ) {
+        throw new BadRequestException(
+          `benefit dengan applies_to '${b.applies_to}' wajib punya service_id`,
+        );
+      }
+    }
+
     const membership = new this.membershipModel({
       name,
       duration_months,
@@ -190,6 +202,20 @@ export class MembershipService {
         throw new BadRequestException(
           'membership with this name already exists',
         );
+      }
+    }
+
+    // Validation if applies_to to be filled with add-ons or services, then service_id is mandatory.
+    if (benefits) {
+      for (const b of benefits) {
+        if (
+          (b.applies_to === 'addon' || b.applies_to === 'service') &&
+          !b.service_id
+        ) {
+          throw new BadRequestException(
+            `benefit dengan applies_to '${b.applies_to}' wajib punya service_id`,
+          );
+        }
       }
     }
 

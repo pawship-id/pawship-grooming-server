@@ -3250,29 +3250,112 @@ Memberships provide benefits to pets, including discounts and quota-based sessio
       "is_active": true,
       "benefits": [
         {
-          "_id": "607f1f77bcf86cd799439021",
+          "_id": "69bcbbc3183a5d93fb342b82",
           "applies_to": "service",
-          "service_id": null,
-          "label": "Monthly Service Discount",
+          "type": "quota",
+          "period": "weekly",
+          "limit": 1,
+          "service": {
+            "price": 0,
+            "_id": "69a45774ecf65d9a74d53fe6",
+            "code": "SVC-0001",
+            "name": "Basic Grooming",
+            "prices": [
+              {
+                "pet_type_id": "698bf0d362f5760ac021c595",
+                "pet_name": "Cat",
+                "size_id": "698bf0e462f5760ac021c597",
+                "size_name": "Small",
+                "hair_id": "69a0fe2bdee77f169eb32598",
+                "hair_name": "Sort Hair",
+                "price": 69000
+              },
+              {
+                "pet_type_id": "698bf0d362f5760ac021c595",
+                "pet_name": "Cat",
+                "size_id": "698bf0e462f5760ac021c597",
+                "size_name": "Small",
+                "hair_id": "69a0fe38dee77f169eb3259b",
+                "hair_name": "Long Hair",
+                "price": 89000
+              },
+              {
+                "pet_type_id": "698bf0d362f5760ac021c595",
+                "pet_name": "Cat",
+                "size_id": "698bf0e862f5760ac021c599",
+                "size_name": "Medium",
+                "hair_id": "69a0fe2bdee77f169eb32598",
+                "hair_name": "Sort Hair",
+                "price": 89000
+              },
+              {
+                "pet_type_id": "698bf0d362f5760ac021c595",
+                "pet_name": "Cat",
+                "size_id": "698bf0e862f5760ac021c599",
+                "size_name": "Medium",
+                "hair_id": "69a0fe38dee77f169eb3259b",
+                "hair_name": "Long Hair",
+                "price": 109000
+              },
+              {
+                "pet_type_id": "698bf0d362f5760ac021c595",
+                "pet_name": "Cat",
+                "size_id": "698bf0ea62f5760ac021c59b",
+                "size_name": "Large",
+                "hair_id": "69a0fe2bdee77f169eb32598",
+                "hair_name": "Sort Hair",
+                "price": 109000
+              },
+              {
+                "pet_type_id": "698bf0d362f5760ac021c595",
+                "pet_name": "Cat",
+                "size_id": "698bf0ea62f5760ac021c59b",
+                "size_name": "Large",
+                "hair_id": "69a0fe38dee77f169eb3259b",
+                "hair_name": "Long Hair",
+                "price": 129000
+              }
+            ],
+            "price_type": "multiple"
+          }
+        },
+        {
+          "_id": "69bcbbc3183a5d93fb342b83",
+          "applies_to": "addon",
+          "type": "quota",
+          "period": "unlimited",
+          "service": {
+            "_id": "69ad38fa00e9af98d2941074",
+            "code": "SVC-0003",
+            "name": "Nail Trim",
+            "prices": [],
+            "price_type": "single",
+            "price": 40000
+          }
+        },
+        {
+          "_id": "69bcbbc3183a5d93fb342b84",
+          "applies_to": "addon",
+          "label": "Add ons Discount",
           "type": "discount",
-          "period": "monthly",
-          "limit": 5,
+          "period": "unlimited",
           "value": 10
         },
         {
-          "_id": "607f1f77bcf86cd799439022",
-          "applies_to": "service",
-          "service_id": {
-            "_id": "69a45774ecf65d9a74d53fe6",
-            "name": "Basic Grooming",
-            "price": 350000,
-            "code": "SVC-0001"
-          },
-          "label": null,
+          "_id": "69bcbbc3183a5d93fb342b85",
+          "applies_to": "pickup",
+          "label": "Pickup & Delivery",
           "type": "quota",
+          "period": "monthly",
+          "limit": 1
+        },
+        {
+          "_id": "69bcbbc3183a5d93fb342b86",
+          "applies_to": "pickup",
+          "label": "Pickup Discount",
+          "type": "discount",
           "period": "unlimited",
-          "limit": 12,
-          "value": null
+          "value": 20
         }
       ],
       "createdAt": "2026-01-15T10:30:00.000Z",
@@ -3310,29 +3393,112 @@ Memberships provide benefits to pets, including discounts and quota-based sessio
     "is_active": true,
     "benefits": [
       {
-        "_id": "607f1f77bcf86cd799439021",
+        "_id": "69bcbbc3183a5d93fb342b82",
         "applies_to": "service",
-        "service_id": null,
-        "label": "Monthly Service Discount",
+        "type": "quota",
+        "period": "weekly",
+        "limit": 1,
+        "service": {
+          "price": 0,
+          "_id": "69a45774ecf65d9a74d53fe6",
+          "code": "SVC-0001",
+          "name": "Basic Grooming",
+          "prices": [
+            {
+              "pet_type_id": "698bf0d362f5760ac021c595",
+              "pet_name": "Cat",
+              "size_id": "698bf0e462f5760ac021c597",
+              "size_name": "Small",
+              "hair_id": "69a0fe2bdee77f169eb32598",
+              "hair_name": "Sort Hair",
+              "price": 69000
+            },
+            {
+              "pet_type_id": "698bf0d362f5760ac021c595",
+              "pet_name": "Cat",
+              "size_id": "698bf0e462f5760ac021c597",
+              "size_name": "Small",
+              "hair_id": "69a0fe38dee77f169eb3259b",
+              "hair_name": "Long Hair",
+              "price": 89000
+            },
+            {
+              "pet_type_id": "698bf0d362f5760ac021c595",
+              "pet_name": "Cat",
+              "size_id": "698bf0e862f5760ac021c599",
+              "size_name": "Medium",
+              "hair_id": "69a0fe2bdee77f169eb32598",
+              "hair_name": "Sort Hair",
+              "price": 89000
+            },
+            {
+              "pet_type_id": "698bf0d362f5760ac021c595",
+              "pet_name": "Cat",
+              "size_id": "698bf0e862f5760ac021c599",
+              "size_name": "Medium",
+              "hair_id": "69a0fe38dee77f169eb3259b",
+              "hair_name": "Long Hair",
+              "price": 109000
+            },
+            {
+              "pet_type_id": "698bf0d362f5760ac021c595",
+              "pet_name": "Cat",
+              "size_id": "698bf0ea62f5760ac021c59b",
+              "size_name": "Large",
+              "hair_id": "69a0fe2bdee77f169eb32598",
+              "hair_name": "Sort Hair",
+              "price": 109000
+            },
+            {
+              "pet_type_id": "698bf0d362f5760ac021c595",
+              "pet_name": "Cat",
+              "size_id": "698bf0ea62f5760ac021c59b",
+              "size_name": "Large",
+              "hair_id": "69a0fe38dee77f169eb3259b",
+              "hair_name": "Long Hair",
+              "price": 129000
+            }
+          ],
+          "price_type": "multiple"
+        }
+      },
+      {
+        "_id": "69bcbbc3183a5d93fb342b83",
+        "applies_to": "addon",
+        "type": "quota",
+        "period": "unlimited",
+        "service": {
+          "_id": "69ad38fa00e9af98d2941074",
+          "code": "SVC-0003",
+          "name": "Nail Trim",
+          "prices": [],
+          "price_type": "single",
+          "price": 40000
+        }
+      },
+      {
+        "_id": "69bcbbc3183a5d93fb342b84",
+        "applies_to": "addon",
+        "label": "Add ons Discount",
         "type": "discount",
-        "period": "monthly",
-        "limit": 5,
+        "period": "unlimited",
         "value": 10
       },
       {
-        "_id": "607f1f77bcf86cd799439022",
-        "applies_to": "service",
-        "service_id": {
-          "_id": "69a45774ecf65d9a74d53fe6",
-          "name": "Basic Grooming",
-          "price": 350000,
-          "code": "SVC-0001"
-        },
-        "label": null,
+        "_id": "69bcbbc3183a5d93fb342b85",
+        "applies_to": "pickup",
+        "label": "Pickup & Delivery",
         "type": "quota",
+        "period": "monthly",
+        "limit": 1
+      },
+      {
+        "_id": "69bcbbc3183a5d93fb342b86",
+        "applies_to": "pickup",
+        "label": "Pickup Discount",
+        "type": "discount",
         "period": "unlimited",
-        "limit": 12,
-        "value": null
+        "value": 20
       }
     ],
     "createdAt": "2026-01-15T10:30:00.000Z",
@@ -3367,7 +3533,7 @@ Memberships provide benefits to pets, including discounts and quota-based sessio
   "benefits": [
     {
       "applies_to": "service | addon | pickup (required)",
-      "service_id": "MongoDB ObjectId (optional)",
+      "service_id": "MongoDB ObjectId (optional), require when applies_to service or addon",
       "label": "string (required when service_id is not provided)",
       "type": "discount | quota (required)",
       "period": "weekly | monthly | unlimited (optional, default: unlimited)",
@@ -3484,11 +3650,43 @@ Memberships provide benefits to pets, including discounts and quota-based sessio
 }
 ```
 
+```json
+{
+  "statusCode": 400,
+  "message": "label is required when service_id is not provided",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": "value is required for discount type",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": "benefit dengan applies_to '${b.applies_to}' wajib punya service_id",
+  "error": "Bad Request"
+}
+```
+
+**Notes:**
+
+- Each benefit **must** have either `service_id` or `label` (or both)
+- `label` is required when `service_id` is not provided
+- `value` (percentage) is required when `type` is `discount`
+- `limit` omitted or `null` means unlimited usage
+- `applies_to: 'pickup'` does not need a `service_id` — use `label` instead
+
 ---
 
 ### 4. Update Membership
 
-**Endpoint:** `POST /memberships/:id`
+**Endpoint:** `PUT /memberships/:id`
 
 **Authentication:** Required (JWT)
 
@@ -3523,6 +3721,29 @@ Memberships provide benefits to pets, including discounts and quota-based sessio
 
 - **404 Not Found:** Membership not found
 - **400 Bad Request:** Invalid ID format or validation error
+
+```json
+{
+  "statusCode": 400,
+  "message": "label is required when service_id is not provided",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": "value is required for discount type",
+  "error": "Bad Request"
+}
+```
+
+**Notes:**
+
+- `benefits` is a full replacement — the entire array is replaced on update
+- Each benefit **must** have either `service_id` or `label`
+- Existing benefit `_id` can be passed to preserve the same ID
+- Snapshot in existing `PetMembership` records is **not** retroactively updated
 
 ---
 
