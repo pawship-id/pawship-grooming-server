@@ -4240,50 +4240,200 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 ```json
 {
   "message": "active membership found",
-  "data": {
-    "_id": "507f1f77bcf86cd799439030",
-    "pet_id": "507f1f77bcf86cd799439020",
-    "membership_plan_id": "507f1f77bcf86cd799439011",
-    "start_date": "2026-03-19T00:00:00.000Z",
-    "end_date": "2027-03-19T00:00:00.000Z",
-    "is_active": true,
-    "benefits_snapshot": [
-      {
-        "_id": "607f1f77bcf86cd799439021",
-        "type": "discount",
-        "applies_to": "service",
-        "period": "monthly",
-        "value": 10,
-        "service_id": null,
-        "service": null,
-        "limit": 5,
-        "used": 2,
-        "period_reset_date": "2026-04-01T00:00:00.000Z"
-      }
-    ],
-    "createdAt": "2026-03-19T10:30:00.000Z",
-    "updatedAt": "2026-03-19T10:30:00.000Z",
-    "pet": {
-      "_id": "699a6285a99f14a4be787c77",
-      "name": "Pet 1",
-      "tags": ["Cat", "Grooming"],
-      "pet_type": {
-        "_id": "698bf0d362f5760ac021c595",
-        "name": "Cat"
+  "data": [
+    {
+      "_id": "69bd2be555b99229f78e9e64",
+      "pet_id": "69ad09a7615651455a811a52",
+      "membership_plan_id": "69bd2b7b55b99229f78e9cc6",
+      "start_date": "2026-03-20T11:13:41.916Z",
+      "end_date": "2026-09-20T11:13:41.916Z",
+      "benefits_snapshot": [
+        {
+          "_id": "69bd2bcf55b99229f78e9e10",
+          "applies_to": "service",
+          "service_id": "69a45774ecf65d9a74d53fe6",
+          "type": "quota",
+          "period": "weekly",
+          "limit": 1,
+          "used": 0,
+          "period_reset_date": "2026-03-22T17:00:00.000Z",
+          "id": "69bd2bcf55b99229f78e9e10",
+          "service": {
+            "_id": "69a45774ecf65d9a74d53fe6",
+            "code": "SVC-0001",
+            "name": "Basic Grooming",
+            "description": "Perawatan dasar yang bikin pawfriends bersih, wangi, dan nyaman lagi. Cocok untuk rutin supaya tetap fresh dan sehat.",
+            "service_location_type": "in store"
+          }
+        },
+        {
+          "_id": "69bd2bcf55b99229f78e9e11",
+          "applies_to": "addon",
+          "service_id": "69ace8ab7fbc3acb5e61f94d",
+          "type": "quota",
+          "period": "unlimited",
+          "limit": null,
+          "used": 0,
+          "period_reset_date": null,
+          "id": "69bd2bcf55b99229f78e9e11",
+          "service": {
+            "_id": "69ace8ab7fbc3acb5e61f94d",
+            "code": "SVC-0002",
+            "name": "3 Spots Detangling",
+            "description": "Buka kusut di 3 area tertentu (biasanya ketiak, belakang telinga, atau ekor) biar bulu balik halus & nggak ketarik sakit.",
+            "price": 35000,
+            "service_location_type": "in store"
+          }
+        }
+      ],
+      "isDeleted": false,
+      "deletedAt": null,
+      "createdAt": "2026-03-20T11:13:41.918Z",
+      "updatedAt": "2026-03-20T11:13:41.918Z",
+      "__v": 0,
+      "is_active": true,
+      "pet": {
+        "_id": "69ad09a7615651455a811a52",
+        "name": "Cici",
+        "pet_type_id": "698bf0d362f5760ac021c595",
+        "tags": ["Test", "Satu", "Tiga"],
+        "customer_id": "699a5d240d322c3d4e81dfbc",
+        "pet_type": {
+          "_id": "698bf0d362f5760ac021c595",
+          "name": "Cat"
+        },
+        "owner": {
+          "_id": "699a5d240d322c3d4e81dfbc",
+          "username": "Cantika"
+        },
+        "id": "69ad09a7615651455a811a52"
       },
-      "owner": {
-        "_id": "699a5d240d322c3d4e81dfbc",
-        "username": "Cantika"
-      }
+      "membership": {
+        "_id": "69bd2b7b55b99229f78e9cc6",
+        "name": "Unlimited Grooming Silver (6 Month)",
+        "duration_months": 6,
+        "price": 2300000,
+        "id": "69bd2b7b55b99229f78e9cc6"
+      },
+      "id": "69bd2be555b99229f78e9e64"
     },
-    "membership": {
-      "_id": "69bb920087f62205055d6ae9",
-      "name": "Unlimited Grooming Bronze (6 Month)",
-      "description": "Booking jadwal prioritas, Biaya sudah pasti, Groomer terpercaya, Ter-dia in-store dan dari rumah",
-      "duration_months": 6,
-      "price": 1500000
+    {
+      "_id": "69bd2bea55b99229f78e9e79",
+      "pet_id": "69ad09a7615651455a811a52",
+      "membership_plan_id": "69bd231f55b99229f78e9976",
+      "start_date": "2026-03-20T11:13:46.504Z",
+      "end_date": "2026-09-20T11:13:46.504Z",
+      "benefits_snapshot": [
+        {
+          "_id": "69bd290855b99229f78e9a60",
+          "applies_to": "service",
+          "service_id": "69a45774ecf65d9a74d53fe6",
+          "type": "quota",
+          "period": "weekly",
+          "limit": 1,
+          "used": 0,
+          "period_reset_date": "2026-03-22T17:00:00.000Z",
+          "id": "69bd290855b99229f78e9a60",
+          "service": {
+            "_id": "69a45774ecf65d9a74d53fe6",
+            "code": "SVC-0001",
+            "name": "Basic Grooming",
+            "description": "Perawatan dasar yang bikin pawfriends bersih, wangi, dan nyaman lagi. Cocok untuk rutin supaya tetap fresh dan sehat.",
+            "service_location_type": "in store"
+          }
+        },
+        {
+          "_id": "69bd290855b99229f78e9a61",
+          "applies_to": "service",
+          "label": "Full Grooming",
+          "type": "discount",
+          "period": "unlimited",
+          "limit": 2,
+          "value": 10,
+          "used": 0,
+          "period_reset_date": null,
+          "id": "69bd290855b99229f78e9a61",
+          "service": null
+        },
+        {
+          "_id": "69bd290855b99229f78e9a62",
+          "applies_to": "addon",
+          "service_id": "69ace8ab7fbc3acb5e61f94d",
+          "type": "quota",
+          "period": "unlimited",
+          "limit": null,
+          "used": 0,
+          "period_reset_date": null,
+          "id": "69bd290855b99229f78e9a62",
+          "service": {
+            "_id": "69ace8ab7fbc3acb5e61f94d",
+            "code": "SVC-0002",
+            "name": "3 Spots Detangling",
+            "description": "Buka kusut di 3 area tertentu (biasanya ketiak, belakang telinga, atau ekor) biar bulu balik halus & nggak ketarik sakit.",
+            "price": 35000,
+            "service_location_type": "in store"
+          }
+        },
+        {
+          "_id": "69bd290855b99229f78e9a63",
+          "applies_to": "service",
+          "label": "Product Discount (Service excl training, Pawship, Pawlush)",
+          "type": "discount",
+          "period": "unlimited",
+          "limit": null,
+          "value": 10,
+          "used": 0,
+          "period_reset_date": null,
+          "id": "69bd290855b99229f78e9a63",
+          "service": null
+        },
+        {
+          "_id": "69bd290855b99229f78e9a64",
+          "applies_to": "pickup",
+          "label": "Pickup Discount",
+          "type": "discount",
+          "period": "unlimited",
+          "limit": null,
+          "value": 20,
+          "used": 0,
+          "period_reset_date": null,
+          "id": "69bd290855b99229f78e9a64",
+          "service": null
+        }
+      ],
+      "isDeleted": false,
+      "deletedAt": null,
+      "createdAt": "2026-03-20T11:13:46.506Z",
+      "updatedAt": "2026-03-20T11:13:46.506Z",
+      "__v": 0,
+      "is_active": true,
+      "pet": {
+        "_id": "69ad09a7615651455a811a52",
+        "name": "Cici",
+        "pet_type_id": "698bf0d362f5760ac021c595",
+        "tags": ["Test", "Satu", "Tiga"],
+        "customer_id": "699a5d240d322c3d4e81dfbc",
+        "pet_type": {
+          "_id": "698bf0d362f5760ac021c595",
+          "name": "Cat"
+        },
+        "owner": {
+          "_id": "699a5d240d322c3d4e81dfbc",
+          "username": "Cantika"
+        },
+        "id": "69ad09a7615651455a811a52"
+      },
+      "membership": {
+        "_id": "69bd231f55b99229f78e9976",
+        "name": "Bronze Membersip",
+        "description": "Bronze Membership Description",
+        "duration_months": 6,
+        "price": 1500000,
+        "id": "69bd231f55b99229f78e9976"
+      },
+      "id": "69bd2bea55b99229f78e9e79"
     }
-  }
+  ]
 }
 ```
 
@@ -4292,7 +4442,7 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 ```json
 {
   "message": "no active membership",
-  "data": null
+  "data": []
 }
 ```
 
@@ -4311,7 +4461,7 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 **Notes:**
 
 - A membership is "active" if the current date/time is between `start_date` and `end_date`
-- Returns null if no active membership exists
+- Returns empty array `[]` if no active membership exists
 
 ---
 
@@ -4330,52 +4480,60 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 ```json
 {
   "message": "benefits summary retrieved successfully",
-  "data": {
-    "has_active_membership": true,
-    "pet_membership_id": "507f1f77bcf86cd799439030",
-    "membership_plan_id": "507f1f77bcf86cd799439011",
-    "start_date": "2026-03-19T00:00:00.000Z",
-    "end_date": "2027-03-19T00:00:00.000Z",
-    "benefits": [
-      {
-        "_id": "607f1f77bcf86cd799439021",
-        "type": "discount",
-        "applies_to": "service",
-        "period": "monthly",
-        "value": 10,
-        "service_id": null,
-        "service": null,
-        "limit": 5,
-        "used": 2,
-        "remaining": 3,
-        "can_apply": true,
-        "period_reset_date": "2026-03-20T00:00:00.000Z",
-        "next_reset_date": "2026-04-01T00:00:00.000Z"
+  "data": [
+    {
+      "membership": {
+        "_id": "69bd2be555b99229f78e9e64",
+        "membership_plan_id": "69bd2b7b55b99229f78e9cc6",
+        "membership_name": "Unlimited Grooming Silver (6 Month)",
+        "start_date": "2026-03-20T11:13:41.916Z",
+        "end_date": "2026-09-20T11:13:41.916Z"
       },
-      {
-        "_id": "607f1f77bcf86cd799439022",
-        "type": "free_service",
-        "applies_to": "service",
-        "period": "unlimited",
-        "value": 150000,
-        "service_id": "69a45774ecf65d9a74d53fe6",
-        "service": {
-          "_id": "69a45774ecf65d9a74d53fe6",
-          "code": "BATH_PREMIUM",
-          "name": "Premium Bath Service",
-          "price": 150000,
-          "description": "Premium bathing with premium shampoo",
-          "service_location_type": "store"
+      "benefits": [
+        {
+          "_id": "69bd2bcf55b99229f78e9e10",
+          "pet_membership_id": "69bd2be555b99229f78e9e64",
+          "applies_to": "service",
+          "service_id": "69a45774ecf65d9a74d53fe6",
+          "label": null,
+          "service": {
+            "_id": "69a45774ecf65d9a74d53fe6",
+            "code": "SVC-0001",
+            "name": "Basic Grooming",
+            "price": 120000,
+            "description": "Basic grooming package",
+            "service_location_type": "store"
+          },
+          "type": "quota",
+          "period": "weekly",
+          "limit": 1,
+          "value": null,
+          "used": 0,
+          "remaining": 1,
+          "can_apply": true,
+          "period_reset_date": "2026-03-22T17:00:00.000Z",
+          "next_reset_date": "2026-03-29T17:00:00.000Z"
         },
-        "limit": 12,
-        "used": 1,
-        "remaining": 11,
-        "can_apply": true,
-        "period_reset_date": null,
-        "next_reset_date": null
-      }
-    ]
-  }
+        {
+          "_id": "69bd2bcf55b99229f78e9e11",
+          "pet_membership_id": "69bd2be555b99229f78e9e64",
+          "applies_to": "pickup",
+          "service_id": null,
+          "label": "Pickup & Delivery",
+          "service": null,
+          "type": "discount",
+          "period": "monthly",
+          "limit": null,
+          "value": 20,
+          "used": 0,
+          "remaining": null,
+          "can_apply": true,
+          "period_reset_date": null,
+          "next_reset_date": null
+        }
+      ]
+    }
+  ]
 }
 ```
 
@@ -4384,21 +4542,22 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 ```json
 {
   "message": "benefits summary retrieved successfully",
-  "data": {
-    "has_active_membership": false,
-    "benefits": []
-  }
+  "data": []
 }
 ```
 
 **Notes:**
 
-- `can_apply`: true if benefit has remaining quota (limit is -1 or used < limit)
-- `remaining`: -1 for unlimited (limit = -1), otherwise limit - used
-- `period_reset_date`: when the period counter was last reset
-- `next_reset_date`: when the counter will reset next (null for unlimited)
-- For benefits with period-based resets (weekly/monthly), the `used` counter is automatically reset to 0 when querying if the reset date has passed
-- `service`: Populated service object for benefits with `service_id`; `null` for benefits without service reference. Includes: `_id`, `code`, `name`, `price`, `description`, `service_location_type`
+- `data` is an array — one entry per active membership; empty array if no active membership
+- Each entry has `membership` (plan info) and `benefits[]` (enriched benefit objects for that membership)
+- `pet_membership_id`: present on every benefit to identify its source membership
+- `can_apply`: `true` if benefit has remaining quota (`limit` is `null` = unlimited, or `used < limit`)
+- `remaining`: `null` for unlimited benefits (`limit` is `null`), otherwise `limit - used`
+- `period_reset_date`: next reset date for the current period; `null` for `unlimited` period benefits
+- `next_reset_date`: the reset date after `period_reset_date`; `null` for `unlimited` period benefits
+- For `weekly`/`monthly` period benefits, `used` is automatically reset to `0` when querying if `period_reset_date` has passed
+- `service`: populated service object when `service_id` is set; `null` otherwise. Includes: `_id`, `code`, `name`, `price`, `description`, `service_location_type`
+- `label`: descriptive label for benefits without `service_id` (e.g. `"Pickup & Delivery"`); `null` when `service_id` is present
 
 ---
 
@@ -4424,7 +4583,7 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
   "message": "benefits history retrieved successfully",
   "data": {
     "has_active_membership": true,
-    "pet_membership_id": "507f1f77bcf86cd799439030",
+    "membership_ids": ["507f1f77bcf86cd799439030"],
     "benefits_history": [
       {
         "_id": "607f1f77bcf86cd799439051",

@@ -172,7 +172,7 @@ export class PetMembershipService {
 
     const now = new Date();
     const petMembership = await this.petMembershipModel
-      .findOne({
+      .find({
         pet_id: new Types.ObjectId(petId),
         start_date: { $lte: now },
         end_date: { $gte: now },
@@ -195,7 +195,7 @@ export class PetMembershipService {
       .populate('membership', 'name description duration_months price')
       .exec();
 
-    if (!petMembership) {
+    if (!petMembership || petMembership.length === 0) {
       return null;
     }
 
@@ -204,71 +204,87 @@ export class PetMembershipService {
   }
 
   async getAvailableBenefits(petId: string): Promise<any> {
-    const petMembership = await this.getActiveMembership(petId);
+    const activeMemberships = await this.getActiveMembership(petId);
 
-    if (!petMembership) {
+    if (!activeMemberships) {
       return {
         has_active_membership: false,
+        memberships: [],
         benefits: [],
       };
     }
 
     const now = new Date();
-    const benefits = petMembership.benefits_snapshot.map((b: any) => {
-      // Cek apakah period sudah reset
-      const hasResetSincePeriod = this.shouldResetPeriod(
-        b.period_reset_date,
-        b.period,
+    const allBenefits: any[] = [];
+    const memberships: any[] = [];
+
+    for (const petMembership of activeMemberships) {
+      const pmId =
+        (petMembership as any)._id?.toString() || (petMembership as any).id;
+
+      const benefits = this.enrichBenefits(
+        petMembership.benefits_snapshot || [],
+        pmId,
         now,
       );
-      const currentUsed = hasResetSincePeriod ? 0 : b.used;
-      const remaining = b.limit == null ? null : b.limit - currentUsed;
 
-      return {
-        _id: b._id.toString(),
-        applies_to: b.applies_to,
-        service_id: b.service_id?.toString(),
-        label: b.label || null,
-        service: b.service || null,
-        type: b.type,
-        period: b.period,
-        limit: b.limit ?? null,
-        value: b.value,
-        used: currentUsed,
-        remaining,
-        can_apply: b.limit == null || currentUsed < b.limit,
-        period_reset_date: b.period_reset_date,
-        next_reset_date: this.calculateNextPeriodResetDate(
-          b.period_reset_date,
-          b.period,
-        ),
-      };
-    });
+      allBenefits.push(...benefits);
 
-    const petMembershipAny = petMembership as any;
-    const petMembershipId =
-      petMembershipAny._id?.toString() || petMembershipAny.id;
+      memberships.push({
+        pet_membership_id: pmId,
+        membership_plan_id:
+          (petMembership as any).membership_plan_id?.toString() ?? null,
+        membership_name: (petMembership as any).membership?.name ?? null,
+        start_date: petMembership.start_date,
+        end_date: petMembership.end_date,
+        benefits,
+      });
+    }
+
     return {
       has_active_membership: true,
-      pet_membership_id: petMembershipId,
-      membership_plan_id: petMembership.membership_plan_id.toString(),
-      start_date: petMembership.start_date,
-      end_date: petMembership.end_date,
-      benefits,
+      memberships,
+      benefits: allBenefits,
     };
   }
 
-  async getBenefitsSummary(petId: string): Promise<any> {
-    return this.getAvailableBenefits(petId);
+  async getBenefitsSummary(petId: string): Promise<any[]> {
+    const activeMemberships = await this.getActiveMembership(petId);
+
+    if (!activeMemberships) {
+      return [];
+    }
+
+    const now = new Date();
+
+    return activeMemberships.map((petMembership: any) => {
+      const pmId = petMembership._id?.toString() || petMembership.id;
+
+      return {
+        membership: {
+          _id: pmId,
+          membership_plan_id:
+            petMembership.membership_plan_id?.toString() ?? null,
+          membership_name: (petMembership as any).membership?.name ?? null,
+          start_date: petMembership.start_date,
+          end_date: petMembership.end_date,
+        },
+        benefits: this.enrichBenefits(
+          petMembership.benefits_snapshot || [],
+          pmId,
+          now,
+        ),
+      };
+    });
   }
 
   async getBenefitsHistory(
     petId: string,
     options: { limit?: number; skip?: number } = {},
   ): Promise<any> {
-    const petMembership = await this.getActiveMembership(petId);
+    const activeMemberships = await this.getActiveMembership(petId);
 
-    if (!petMembership) {
+    if (!activeMemberships) {
       return {
         has_active_membership: false,
         benefits_history: [],
@@ -277,12 +293,11 @@ export class PetMembershipService {
 
     // Would integrate with BenefitUsageService here
     // For now, return structure
-    const petMembershipAny = petMembership as any;
-    const petMembershipId =
-      petMembershipAny._id?.toString() || petMembershipAny.id;
     return {
       has_active_membership: true,
-      pet_membership_id: petMembershipId,
+      membership_ids: activeMemberships.map(
+        (pm: any) => pm._id?.toString() || pm.id,
+      ),
       benefits_history: [],
     };
   }
@@ -383,6 +398,43 @@ export class PetMembershipService {
     }
 
     return petMembership;
+  }
+
+  private enrichBenefits(
+    benefitsSnapshot: any[],
+    petMembershipId: string,
+    now: Date,
+  ): any[] {
+    return benefitsSnapshot.map((b: any) => {
+      const hasReset = this.shouldResetPeriod(
+        b.period_reset_date,
+        b.period,
+        now,
+      );
+      const currentUsed = hasReset ? 0 : b.used;
+      const remaining = b.limit == null ? null : b.limit - currentUsed;
+
+      return {
+        _id: b._id.toString(),
+        pet_membership_id: petMembershipId,
+        applies_to: b.applies_to,
+        service_id: b.service_id?.toString() ?? null,
+        label: b.label ?? null,
+        service: b.service ?? null,
+        type: b.type,
+        period: b.period,
+        limit: b.limit ?? null,
+        value: b.value ?? null,
+        used: currentUsed,
+        remaining,
+        can_apply: b.limit == null || currentUsed < b.limit,
+        period_reset_date: b.period_reset_date ?? null,
+        next_reset_date: this.calculateNextPeriodResetDate(
+          b.period_reset_date,
+          b.period,
+        ),
+      };
+    });
   }
 
   /**
