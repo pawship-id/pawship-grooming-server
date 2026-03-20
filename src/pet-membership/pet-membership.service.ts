@@ -380,17 +380,36 @@ export class PetMembershipService {
       throw new BadRequestException('invalid pet membership ID');
     }
 
-    const petMembership = await this.petMembershipModel.findByIdAndUpdate(
-      new Types.ObjectId(id),
-      updatePetMembershipDto,
-      { new: true, runValidators: true },
-    );
+    const existing = await this.petMembershipModel.findOne({
+      _id: new Types.ObjectId(id),
+      isDeleted: false,
+    });
 
-    if (!petMembership) {
+    if (!existing) {
       throw new NotFoundException('pet membership not found');
     }
 
-    return petMembership;
+    const petMembership = await this.petMembershipModel.findByIdAndUpdate(
+      new Types.ObjectId(id),
+      {
+        start_date: new Date(updatePetMembershipDto.start_date),
+        end_date: new Date(updatePetMembershipDto.end_date),
+      },
+      { new: true, runValidators: true },
+    );
+
+    await this.createLog({
+      pet_id: existing.pet_id,
+      pet_membership_id: (existing as any)._id,
+      membership_plan_id: existing.membership_plan_id,
+      event_type: MembershipEventType.UPDATED,
+      start_date: petMembership!.start_date,
+      end_date: petMembership!.end_date,
+      benefits_snapshot_before: [],
+      note: `Updated dates: start=${petMembership!.start_date.toISOString()}, end=${petMembership!.end_date.toISOString()}`,
+    });
+
+    return petMembership!;
   }
 
   async delete(id: string): Promise<PetMembership> {
@@ -512,12 +531,56 @@ export class PetMembershipService {
       throw new BadRequestException('invalid pet ID');
     }
 
-    return this.membershipLogModel
-      .find({ pet_id: new Types.ObjectId(petId), isDeleted: false })
+    return this.petMembershipModel
+      .find({ pet_id: new Types.ObjectId(petId) })
+      .populate('membership', 'name description duration_months price')
+      .select('-benefits_snapshot')
+      .sort({ createdAt: -1 })
+      .lean({ virtuals: true })
+      .exec();
+  }
+
+  async getMembershipHistoryDetail(
+    petId: string,
+    petMembershipId: string,
+  ): Promise<any> {
+    if (!Types.ObjectId.isValid(petId)) {
+      throw new BadRequestException('invalid pet ID');
+    }
+    if (!Types.ObjectId.isValid(petMembershipId)) {
+      throw new BadRequestException('invalid pet membership ID');
+    }
+
+    const petMembership = await this.petMembershipModel
+      .findOne({
+        _id: new Types.ObjectId(petMembershipId),
+        pet_id: new Types.ObjectId(petId),
+      })
+      .populate('membership', 'name description duration_months price')
+      .select('-benefits_snapshot')
+      .lean({ virtuals: true })
+      .exec();
+
+    if (!petMembership) {
+      throw new NotFoundException('pet membership not found');
+    }
+
+    const logs = await this.membershipLogModel
+      .find({
+        pet_id: new Types.ObjectId(petId),
+        pet_membership_id: new Types.ObjectId(petMembershipId),
+        membership_plan_id: (petMembership as any).membership_plan_id,
+        isDeleted: false,
+      })
       .populate('membership', 'name description duration_months price')
       .sort({ event_date: -1 })
-      .lean()
+      .lean({ virtuals: true })
       .exec();
+
+    return {
+      pet_membership: petMembership,
+      logs,
+    };
   }
 
   private async createLog(data: {

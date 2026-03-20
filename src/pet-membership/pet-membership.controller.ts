@@ -104,6 +104,21 @@ export class PetMembershipController {
     };
   }
 
+  @Get(':pet_id/membership-history/:pet_membership_id')
+  async getMembershipHistoryDetail(
+    @Param('pet_id') petId: string,
+    @Param('pet_membership_id') petMembershipId: string,
+  ) {
+    const detail = await this.petMembershipService.getMembershipHistoryDetail(
+      petId,
+      petMembershipId,
+    );
+    return {
+      message: 'membership history detail retrieved successfully',
+      data: detail,
+    };
+  }
+
   @Put(':id')
   async update(
     @Param('id') id: string,

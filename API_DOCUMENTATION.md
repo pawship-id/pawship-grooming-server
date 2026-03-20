@@ -4641,7 +4641,7 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 
 ### 7. Update Pet Membership
 
-**Endpoint:** `POST /pet-memberships/:id`
+**Endpoint:** `PUT /pet-memberships/:id`
 
 **Authentication:** Required (JWT)
 
@@ -4649,14 +4649,21 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 
 - `id` (path): MongoDB ObjectId of the pet membership
 
-**Request Body:** (All fields optional)
+**Request Body:**
 
 ```json
 {
-  "pet_id": "MongoDB ObjectId (optional)",
-  "membership_plan_id": "MongoDB ObjectId (optional)",
-  "start_date": "ISO date (optional)",
-  "end_date": "ISO date (optional)"
+  "start_date": "ISO date string (required)",
+  "end_date": "ISO date string (required)"
+}
+```
+
+**Example:**
+
+```json
+{
+  "start_date": "2026-03-20T00:00:00.000Z",
+  "end_date": "2026-09-20T00:00:00.000Z"
 }
 ```
 
@@ -4669,23 +4676,32 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
     "_id": "507f1f77bcf86cd799439030",
     "pet_id": "507f1f77bcf86cd799439020",
     "membership_plan_id": "507f1f77bcf86cd799439011",
-    "start_date": "2026-03-19T00:00:00.000Z",
-    "end_date": "2027-03-19T00:00:00.000Z",
-    "benefits_snapshot": [],
+    "start_date": "2026-03-20T00:00:00.000Z",
+    "end_date": "2026-09-20T00:00:00.000Z",
+    "isDeleted": false,
+    "deletedAt": null,
     "createdAt": "2026-03-19T10:30:00.000Z",
-    "updatedAt": "2026-03-19T12:00:00.000Z"
+    "updatedAt": "2026-03-20T09:00:00.000Z"
   }
 }
 ```
 
 **Error Responses:**
 
-- **400 Bad Request:** Invalid ID format or validation error
+- **400 Bad Request:** Invalid ID format or missing/invalid fields
 
 ```json
 {
   "statusCode": 400,
   "message": "invalid pet membership ID",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": ["start_date is required", "end_date is required"],
   "error": "Bad Request"
 }
 ```
@@ -4702,8 +4718,9 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 
 **Notes:**
 
-- Typically used to extend membership dates or reassign to a different pet
-- Updating `membership_plan_id` does NOT update `benefits_snapshot` — snapshot is locked at purchase time
+- Only `start_date` and `end_date` can be updated — membership plan and benefits snapshot are locked at purchase time
+- A `MembershipLog` entry with `event_type: "updated"` is created automatically recording the new dates
+- `benefits_snapshot_before` is `[]` for update log entries
 
 ---
 
@@ -4847,62 +4864,40 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
   "message": "membership history retrieved successfully",
   "data": [
     {
-      "_id": "69bd2cf055b99229f78e9f10",
-      "event_type": "renewed",
-      "event_date": "2026-09-20T11:13:41.916Z",
-      "start_date": "2026-09-20T11:13:41.916Z",
-      "end_date": "2027-03-20T11:13:41.916Z",
-      "membership": {
-        "_id": "69bd2b7b55b99229f78e9cc6",
-        "name": "Unlimited Grooming Silver (6 Month)",
-        "description": "Silver membership with weekly grooming quota",
-        "duration_months": 6,
-        "price": 2300000
-      },
-      "benefits_snapshot_before": [
-        {
-          "_id": "69bd2bcf55b99229f78e9e10",
-          "applies_to": "service",
-          "service_id": "69a45774ecf65d9a74d53fe6",
-          "type": "quota",
-          "period": "weekly",
-          "limit": 1,
-          "used": 1,
-          "period_reset_date": "2026-09-27T17:00:00.000Z"
-        }
-      ],
-      "note": "Renewed from 2026-09-20T11:13:41.916Z to 2027-03-20T11:13:41.916Z",
-      "createdAt": "2026-09-20T11:13:41.918Z",
-      "updatedAt": "2026-09-20T11:13:41.918Z"
-    },
-    {
-      "_id": "69bd2be655b99229f78e9e80",
-      "event_type": "purchased",
-      "event_date": "2026-03-20T11:13:41.916Z",
+      "_id": "69bd2be555b99229f78e9e64",
+      "pet_id": "69ad09a7615651455a811a52",
+      "membership_plan_id": "69bd2b7b55b99229f78e9cc6",
       "start_date": "2026-03-20T11:13:41.916Z",
       "end_date": "2026-09-20T11:13:41.916Z",
+      "isDeleted": false,
+      "deletedAt": null,
+      "createdAt": "2026-03-20T11:13:41.918Z",
+      "updatedAt": "2026-03-20T11:13:41.918Z",
       "membership": {
         "_id": "69bd2b7b55b99229f78e9cc6",
         "name": "Unlimited Grooming Silver (6 Month)",
         "description": "Silver membership with weekly grooming quota",
         "duration_months": 6,
         "price": 2300000
-      },
-      "benefits_snapshot_before": [
-        {
-          "_id": "69bd2bcf55b99229f78e9e10",
-          "applies_to": "service",
-          "service_id": "69a45774ecf65d9a74d53fe6",
-          "type": "quota",
-          "period": "weekly",
-          "limit": 1,
-          "used": 0,
-          "period_reset_date": "2026-03-22T17:00:00.000Z"
-        }
-      ],
-      "note": null,
-      "createdAt": "2026-03-20T11:13:41.918Z",
-      "updatedAt": "2026-03-20T11:13:41.918Z"
+      }
+    },
+    {
+      "_id": "69bc1aa055b99229f78e1234",
+      "pet_id": "69ad09a7615651455a811a52",
+      "membership_plan_id": "69bd231f55b99229f78e9976",
+      "start_date": "2025-09-20T08:00:00.000Z",
+      "end_date": "2026-03-20T08:00:00.000Z",
+      "isDeleted": true,
+      "deletedAt": "2026-03-20T11:00:00.000Z",
+      "createdAt": "2025-09-20T08:00:00.001Z",
+      "updatedAt": "2026-03-20T11:00:00.001Z",
+      "membership": {
+        "_id": "69bd231f55b99229f78e9976",
+        "name": "Bronze Membership",
+        "description": "Bronze Membership Description",
+        "duration_months": 6,
+        "price": 1500000
+      }
     }
   ]
 }
@@ -4931,10 +4926,167 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 
 **Notes:**
 
-- Returns all lifecycle events for all memberships belonging to the pet, sorted newest first
-- `event_type` values: `"purchased"` | `"renewed"` | `"cancelled"`
-- `benefits_snapshot_before`: full copy of the benefits at the moment of the event — for `renewed` this captures the final used counts before counters were reset; for `purchased` all `used` are `0`; for `cancelled` reflects the state at cancellation
-- `membership` is populated with plan name, description, duration, price
+- Returns **all** pet memberships for the pet — active, expired, and cancelled (no `isDeleted` filter)
+- `benefits_snapshot` is excluded from this list — use endpoint 11 for log detail
+- `isDeleted: true` = cancelled; `isDeleted: false` = active or expired (check `end_date` vs now)
+- Sorted by `createdAt` descending (newest first)
+- Use `_id` of each item as `pet_membership_id` to call endpoint 11
+
+---
+
+### 11. Get Membership History Detail
+
+**Endpoint:** `GET /pet-memberships/:pet_id/membership-history/:pet_membership_id`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `pet_id` (path): MongoDB ObjectId of the pet
+- `pet_membership_id` (path): MongoDB ObjectId of the pet membership
+
+**Success Response (200):**
+
+```json
+{
+  "message": "membership history detail retrieved successfully",
+  "data": {
+    "pet_membership": {
+      "_id": "69bd2be555b99229f78e9e64",
+      "pet_id": "69ad09a7615651455a811a52",
+      "membership_plan_id": "69bd2b7b55b99229f78e9cc6",
+      "start_date": "2026-03-20T11:13:41.916Z",
+      "end_date": "2026-09-20T11:13:41.916Z",
+      "isDeleted": false,
+      "deletedAt": null,
+      "createdAt": "2026-03-20T11:13:41.918Z",
+      "updatedAt": "2026-03-20T11:13:41.918Z",
+      "membership": {
+        "_id": "69bd2b7b55b99229f78e9cc6",
+        "name": "Unlimited Grooming Silver (6 Month)",
+        "description": "Silver membership with weekly grooming quota",
+        "duration_months": 6,
+        "price": 2300000
+      }
+    },
+    "logs": [
+      {
+        "_id": "69be3cf155b99229f78f0001",
+        "event_type": "updated",
+        "event_date": "2026-03-21T09:00:00.000Z",
+        "start_date": "2026-03-21T09:00:00.000Z",
+        "end_date": "2026-09-21T09:00:00.000Z",
+        "benefits_snapshot_before": [],
+        "note": "Updated dates: start=2026-03-21T09:00:00.000Z, end=2026-09-21T09:00:00.000Z",
+        "createdAt": "2026-03-21T09:00:00.001Z",
+        "updatedAt": "2026-03-21T09:00:00.001Z",
+        "membership": {
+          "_id": "69bd2b7b55b99229f78e9cc6",
+          "name": "Unlimited Grooming Silver (6 Month)",
+          "description": "Silver membership with weekly grooming quota",
+          "duration_months": 6,
+          "price": 2300000
+        }
+      },
+      {
+        "_id": "69bd2cf055b99229f78e9f10",
+        "event_type": "renewed",
+        "event_date": "2026-09-20T11:13:41.916Z",
+        "start_date": "2026-09-20T11:13:41.916Z",
+        "end_date": "2027-03-20T11:13:41.916Z",
+        "benefits_snapshot_before": [
+          {
+            "_id": "69bd2bcf55b99229f78e9e10",
+            "applies_to": "service",
+            "service_id": "69a45774ecf65d9a74d53fe6",
+            "type": "quota",
+            "period": "weekly",
+            "limit": 1,
+            "used": 3,
+            "period_reset_date": "2026-09-27T17:00:00.000Z"
+          }
+        ],
+        "note": "Renewed from 2026-09-20T11:13:41.916Z to 2027-03-20T11:13:41.916Z",
+        "createdAt": "2026-09-20T11:13:41.918Z",
+        "updatedAt": "2026-09-20T11:13:41.918Z",
+        "membership": {
+          "_id": "69bd2b7b55b99229f78e9cc6",
+          "name": "Unlimited Grooming Silver (6 Month)",
+          "description": "Silver membership with weekly grooming quota",
+          "duration_months": 6,
+          "price": 2300000
+        }
+      },
+      {
+        "_id": "69bd2be655b99229f78e9e80",
+        "event_type": "purchased",
+        "event_date": "2026-03-20T11:13:41.916Z",
+        "start_date": "2026-03-20T11:13:41.916Z",
+        "end_date": "2026-09-20T11:13:41.916Z",
+        "benefits_snapshot_before": [
+          {
+            "_id": "69bd2bcf55b99229f78e9e10",
+            "applies_to": "service",
+            "service_id": "69a45774ecf65d9a74d53fe6",
+            "type": "quota",
+            "period": "weekly",
+            "limit": 1,
+            "used": 0,
+            "period_reset_date": "2026-03-22T17:00:00.000Z"
+          }
+        ],
+        "note": null,
+        "createdAt": "2026-03-20T11:13:41.918Z",
+        "updatedAt": "2026-03-20T11:13:41.918Z",
+        "membership": {
+          "_id": "69bd2b7b55b99229f78e9cc6",
+          "name": "Unlimited Grooming Silver (6 Month)",
+          "description": "Silver membership with weekly grooming quota",
+          "duration_months": 6,
+          "price": 2300000
+        }
+      }
+    ]
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Invalid ID format
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid pet ID",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid pet membership ID",
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** Pet membership not found for this pet
+
+```json
+{
+  "statusCode": 404,
+  "message": "pet membership not found",
+  "error": "Not Found"
+}
+```
+
+**Notes:**
+
+- `pet_membership`: the membership record without `benefits_snapshot`
+- `logs`: all `MembershipLog` entries for this specific pet membership, filtered by `pet_id` + `pet_membership_id` + `membership_plan_id`, sorted `event_date` descending
+- `event_type` values: `"purchased"` | `"renewed"` | `"cancelled"` | `"updated"`
+- `benefits_snapshot_before` is `[]` for `updated` events; populated for `purchased`, `renewed`, `cancelled`
 
 ---
 

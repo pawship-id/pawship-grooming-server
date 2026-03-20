@@ -12,6 +12,7 @@ export enum MembershipEventType {
   PURCHASED = 'purchased',
   RENEWED = 'renewed',
   CANCELLED = 'cancelled',
+  UPDATED = 'updated',
 }
 
 @Schema({

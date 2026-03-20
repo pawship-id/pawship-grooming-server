@@ -1,15 +1,11 @@
-import { PartialType } from '@nestjs/mapped-types';
-import { IsOptional, IsDateString } from 'class-validator';
-import { CreatePetMembershipDto } from './create-pet-membership.dto';
+import { IsNotEmpty, IsDateString } from 'class-validator';
 
-export class UpdatePetMembershipDto extends PartialType(
-  CreatePetMembershipDto,
-) {
-  @IsOptional()
+export class UpdatePetMembershipDto {
+  @IsNotEmpty({ message: 'start_date is required' })
   @IsDateString({}, { message: 'start_date must be a valid ISO date string' })
-  start_date?: string;
+  start_date: string;
 
-  @IsOptional()
+  @IsNotEmpty({ message: 'end_date is required' })
   @IsDateString({}, { message: 'end_date must be a valid ISO date string' })
-  end_date?: string;
+  end_date: string;
 }
