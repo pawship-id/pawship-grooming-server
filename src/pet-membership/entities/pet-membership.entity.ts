@@ -102,13 +102,6 @@ export class PetMembership {
 
 export const PetMembershipSchema = SchemaFactory.createForClass(PetMembership);
 
-// Virtual for is_active (check date range)
-PetMembershipSchema.virtual('is_active').get(function () {
-  if (this.isDeleted) return false;
-  const now = new Date();
-  return now >= this.start_date && now <= this.end_date;
-});
-
 PetMembershipSchema.virtual('pet', {
   ref: 'Pet',
   localField: 'pet_id',

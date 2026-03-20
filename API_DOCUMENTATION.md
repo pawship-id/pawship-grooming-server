@@ -3825,7 +3825,6 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 - **used counter**: Tracks how many times a benefit has been used in the current period
 - **limit**: `null` means unlimited (no cap); a positive number sets the max per period
 - **remaining**: `null` means unlimited; a number shows how many uses are left
-- **is_active virtual**: True if pet membership is between start_date and end_date (not deleted)
 - **MembershipLog**: Every lifecycle event (purchased, renewed, cancelled) is recorded as a log entry with a `benefits_snapshot_before` — the full snapshot state at the moment the event occurred
 
 ---
@@ -3840,7 +3839,6 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 
 - `pet_id` (optional, MongoDB ObjectId): Filter by pet ID
 - `membership_plan_id` (optional, MongoDB ObjectId): Filter by membership plan ID
-- `is_active` (optional, boolean): Filter by active status (true = within date range, false = expired or not started)
 
 **Success Response (200):**
 
@@ -3924,7 +3922,6 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
       "deletedAt": null,
       "createdAt": "2026-03-19T07:35:08.758Z",
       "updatedAt": "2026-03-19T07:35:08.758Z",
-      "is_active": true,
       "pet": {
         "_id": "699a6285a99f14a4be787c77",
         "name": "Pet 1",
@@ -4064,7 +4061,6 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
     "deletedAt": null,
     "createdAt": "2026-03-19T07:35:08.758Z",
     "updatedAt": "2026-03-19T07:35:08.758Z",
-    "is_active": true,
     "pet": {
       "_id": "699a6285a99f14a4be787c77",
       "name": "Pet 1",
@@ -4157,7 +4153,6 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
     "membership_plan_id": "507f1f77bcf86cd799439011",
     "start_date": "2026-03-19T10:30:00.000Z",
     "end_date": "2027-03-19T10:30:00.000Z",
-    "is_active": true,
     "benefits_snapshot": [
       {
         "_id": "607f1f77bcf86cd799439021",
@@ -4292,7 +4287,6 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
       "createdAt": "2026-03-20T11:13:41.918Z",
       "updatedAt": "2026-03-20T11:13:41.918Z",
       "__v": 0,
-      "is_active": true,
       "pet": {
         "_id": "69ad09a7615651455a811a52",
         "name": "Cici",
@@ -4417,7 +4411,6 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
       "createdAt": "2026-03-20T11:13:46.506Z",
       "updatedAt": "2026-03-20T11:13:46.506Z",
       "__v": 0,
-      "is_active": true,
       "pet": {
         "_id": "69ad09a7615651455a811a52",
         "name": "Cici",
@@ -4678,7 +4671,6 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
     "membership_plan_id": "507f1f77bcf86cd799439011",
     "start_date": "2026-03-19T00:00:00.000Z",
     "end_date": "2027-03-19T00:00:00.000Z",
-    "is_active": true,
     "benefits_snapshot": [],
     "createdAt": "2026-03-19T10:30:00.000Z",
     "updatedAt": "2026-03-19T12:00:00.000Z"
@@ -4802,8 +4794,7 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
         "period_reset_date": "2026-03-22T17:00:00.000Z"
       }
     ],
-    "isDeleted": false,
-    "is_active": true
+    "isDeleted": false
   }
 }
 ```

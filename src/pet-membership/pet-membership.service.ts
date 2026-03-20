@@ -132,20 +132,6 @@ export class PetMembershipService {
       .populate('membership', 'name description duration_months price')
       .exec();
 
-    // Filter by is_active (date range check in virtual field)
-    if (query.is_active !== undefined) {
-      const now = new Date();
-      if (query.is_active) {
-        petMemberships = petMemberships.filter(
-          (pm) => now >= pm.start_date && now <= pm.end_date,
-        );
-      } else {
-        petMemberships = petMemberships.filter(
-          (pm) => now < pm.start_date || now > pm.end_date,
-        );
-      }
-    }
-
     // Populate services in benefits_snapshot
     return this.populateBenefitsWithServices(petMemberships);
   }
