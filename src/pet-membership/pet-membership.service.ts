@@ -180,10 +180,19 @@ export class PetMembershipService {
       })
       .populate({
         path: 'pet',
-        select: 'name tags pet_type_id customer_id',
+        select:
+          'name tags pet_type_id size_category_id hair_category_id customer_id',
         populate: [
           {
             path: 'pet_type',
+            select: 'name',
+          },
+          {
+            path: 'size',
+            select: 'name',
+          },
+          {
+            path: 'hair',
             select: 'name',
           },
           {

@@ -4296,11 +4296,21 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
         "_id": "69ad09a7615651455a811a52",
         "name": "Cici",
         "pet_type_id": "698bf0d362f5760ac021c595",
+        "size_category_id": "698bf0d362f5760ac021c598",
+        "hair_category_id": "698bf0d362f5760ac021c599",
         "tags": ["Test", "Satu", "Tiga"],
         "customer_id": "699a5d240d322c3d4e81dfbc",
         "pet_type": {
           "_id": "698bf0d362f5760ac021c595",
           "name": "Cat"
+        },
+        "size": {
+          "_id": "698bf0d362f5760ac021c598",
+          "name": "Small"
+        },
+        "hair": {
+          "_id": "698bf0d362f5760ac021c599",
+          "name": "Short"
         },
         "owner": {
           "_id": "699a5d240d322c3d4e81dfbc",
@@ -4411,11 +4421,21 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
         "_id": "69ad09a7615651455a811a52",
         "name": "Cici",
         "pet_type_id": "698bf0d362f5760ac021c595",
+        "size_category_id": "698bf0d362f5760ac021c598",
+        "hair_category_id": "698bf0d362f5760ac021c599",
         "tags": ["Test", "Satu", "Tiga"],
         "customer_id": "699a5d240d322c3d4e81dfbc",
         "pet_type": {
           "_id": "698bf0d362f5760ac021c595",
           "name": "Cat"
+        },
+        "size": {
+          "_id": "698bf0d362f5760ac021c598",
+          "name": "Small"
+        },
+        "hair": {
+          "_id": "698bf0d362f5760ac021c599",
+          "name": "Short"
         },
         "owner": {
           "_id": "699a5d240d322c3d4e81dfbc",
