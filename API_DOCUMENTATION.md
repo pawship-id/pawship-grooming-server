@@ -3535,6 +3535,16 @@ Memberships provide benefits to pets, including discounts and quota-based sessio
         "value": 20
       }
     ],
+    "pet_types": [
+      {
+        "_id": "698d5573b70c2a3711e368dd",
+        "name": "Dog"
+      },
+      {
+        "_id": "698bf0d362f5760ac021c595",
+        "name": "Cat"
+      }
+    ],
     "createdAt": "2026-01-15T10:30:00.000Z",
     "updatedAt": "2026-03-19T08:45:00.000Z"
   }

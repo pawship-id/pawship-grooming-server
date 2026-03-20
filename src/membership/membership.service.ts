@@ -41,10 +41,7 @@ export class MembershipService {
 
     // Validation if applies_to to be filled with add-ons or services, then service_id is mandatory.
     for (const b of benefits) {
-      if (
-        (b.applies_to === 'addon' || b.applies_to === 'service') &&
-        !b.service_id
-      ) {
+      if (b.applies_to === 'service' && !b.service_id) {
         throw new BadRequestException(
           `benefit dengan applies_to '${b.applies_to}' wajib punya service_id`,
         );
@@ -154,10 +151,12 @@ export class MembershipService {
       throw new BadRequestException('invalid membership ID');
     }
 
-    const membership = await this.membershipModel.findOne({
-      _id: new Types.ObjectId(id),
-      isDeleted: false,
-    });
+    const membership = await this.membershipModel
+      .findOne({
+        _id: new Types.ObjectId(id),
+        isDeleted: false,
+      })
+      .populate('pet_types', 'name');
 
     if (!membership) {
       throw new NotFoundException('membership not found');
@@ -208,10 +207,7 @@ export class MembershipService {
     // Validation if applies_to to be filled with add-ons or services, then service_id is mandatory.
     if (benefits) {
       for (const b of benefits) {
-        if (
-          (b.applies_to === 'addon' || b.applies_to === 'service') &&
-          !b.service_id
-        ) {
+        if (b.applies_to === 'service' && !b.service_id) {
           throw new BadRequestException(
             `benefit dengan applies_to '${b.applies_to}' wajib punya service_id`,
           );
