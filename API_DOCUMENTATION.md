@@ -3825,7 +3825,8 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 - **used counter**: Tracks how many times a benefit has been used in the current period
 - **limit**: `null` means unlimited (no cap); a positive number sets the max per period
 - **remaining**: `null` means unlimited; a number shows how many uses are left
-- **MembershipLog**: Every lifecycle event (purchased, renewed, cancelled) is recorded as a log entry with a `benefits_snapshot_before` — the full snapshot state at the moment the event occurred
+- **MembershipLog**: Every lifecycle event (purchased, renewed, cancelled, updated) is recorded as a log entry with a `benefits_snapshot_before` — the full snapshot state at the moment the event occurred
+- **is_active**: `true` = membership is still valid (not cancelled); `false` = cancelled. Use date range to determine if a membership is currently active vs expired. Cancellation sets `is_active: false` without hard-deleting the record
 
 ---
 
@@ -3918,6 +3919,7 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
           "period_reset_date": "2026-04-01T00:00:00.000Z"
         }
       ],
+      "is_active": true,
       "isDeleted": false,
       "deletedAt": null,
       "createdAt": "2026-03-19T07:35:08.758Z",
@@ -4207,6 +4209,14 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 {
   "statusCode": 400,
   "message": "membership plan not found",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": "pet already has an active membership for this plan",
   "error": "Bad Request"
 }
 ```
@@ -4724,9 +4734,9 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 
 ---
 
-### 8. Cancel Pet Membership (Soft Delete)
+### 8. Cancel Pet Membership
 
-**Endpoint:** `DELETE /pet-memberships/:id`
+**Endpoint:** `PATCH /pet-memberships/:id/cancelled`
 
 **Authentication:** Required (JWT)
 
@@ -4743,8 +4753,9 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
     "_id": "507f1f77bcf86cd799439030",
     "pet_id": "507f1f77bcf86cd799439020",
     "membership_plan_id": "507f1f77bcf86cd799439011",
-    "isDeleted": true,
-    "deletedAt": "2026-03-19T12:30:00.000Z"
+    "is_active": false,
+    "isDeleted": false,
+    "deletedAt": null
   }
 }
 ```
@@ -4773,10 +4784,9 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 
 **Notes:**
 
-- This is a soft delete operation
-- Pet membership is marked with `isDeleted: true` and `deletedAt` timestamp
-- Deleted memberships are excluded from GET endpoints
-- Benefits are no longer available after deletion
+- Cancellation sets `is_active: false` (record is kept for history)
+- Cancelled memberships (`is_active: false`) are excluded from all GET endpoints except history
+- Benefits are no longer available after cancellation
 
 ---
 
@@ -4869,6 +4879,7 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
       "membership_plan_id": "69bd2b7b55b99229f78e9cc6",
       "start_date": "2026-03-20T11:13:41.916Z",
       "end_date": "2026-09-20T11:13:41.916Z",
+      "is_active": true,
       "isDeleted": false,
       "deletedAt": null,
       "createdAt": "2026-03-20T11:13:41.918Z",
@@ -4887,7 +4898,8 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
       "membership_plan_id": "69bd231f55b99229f78e9976",
       "start_date": "2025-09-20T08:00:00.000Z",
       "end_date": "2026-03-20T08:00:00.000Z",
-      "isDeleted": true,
+      "is_active": false,
+      "isDeleted": false,
       "deletedAt": "2026-03-20T11:00:00.000Z",
       "createdAt": "2025-09-20T08:00:00.001Z",
       "updatedAt": "2026-03-20T11:00:00.001Z",
@@ -4926,9 +4938,9 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 
 **Notes:**
 
-- Returns **all** pet memberships for the pet — active, expired, and cancelled (no `isDeleted` filter)
+- Returns **all** pet memberships for the pet where `isDeleted: false` — includes active, expired, and cancelled
 - `benefits_snapshot` is excluded from this list — use endpoint 11 for log detail
-- `isDeleted: true` = cancelled; `isDeleted: false` = active or expired (check `end_date` vs now)
+- `is_active: false` = cancelled; `is_active: true` = valid (check `end_date` vs now to determine active vs expired)
 - Sorted by `createdAt` descending (newest first)
 - Use `_id` of each item as `pet_membership_id` to call endpoint 11
 
@@ -5089,6 +5101,54 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 - `benefits_snapshot_before` is `[]` for `updated` events; populated for `purchased`, `renewed`, `cancelled`
 
 ---
+
+### 11. Soft Delete Pet Membership
+
+**Endpoint:** `DELETE /pet-memberships/:id`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId of the pet membership
+
+**Success Response (200):**
+
+```json
+{
+  "message": "pet membership cancelled successfully",
+  "data": {
+    "_id": "507f1f77bcf86cd799439030",
+    "pet_id": "507f1f77bcf86cd799439020",
+    "membership_plan_id": "507f1f77bcf86cd799439011",
+    "is_active": false,
+    "isDeleted": false,
+    "deletedAt": "timestamp"
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Invalid ID format
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid pet membership ID",
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** Pet membership not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "pet membership not found",
+  "error": "Not Found"
+}
+```
 
 ## Benefit Usages
 

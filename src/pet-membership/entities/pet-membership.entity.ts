@@ -93,6 +93,9 @@ export class PetMembership {
   })
   benefits_snapshot: PetMembershipBenefit[];
 
+  @Prop({ default: true })
+  is_active: boolean;
+
   @Prop({ default: false })
   isDeleted: boolean;
 

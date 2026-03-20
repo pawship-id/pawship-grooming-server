@@ -8,6 +8,7 @@ import {
   Query,
   UseGuards,
   Put,
+  Patch,
 } from '@nestjs/common';
 import { PetMembershipService } from './pet-membership.service';
 import { CreatePetMembershipDto } from './dto/create-pet-membership.dto';
@@ -134,11 +135,20 @@ export class PetMembershipController {
     };
   }
 
+  @Patch(':id/cancelled')
+  async cancelled(@Param('id') id: string) {
+    const petMembership = await this.petMembershipService.cancelled(id);
+    return {
+      message: 'pet membership cancelled successfully',
+      data: petMembership,
+    };
+  }
+
   @Delete(':id')
   async remove(@Param('id') id: string) {
     const petMembership = await this.petMembershipService.delete(id);
     return {
-      message: 'pet membership cancelled successfully',
+      message: 'pet membership delete successfully',
       data: petMembership,
     };
   }
