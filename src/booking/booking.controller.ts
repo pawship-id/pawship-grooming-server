@@ -130,10 +130,7 @@ export class BookingController {
   // Create booking only customer (public)
   @Public()
   @Post('public')
-  async createGuestBooking(
-    @Body() body: CreateBookingDto,
-    @Req() request: any,
-  ) {
+  async createGuestBooking(@Body() body: any, @Req() request: any) {
     let user: { username: string; role: string } | undefined;
 
     // try to extract and verify token if present
@@ -171,6 +168,10 @@ export class BookingController {
       }
     }
 
+    // Remove travel_fee if present in body (should always be from zone)
+    if ('travel_fee' in body) {
+      delete body.travel_fee;
+    }
     await this.bookingService.create(body, user);
 
     return {

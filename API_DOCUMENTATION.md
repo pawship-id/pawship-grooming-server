@@ -6292,7 +6292,6 @@ If user not found:
   "type": "in home | in store (required)",
   "service_id": "MongoDB ObjectId (required)",
   "service_addon_ids": ["MongoDB ObjectId"],
-  "travel_fee": "number (optional)",
   "note": "string (optional)"
 }
 ```
@@ -6828,7 +6827,6 @@ Same shape as above, but `available_benefits` also includes benefits with `appli
   "time_range": "09.00 - 12.00 (required)",
   "pick_up": "boolean (optional, default: false)",
   "service_addon_ids": ["MongoDB ObjectId (optional)"],
-  "travel_fee": "number (optional)",
   "discount_ids": ["MongoDB ObjectId (optional)"],
   "selected_benefit_ids": [
     "MongoDB ObjectId (optional, benefit IDs from pet membership to apply to booking)"

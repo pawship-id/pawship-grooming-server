@@ -125,6 +125,7 @@ export class BookingService {
         distance_km: number;
       } | null = null;
 
+      // Always ignore dto.travel_fee, always use matched zone
       if (dto.pick_up === true) {
         if (!dto.store_id) {
           throw new BadRequestException(
@@ -199,6 +200,7 @@ export class BookingService {
         };
       }
 
+      // travelFee always from matched zone
       const travelFee = pickUpResult?.zone.travel_fee ?? 0;
 
       // 5. Get available benefits filtered by context:
@@ -523,7 +525,7 @@ export class BookingService {
       if (!store) throw new NotFoundException('Store not found');
 
       // 4. handle pick-up service validation and zone matching
-      let pickUpZone = null;
+      let pickUpZone: Store['zones'][0] | null = null;
       if (body.pick_up) {
         // 4.1 get customer location from profile
         const customer = await this.userModel.findById(body.customer_id);
@@ -564,6 +566,9 @@ export class BookingService {
       if (pickUpZone) {
         (body as any).pick_up_zone = pickUpZone;
       }
+
+      // travelFee always from matched zone (or 0 if not pick up)
+      const travelFee = pickUpZone?.travel_fee ?? 0;
 
       // 6. get service and addons
       // 6.1 handle service price calculation
@@ -606,7 +611,8 @@ export class BookingService {
       // 8. calculate service and addons price
       body.sub_total_service = service.price + addonsTotal;
       const originalTotalPrice =
-        (body.sub_total_service || 0) + (body.travel_fee || 0);
+        (body.sub_total_service || 0) +
+        (typeof travelFee === 'number' ? travelFee : 0);
       body.original_total_price = originalTotalPrice;
 
       // 9. apply benefits if selected
@@ -861,8 +867,15 @@ export class BookingService {
         (Number(service.duration) || 0) + addonsTotalDuration;
 
       body.sub_total_service = service.price + addonsTotal;
-      const originalTotalPriceGuest =
-        (body.sub_total_service || 0) + (body.travel_fee || 0);
+      // travelFee always from matched zone (or 0 if not pick up)
+      let travelFee = 0;
+      if (
+        (body as any).pick_up_zone &&
+        typeof (body as any).pick_up_zone.travel_fee === 'number'
+      ) {
+        travelFee = (body as any).pick_up_zone.travel_fee;
+      }
+      const originalTotalPriceGuest = (body.sub_total_service || 0) + travelFee;
       body.original_total_price = originalTotalPriceGuest;
 
       // Apply benefits for guest if applicable
