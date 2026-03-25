@@ -140,19 +140,38 @@ export class UserService {
     }
 
     for (const field of objectIdFields) {
-      console.log(body[field], 'noooo');
-
       if (body[field]) {
         setData[`profile.${field}`] = new Types.ObjectId(body[field] as string);
       }
     }
 
-    if (body.address) {
-      for (const [key, val] of Object.entries(body.address)) {
-        if (val) {
-          setData[`profile.address.${key}`] = val;
+    if (body.addresses) {
+      // If no addresses exist in DB, set first one as main
+      const user = await this.userModel
+        .findById(userId)
+        .select('profile.addresses');
+      let existingAddresses = user?.profile?.addresses || [];
+      let addressesToSave = body.addresses.map((addr, idx) => {
+        // If any address explicitly sets is_main_address true, keep it
+        // Otherwise, if no addresses exist, first one is main; else default false
+        let isMain = addr.is_main_address;
+        if (isMain === undefined) {
+          if (existingAddresses.length === 0 && idx === 0) {
+            isMain = true;
+          } else {
+            isMain = false;
+          }
         }
+        return { ...addr, is_main_address: isMain };
+      });
+      // Ensure only one is_main_address true
+      if (addressesToSave.filter((a) => a.is_main_address).length > 1) {
+        addressesToSave = addressesToSave.map((a, i) => ({
+          ...a,
+          is_main_address: i === 0,
+        }));
       }
+      setData['profile.addresses'] = addressesToSave;
     }
 
     console.log(setData, '>>>>>');
