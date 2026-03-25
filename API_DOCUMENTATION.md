@@ -410,11 +410,21 @@ Authorization: Bearer <jwt_token>
   "groomer_rating": "number >= 0 (optional, groomer only)",
   "customer_category_id": "MongoDB ObjectId — Option ref (optional, customer only)",
   "tags": ["string"],
-  "address": {
-    "street": "string (optional)",
-    "city": "string (optional)",
-    "zone": "string (optional)"
-  }
+  "addresses": [
+    {
+      "label": "string (optional) — e.g. 'Home', 'Office'",
+      "street": "string (optional)",
+      "subdistrict": "string (optional)",
+      "district": "string (optional)",
+      "city": "string (optional)",
+      "province": "string (optional)",
+      "postal_code": "string (optional)",
+      "note": "string (optional) — note for courier/driver",
+      "latitude": "number (optional)",
+      "longitude": "number (optional)",
+      "is_main_address": "boolean (optional) — default true if first address, else false"
+    }
+  ]
 }
 ```
 
@@ -436,11 +446,29 @@ Authorization: Bearer <jwt_token>
       "placement": "507f1f77bcf86cd799439099",
       "groomer_skills": ["Dog grooming", "Cat grooming"],
       "tags": ["experienced"],
-      "address": {
-        "street": "Jl. Merdeka No. 1",
-        "city": "Jakarta",
-        "zone": "Pusat"
-      }
+      "addresses": [
+        {
+          "label": "Home",
+          "street": "Jl. Merdeka No. 1",
+          "subdistrict": "Gambir",
+          "district": "Gambir",
+          "city": "Jakarta Pusat",
+          "province": "DKI Jakarta",
+          "postal_code": "10110",
+          "note": "Blue gate, left alley",
+          "latitude": -6.1751,
+          "longitude": 106.8272,
+          "is_main_address": true
+        },
+        {
+          "label": "Office",
+          "street": "Jl. Sudirman No. 10",
+          "city": "Jakarta Selatan",
+          "province": "DKI Jakarta",
+          "postal_code": "10220",
+          "is_main_address": false
+        }
+      ]
     },
     "is_active": true,
     "isDeleted": false,

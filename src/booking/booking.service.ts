@@ -152,19 +152,29 @@ export class BookingService {
 
         const customer = await this.userModel
           .findById(new ObjectId(dto.customer_id))
-          .select('profile.address')
+          .select('profile.addresses')
           .lean();
         if (!customer) {
           throw new NotFoundException('Customer not found');
         }
 
-        const lat = (customer as any).profile?.address?.latitude;
-        const lon = (customer as any).profile?.address?.longitude;
-        if (lat == null || lon == null) {
+        // Find main address
+        const addresses = (customer as any).profile?.addresses || [];
+        let mainAddress = addresses.find((a: any) => a.is_main_address);
+        if (!mainAddress && addresses.length > 0) {
+          mainAddress = addresses[0];
+        }
+        if (
+          !mainAddress ||
+          mainAddress.latitude == null ||
+          mainAddress.longitude == null
+        ) {
           throw new BadRequestException(
-            'Customer address with latitude and longitude is required for pick-up',
+            'Customer profile must have location (latitude/longitude) to use pick-up service',
           );
         }
+        const lat = mainAddress.latitude;
+        const lon = mainAddress.longitude;
 
         // findPickUpZone validates store.location is properly set before we access it
         const matchedZone = await this.findPickUpZone(store, lat, lon);
@@ -517,10 +527,13 @@ export class BookingService {
       if (body.pick_up) {
         // 4.1 get customer location from profile
         const customer = await this.userModel.findById(body.customer_id);
-        if (
-          !customer?.profile?.address?.latitude ||
-          !customer?.profile?.address?.longitude
-        ) {
+
+        const addresses = (customer as any).profile?.addresses || [];
+        let mainAddress = addresses.find((a: any) => a.is_main_address);
+        if (!mainAddress && addresses.length > 0) {
+          mainAddress = addresses[0];
+        }
+        if (!mainAddress || !mainAddress.latitude || !mainAddress.longitude) {
           throw new BadRequestException(
             'Customer profile must have location (latitude/longitude) to use pick-up service',
           );
@@ -542,8 +555,8 @@ export class BookingService {
 
         pickUpZone = await this.findPickUpZone(
           store,
-          customer.profile.address.latitude,
-          customer.profile.address.longitude,
+          mainAddress.latitude,
+          mainAddress.longitude,
         );
       }
 

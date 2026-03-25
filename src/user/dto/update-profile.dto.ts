@@ -13,16 +13,36 @@ import { Gender } from '../entities/user.entity';
 
 export class UpdateAddressDto {
   @IsOptional()
+  @IsString({ message: 'label must be a string' })
+  label?: string;
+
+  @IsOptional()
   @IsString({ message: 'street must be a string' })
   street?: string;
+
+  @IsOptional()
+  @IsString({ message: 'subdistrict must be a string' })
+  subdistrict?: string;
+
+  @IsOptional()
+  @IsString({ message: 'district must be a string' })
+  district?: string;
 
   @IsOptional()
   @IsString({ message: 'city must be a string' })
   city?: string;
 
   @IsOptional()
-  @IsString({ message: 'zone must be a string' })
-  zone?: string;
+  @IsString({ message: 'province must be a string' })
+  province?: string;
+
+  @IsOptional()
+  @IsString({ message: 'postal_code must be a string' })
+  postal_code?: string;
+
+  @IsOptional()
+  @IsString({ message: 'note must be a string' })
+  note?: string;
 
   @IsOptional()
   @IsNumber({}, { message: 'latitude must be a number' })
@@ -31,6 +51,9 @@ export class UpdateAddressDto {
   @IsOptional()
   @IsNumber({}, { message: 'longitude must be a number' })
   longitude?: number;
+
+  @IsOptional()
+  is_main_address?: boolean;
 }
 
 /**
@@ -83,7 +106,7 @@ export class UpdateProfileDto {
   tags?: string[];
 
   @IsOptional()
-  @ValidateNested()
+  @ValidateNested({ each: true })
   @Type(() => UpdateAddressDto)
-  address?: UpdateAddressDto;
+  addresses?: UpdateAddressDto[];
 }
