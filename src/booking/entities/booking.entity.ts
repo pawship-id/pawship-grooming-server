@@ -122,7 +122,7 @@ export class PetSnapshot {
       delete ret.service_type.id;
       delete ret.id;
 
-      if (ret.addons.length) {
+      if (ret.addons && ret.addons.length) {
         ret.addons.forEach((el: any) => {
           delete el.id;
         });
