@@ -1,10 +1,10 @@
-import { Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import {
   IsNotEmpty,
   IsMongoId,
   IsOptional,
   IsArray,
-  ValidateNested,
+  IsBoolean,
 } from 'class-validator';
 
 export class BookingPreviewRequestDto {
@@ -29,6 +29,19 @@ export class BookingPreviewRequestDto {
 
   @IsOptional()
   time_range?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean({ message: 'pick_up must be a boolean' })
+  pick_up?: boolean;
+
+  @IsOptional()
+  @IsMongoId({ message: 'store_id must be a valid MongoDB ID' })
+  store_id?: string;
+
+  @IsOptional()
+  @IsMongoId({ message: 'customer_id must be a valid MongoDB ID' })
+  customer_id?: string;
 }
 
 export class PreviewBenefitDto {

@@ -6584,7 +6584,7 @@ The actual booking status depends on capacity availability:
 
 **Headers:** `Authorization: Bearer {access_token}` (required)
 
-**Description:** Calculate booking price with benefit options and pricing breakdown. Shows available membership benefits that can be applied to reduce the final price.
+**Description:** Calculate booking price with benefit options and pricing breakdown. Shows available membership benefits that can be applied to reduce the final price. Optionally, include `pick_up: true` together with `store_id` and `customer_id` to also retrieve the matched pickup zone and travel fee for the customer's saved address.
 
 **Request Body:**
 
@@ -6594,11 +6594,14 @@ The actual booking status depends on capacity availability:
   "service_id": "MongoDB ObjectId (required)",
   "addon_ids": ["MongoDB ObjectId (optional)"],
   "date": "Date (required)",
-  "time_range": "string (optional)"
+  "time_range": "string (optional)",
+  "pick_up": "boolean (optional, default: false)",
+  "store_id": "MongoDB ObjectId (required when pick_up is true)",
+  "customer_id": "MongoDB ObjectId (required when pick_up is true)"
 }
 ```
 
-**Success Response (200):**
+**Success Response (200) — without pick_up:**
 
 ```json
 {
@@ -6670,10 +6673,49 @@ The actual booking status depends on capacity availability:
 }
 ```
 
+**Success Response (200) — with `pick_up: true`:**
+
+Same as above, with an additional `pick_up` object in the root of the response:
+
+```json
+{
+  "message": "Booking preview calculated successfully",
+  "pet_id": "699a6285a99f14a4be787c77",
+  "pet_name": "Fluffy",
+  "service_id": "69a45774ecf65d9a74d53fe6",
+  "service_name": "Basic Grooming",
+  "pricing": { "...": "same as above" },
+  "pricing_breakdown": { "...": "same as above" },
+  "pick_up": {
+    "is_available": true,
+    "zone": {
+      "area_name": "Zone A",
+      "min_radius_km": 0,
+      "max_radius_km": 5,
+      "travel_time_minutes": 30,
+      "travel_fee": 25000
+    },
+    "distance_km": 3.47
+  }
+}
+```
+
 **Error Responses:**
 
 - **404 Not Found:** Pet or service not found
+- **404 Not Found:** Store or customer not found (when `pick_up: true`)
 - **400 Bad Request:** Invalid pet_id or service_id format
+- **400 Bad Request:** `store_id` is required when `pick_up` is true
+- **400 Bad Request:** `customer_id` is required when `pick_up` is true
+- **400 Bad Request:** Pick-up service is not available for this store
+- **400 Bad Request:** Customer address with latitude and longitude is required for pick-up
+- **400 Bad Request:** Customer location is outside all delivery zones (includes distance in km)
+
+**Notes:**
+
+- When `pick_up: true`, the backend loads the customer's saved `profile.address.latitude` / `profile.address.longitude` — the customer must have their address coordinates set.
+- The `travel_fee` returned inside `pick_up.zone` is the authoritative fee to pass as `travel_fee` when creating the booking (`POST /bookings` or `POST /bookings/public`). Do **not** compute it on the client side.
+- The `pick_up` block is only present in the response when `pick_up: true` was sent in the request.
 
 ---
 

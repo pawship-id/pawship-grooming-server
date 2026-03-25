@@ -154,8 +154,85 @@ export class BookingService {
         subtotalBeforeBenefits - estimatedTotalDiscount,
       );
 
-      // 6. Build response
-      return {
+      // 6. Resolve pick-up zone (if requested)
+      let pickUpResult: {
+        is_available: boolean;
+        zone: {
+          area_name: string;
+          min_radius_km: number;
+          max_radius_km: number;
+          travel_time_minutes: number;
+          travel_fee: number;
+        };
+        distance_km: number;
+      } | null = null;
+
+      if (dto.pick_up === true) {
+        if (!dto.store_id) {
+          throw new BadRequestException(
+            'store_id is required when pick_up is true',
+          );
+        }
+        if (!dto.customer_id) {
+          throw new BadRequestException(
+            'customer_id is required when pick_up is true',
+          );
+        }
+
+        const store = await this.storeModel.findOne({
+          _id: new ObjectId(dto.store_id),
+          isDeleted: false,
+        });
+        if (!store) {
+          throw new NotFoundException('Store not found');
+        }
+        if (!store.is_pick_up_available) {
+          throw new BadRequestException(
+            'Pick-up service is not available for this store',
+          );
+        }
+
+        const customer = await this.userModel
+          .findById(new ObjectId(dto.customer_id))
+          .select('profile.address')
+          .lean();
+        if (!customer) {
+          throw new NotFoundException('Customer not found');
+        }
+
+        const lat = (customer as any).profile?.address?.latitude;
+        const lon = (customer as any).profile?.address?.longitude;
+        if (lat == null || lon == null) {
+          throw new BadRequestException(
+            'Customer address with latitude and longitude is required for pick-up',
+          );
+        }
+
+        // findPickUpZone validates store.location is properly set before we access it
+        const matchedZone = await this.findPickUpZone(store, lat, lon);
+
+        const distanceKm = this.calculateDistance(
+          lat,
+          lon,
+          store.location!.latitude!,
+          store.location!.longitude!,
+        );
+
+        pickUpResult = {
+          is_available: true,
+          zone: {
+            area_name: matchedZone.area_name,
+            min_radius_km: matchedZone.min_radius_km,
+            max_radius_km: matchedZone.max_radius_km,
+            travel_time_minutes: matchedZone.travel_time_minutes,
+            travel_fee: matchedZone.travel_fee,
+          },
+          distance_km: +distanceKm.toFixed(2),
+        };
+      }
+
+      // 7. Build response
+      const response: any = {
         pet_id: dto.pet_id,
         pet_name: pet.name,
         service_id: dto.service_id,
@@ -180,6 +257,12 @@ export class BookingService {
           final: estimatedFinalPrice,
         },
       };
+
+      if (pickUpResult !== null) {
+        response.pick_up = pickUpResult;
+      }
+
+      return response;
     } catch (error) {
       throw error;
     }
