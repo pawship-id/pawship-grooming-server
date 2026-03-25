@@ -112,49 +112,7 @@ export class BookingService {
 
       const subtotalBeforeBenefits = originalPrice + addonsTotal;
 
-      // 4. Get available benefits for this pet's membership
-      const membershipData =
-        await this.petMembershipService.getAvailableBenefits(dto.pet_id);
-
-      const hasActiveMembership = membershipData.has_active_membership;
-      const availableBenefits = hasActiveMembership
-        ? (membershipData.benefits || []).map((b: any) => ({
-            _id: b._id,
-            applies_to: b.applies_to,
-            service_id: b.service_id,
-            label: b.label,
-            service: b.service,
-            type: b.type,
-            period: b.period,
-            limit: b.limit,
-            value: b.value,
-            used: b.used,
-            remaining: b.remaining,
-            can_apply: b.can_apply,
-            period_reset_date: b.period_reset_date,
-            next_reset_date: b.next_reset_date,
-            amount_discount:
-              b.can_apply && b.type === 'discount'
-                ? (b.value / 100) * subtotalBeforeBenefits
-                : 0,
-            description: this.getBenefitDescription(b),
-          }))
-        : [];
-
-      // 5. Calculate estimated maximum discount
-      let estimatedTotalDiscount = 0;
-      availableBenefits.forEach((benefit: any) => {
-        if (benefit.can_apply && benefit.type === 'discount') {
-          estimatedTotalDiscount += benefit.amount_discount;
-        }
-      });
-
-      const estimatedFinalPrice = Math.max(
-        0,
-        subtotalBeforeBenefits - estimatedTotalDiscount,
-      );
-
-      // 6. Resolve pick-up zone (if requested)
+      // 4. Resolve pick-up zone early (travel_fee is needed as discount base for pickup benefits)
       let pickUpResult: {
         is_available: boolean;
         zone: {
@@ -231,6 +189,89 @@ export class BookingService {
         };
       }
 
+      const travelFee = pickUpResult?.zone.travel_fee ?? 0;
+
+      // 5. Get available benefits filtered by context:
+      //    - applies_to 'service' → only benefit whose service_id matches dto.service_id
+      //    - applies_to 'addon'   → only benefit whose service_id is in dto.addon_ids (skipped when no addons)
+      //    - applies_to 'pickup'  → only when pick_up is true
+      const membershipData =
+        await this.petMembershipService.getAvailableBenefits(dto.pet_id);
+
+      const hasActiveMembership = membershipData.has_active_membership;
+
+      const addonIdSet = new Set(
+        (dto.addon_ids || []).map((id) => id.toString()),
+      );
+      const hasAddons = !!(dto.addon_ids && dto.addon_ids.length > 0);
+
+      const availableBenefits = hasActiveMembership
+        ? (membershipData.benefits || [])
+            .filter((b: any) => {
+              const bServiceId = b.service_id?.toString();
+              if (b.applies_to === 'service') {
+                return bServiceId === dto.service_id.toString();
+              }
+              if (b.applies_to === 'addon') {
+                return hasAddons && addonIdSet.has(bServiceId);
+              }
+              if (b.applies_to === 'pickup') {
+                return dto.pick_up === true;
+              }
+              return false;
+            })
+            .map((b: any) => {
+              // Determine price base for this benefit type
+              let discountBase = 0;
+              if (b.applies_to === 'service') {
+                discountBase = originalPrice;
+              } else if (b.applies_to === 'addon') {
+                const matchingAddon = addonPrices.find(
+                  (a) => a._id.toString() === b.service_id?.toString(),
+                );
+                discountBase = matchingAddon?.price ?? 0;
+              } else if (b.applies_to === 'pickup') {
+                discountBase = travelFee;
+              }
+
+              return {
+                _id: b._id,
+                applies_to: b.applies_to,
+                service_id: b.service_id,
+                label: b.label,
+                service: b.service,
+                type: b.type,
+                period: b.period,
+                limit: b.limit,
+                value: b.value,
+                used: b.used,
+                remaining: b.remaining,
+                can_apply: b.can_apply,
+                period_reset_date: b.period_reset_date,
+                next_reset_date: b.next_reset_date,
+                amount_discount:
+                  b.can_apply && b.type === 'discount'
+                    ? (b.value / 100) * discountBase
+                    : 0,
+                description: this.getBenefitDescription(b),
+              };
+            })
+        : [];
+
+      // 6. Calculate estimated maximum discount and final price
+      let estimatedTotalDiscount = 0;
+      availableBenefits.forEach((benefit: any) => {
+        if (benefit.can_apply && benefit.type === 'discount') {
+          estimatedTotalDiscount += benefit.amount_discount;
+        }
+      });
+
+      const grandTotal = subtotalBeforeBenefits + travelFee;
+      const estimatedFinalPrice = Math.max(
+        0,
+        grandTotal - estimatedTotalDiscount,
+      );
+
       // 7. Build response
       const response: any = {
         pet_id: dto.pet_id,
@@ -253,6 +294,8 @@ export class BookingService {
           },
           addons: addonPrices,
           subtotal: subtotalBeforeBenefits,
+          travel_fee: travelFee,
+          grand_total: grandTotal,
           discount: estimatedTotalDiscount,
           final: estimatedFinalPrice,
         },

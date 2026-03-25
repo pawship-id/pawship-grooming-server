@@ -6601,7 +6601,7 @@ The actual booking status depends on capacity availability:
 }
 ```
 
-**Success Response (200) — without pick_up:**
+**Success Response (200) — without `pick_up`:**
 
 ```json
 {
@@ -6624,6 +6624,8 @@ The actual booking status depends on capacity availability:
     "available_benefits": [
       {
         "_id": "607f1f77bcf86cd799439011",
+        "applies_to": "service",
+        "service_id": "69a45774ecf65d9a74d53fe6",
         "type": "discount",
         "period": "monthly",
         "value": 10,
@@ -6633,26 +6635,28 @@ The actual booking status depends on capacity availability:
         "can_apply": true,
         "period_reset_date": "2026-03-21T00:00:00.000Z",
         "next_reset_date": "2026-04-01T00:00:00.000Z",
-        "amount_discount": 40000,
+        "amount_discount": 35000,
         "description": "Discount: 10% (Monthly) - 3/5 remaining"
       },
       {
-        "_id": "607f1f77bcf86cd799439012",
-        "type": "free_service",
-        "period": "weekly",
-        "value": 50000,
-        "limit": 1,
+        "_id": "607f1f77bcf86cd799439013",
+        "applies_to": "addon",
+        "service_id": "69b10c52a58f123456789abc",
+        "type": "discount",
+        "period": "monthly",
+        "value": 20,
+        "limit": 3,
         "used": 0,
-        "remaining": 1,
+        "remaining": 3,
         "can_apply": true,
-        "period_reset_date": "2026-03-16T00:00:00.000Z",
-        "next_reset_date": "2026-03-23T00:00:00.000Z",
-        "amount_discount": 50000,
-        "description": "Free Service: 50000 (Weekly) - 1/1 remaining"
+        "period_reset_date": null,
+        "next_reset_date": "2026-04-01T00:00:00.000Z",
+        "amount_discount": 10000,
+        "description": "Discount: 20% (Monthly) - 3/3 remaining"
       }
     ],
-    "estimated_total_discount": 90000,
-    "estimated_final_price": 310000
+    "estimated_total_discount": 45000,
+    "estimated_final_price": 355000
   },
   "pricing_breakdown": {
     "service": {
@@ -6667,15 +6671,17 @@ The actual booking status depends on capacity availability:
       }
     ],
     "subtotal": 400000,
-    "discount": 90000,
-    "final": 310000
+    "travel_fee": 0,
+    "grand_total": 400000,
+    "discount": 45000,
+    "final": 355000
   }
 }
 ```
 
 **Success Response (200) — with `pick_up: true`:**
 
-Same as above, with an additional `pick_up` object in the root of the response:
+Same shape as above, but `available_benefits` also includes benefits with `applies_to: "pickup"`, `pricing_breakdown.travel_fee` is set from the matched zone, and `pick_up` is appended at the root:
 
 ```json
 {
@@ -6684,8 +6690,56 @@ Same as above, with an additional `pick_up` object in the root of the response:
   "pet_name": "Fluffy",
   "service_id": "69a45774ecf65d9a74d53fe6",
   "service_name": "Basic Grooming",
-  "pricing": { "...": "same as above" },
-  "pricing_breakdown": { "...": "same as above" },
+  "pricing": {
+    "original_service_price": 350000,
+    "addon_prices": [],
+    "subtotal_before_benefits": 350000,
+    "has_active_membership": true,
+    "available_benefits": [
+      {
+        "_id": "607f1f77bcf86cd799439011",
+        "applies_to": "service",
+        "service_id": "69a45774ecf65d9a74d53fe6",
+        "type": "discount",
+        "period": "monthly",
+        "value": 10,
+        "limit": 5,
+        "used": 2,
+        "remaining": 3,
+        "can_apply": true,
+        "amount_discount": 35000,
+        "description": "Discount: 10% (Monthly) - 3/5 remaining"
+      },
+      {
+        "_id": "607f1f77bcf86cd799439014",
+        "applies_to": "pickup",
+        "service_id": null,
+        "type": "discount",
+        "period": "unlimited",
+        "value": 100,
+        "limit": null,
+        "used": 0,
+        "remaining": null,
+        "can_apply": true,
+        "amount_discount": 25000,
+        "description": "Discount: 100% (Unlimited) - ∞/∞ remaining"
+      }
+    ],
+    "estimated_total_discount": 60000,
+    "estimated_final_price": 315000
+  },
+  "pricing_breakdown": {
+    "service": {
+      "name": "Basic Grooming",
+      "price": 350000
+    },
+    "addons": [],
+    "subtotal": 350000,
+    "travel_fee": 25000,
+    "grand_total": 375000,
+    "discount": 60000,
+    "final": 315000
+  },
   "pick_up": {
     "is_available": true,
     "zone": {
@@ -6713,8 +6767,16 @@ Same as above, with an additional `pick_up` object in the root of the response:
 
 **Notes:**
 
+- `available_benefits` is filtered by request context:
+  - `applies_to: "service"` — only included when the benefit's `service_id` matches the requested `service_id`
+  - `applies_to: "addon"` — only included when `addon_ids` are provided **and** the benefit's `service_id` matches one of them; omitted entirely when no addons are sent
+  - `applies_to: "pickup"` — only included when `pick_up: true` is sent
+- `amount_discount` is calculated against the relevant price base: service price for `service` benefits, that addon's price for `addon` benefits, and `travel_fee` for `pickup` benefits.
+- `pricing_breakdown.travel_fee` is `0` when `pick_up` is not requested; set to the matched zone's fee otherwise.
+- `pricing_breakdown.grand_total` = `subtotal` + `travel_fee`.
+- `pricing_breakdown.final` = `grand_total` − `discount`.
 - When `pick_up: true`, the backend loads the customer's saved `profile.address.latitude` / `profile.address.longitude` — the customer must have their address coordinates set.
-- The `travel_fee` returned inside `pick_up.zone` is the authoritative fee to pass as `travel_fee` when creating the booking (`POST /bookings` or `POST /bookings/public`). Do **not** compute it on the client side.
+- The `travel_fee` inside `pick_up.zone` is the authoritative fee to pass as `travel_fee` when creating the booking (`POST /bookings` or `POST /bookings/public`). Do **not** compute it on the client side.
 - The `pick_up` block is only present in the response when `pick_up: true` was sent in the request.
 
 ---
