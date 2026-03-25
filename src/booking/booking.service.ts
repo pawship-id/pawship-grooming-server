@@ -196,7 +196,9 @@ export class BookingService {
       }[benefit.type] || 'Benefit';
 
     const valueStr =
-      benefit.type === 'discount' ? `${benefit.value}%` : `${benefit.value}`;
+      benefit.type === 'discount'
+        ? `${benefit.value}%`
+        : `${benefit.service.name}`;
 
     const periodLabel =
       {
