@@ -238,6 +238,7 @@ export class ServiceService {
     }
 
     return {
+      _id: service._id,
       code: service.code,
       name: service.name,
       price: resolvedPrice,
