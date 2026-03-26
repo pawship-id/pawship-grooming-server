@@ -6316,7 +6316,9 @@ Preview the effect of applying selected membership benefits to a booking before 
       "benefit_type": "discount",
       "benefit_period": "monthly",
       "benefit_value": 10,
+      "price_before": 100000,
       "amount_deducted": 10000,
+      "price_after": 90000,
       "description": "10% off for monthly benefit"
     }
   ]
@@ -6331,8 +6333,8 @@ Preview the effect of applying selected membership benefits to a booking before 
 **Notes:**
 
 - This endpoint does not require a booking to exist. Use it to preview discounts before creating a booking.
-- The `breakdown` array details the discount from each benefit.
-- Benefits with type `quota` (free sessions) have `amount_deducted: 0`; only `discount`-type benefits reduce the price.
+- Each item in `breakdown` shows `price_before` (cumulative price before this benefit is applied), `amount_deducted` (discount from this benefit), and `price_after` (cumulative price after this benefit is applied).
+- Benefits with type `quota` (free sessions) have `amount_deducted: 0` and `price_before` equals `price_after`; only `discount`-type benefits reduce the price.
 - Only benefits where `can_apply: true` (from the pet's active membership) are included in the result.
 - If the pet has no active membership, all arrays are empty and `final_price` equals `subtotal_price`.
 

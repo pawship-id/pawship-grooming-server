@@ -1164,7 +1164,9 @@ export class BookingService {
       benefit_type: string;
       benefit_period: string;
       benefit_value: number;
+      price_before: number;
       amount_deducted: number;
+      price_after: number;
       description?: string;
     }>;
   }> {
@@ -1172,6 +1174,7 @@ export class BookingService {
     const appliedBenefits: any[] = [];
     let totalDiscount = 0;
     const breakdown: Array<any> = [];
+    let runningPrice = subtotalPrice;
 
     if (!selectedBenefitIds || selectedBenefitIds.length === 0) {
       return {
@@ -1203,13 +1206,18 @@ export class BookingService {
       if (benefit.type === 'discount') {
         discountAmount = (benefit.value / 100) * subtotalPrice;
       }
+      const priceBefore = runningPrice;
+      const priceAfter = Math.max(0, runningPrice - discountAmount);
+      runningPrice = priceAfter;
       // quota type = free sessions counter; no monetary deduction
       breakdown.push({
         benefit_id: benefitId,
         benefit_type: benefit.type,
         benefit_period: benefit.period,
         benefit_value: benefit.value,
+        price_before: priceBefore,
         amount_deducted: discountAmount,
+        price_after: priceAfter,
         description: benefit.description,
       });
       if (discountAmount > 0) {
