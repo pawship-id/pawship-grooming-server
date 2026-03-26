@@ -1160,7 +1160,11 @@ export class BookingService {
     total_discount: number;
     final_price: number;
     breakdown: Array<{
-      benefit_id: string;
+      benefit: {
+        _id: string;
+        label: string | null;
+        service: { name: string } | null;
+      };
       benefit_type: string;
       benefit_period: string;
       benefit_value: number;
@@ -1211,7 +1215,11 @@ export class BookingService {
       runningPrice = priceAfter;
       // quota type = free sessions counter; no monetary deduction
       breakdown.push({
-        benefit_id: benefitId,
+        benefit: {
+          _id: benefit._id,
+          label: benefit.label ?? null,
+          service: benefit.service ? { name: benefit.service.name } : null,
+        },
         benefit_type: benefit.type,
         benefit_period: benefit.period,
         benefit_value: benefit.value,
