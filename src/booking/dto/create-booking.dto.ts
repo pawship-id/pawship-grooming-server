@@ -156,13 +156,16 @@ export class CreateBookingDto {
   service_addon_ids?: string[];
 
   @IsOptional()
+  travel_fee: number;
+
+  @IsOptional()
   sub_total_service: number;
 
   @IsOptional()
-  total_price: number;
+  original_total_price: number;
 
   @IsOptional()
-  original_total_price?: number;
+  total_discount?: number;
 
   @IsOptional()
   final_total_price?: number;

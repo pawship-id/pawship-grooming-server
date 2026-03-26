@@ -29,8 +29,23 @@ export class ZoneSnapshot {
 
 @Schema({ _id: false })
 export class AppliedBenefit {
-  @Prop({ type: Types.ObjectId, required: true })
-  benefit_id: Types.ObjectId;
+  @Prop({
+    type: {
+      _id: { type: Types.ObjectId, required: true },
+      label: { type: String, default: null },
+      service: {
+        type: { name: { type: String } },
+        default: null,
+      },
+    },
+    required: true,
+    _id: false,
+  })
+  benefit: {
+    _id: Types.ObjectId;
+    label: string | null;
+    service: { name: string } | null;
+  };
 
   @Prop({ required: true })
   benefit_type: string; // 'discount', 'quota'
@@ -40,6 +55,9 @@ export class AppliedBenefit {
 
   @Prop()
   benefit_value?: number; // percentage, amount, or quantity
+
+  @Prop({ required: true })
+  base_price: number; // harga service sebelum diskon
 
   @Prop({ required: true })
   amount_deducted: number; // amount berkurang dari total harga
@@ -354,16 +372,16 @@ export class Booking {
   travel_fee: number;
 
   @Prop({ default: true })
-  sub_total_service: number;
+  sub_total_service: number; // harga service + harga add on
 
   @Prop({ required: true })
-  original_total_price: number; // harga sebelum benefit
+  original_total_price: number; // harga sub_total_service + harga travel fee sebelum benefit
 
   @Prop({ required: true })
-  final_total_price: number; // harga setelah benefit diterapkan
+  total_discount: number; // total harga discount
 
   @Prop({ default: null })
-  total_price: number; // deprecated, gunakan final_total_price
+  final_total_price: number; // final total harga yg harus dibayar
 
   @Prop({
     type: [{ type: Types.ObjectId, ref: 'Promo' }],
