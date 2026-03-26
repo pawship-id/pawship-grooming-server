@@ -6332,10 +6332,9 @@ Preview the effect of applying selected membership benefits to a booking before 
 
 - This endpoint does not require a booking to exist. Use it to preview discounts before creating a booking.
 - The `breakdown` array details the discount from each benefit.
-- Only benefits that are valid and applicable for the pet and membership will be included.
-- Creates `pet_snapshot` automatically from pet data
-- Creates `service_snapshot` automatically — stores service code, name, description, service type, and the best-matched price based on the pet's pet type, size, and hair
-- Creates initial status log entry with appropriate status and notes
+- Benefits with type `quota` (free sessions) have `amount_deducted: 0`; only `discount`-type benefits reduce the price.
+- Only benefits where `can_apply: true` (from the pet's active membership) are included in the result.
+- If the pet has no active membership, all arrays are empty and `final_price` equals `subtotal_price`.
 
 ---
 
@@ -7266,57 +7265,6 @@ The actual booking status depends on capacity availability:
 **Error Responses:**
 
 - **400 Bad Request:** Missing required fields for rescheduled status
-
----
-
-#### 8. Apply Benefits to Booking (Public)
-
-**Endpoint:** `POST /bookings/public/apply-benefit`
-
-**Description:**
-Apply selected membership benefits to an existing booking. This endpoint recalculates the booking's final price and applied benefits based on the provided benefit IDs. It is idempotent: re-applying will overwrite previous benefits.
-
-**Authentication:** Not Required
-
-**Request Body:**
-
-```json
-{
-  "selected_benefit_ids": ["MongoDB ObjectId (required)"]
-}
-```
-
-**Success Response (200):**
-
-```json
-{
-  "message": "Benefits applied successfully",
-  "booking_id": "69acf9f3ec21849a308137c5",
-  "applied_benefits": [
-    {
-      "benefit_id": "607f1f77bcf86cd799439011",
-      "benefit_type": "discount",
-      "benefit_period": "monthly",
-      "benefit_value": 10,
-      "amount_deducted": 40000,
-      "applied_at": "2026-03-19T14:30:00.000Z"
-    }
-  ],
-  "total_discount": 40000,
-  "final_price": 310000
-}
-```
-
-**Error Responses:**
-
-- **404 Not Found:** Booking not found
-- **400 Bad Request:** Invalid or missing benefit IDs
-
-**Notes:**
-
-- Only benefits that are valid and applicable for the booking's pet and membership will be applied.
-- This endpoint can be called multiple times; each call will replace the previous applied benefits for the booking.
-- Use `GET /bookings/:id` to view the full booking details including applied benefits.
 
 ## Grooming Sessions
 
