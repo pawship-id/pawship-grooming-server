@@ -1147,4 +1147,89 @@ export class BookingService {
       throw error;
     }
   }
+
+  /**
+   * Public: Preview benefit application (no booking required)
+   */
+  async previewApplyBenefits(
+    petId: string,
+    selectedBenefitIds: string[],
+    subtotalPrice: number,
+  ): Promise<{
+    applied_benefits: any[];
+    total_discount: number;
+    final_price: number;
+    breakdown: Array<{
+      benefit_id: string;
+      benefit_type: string;
+      benefit_period: string;
+      benefit_value: number;
+      amount_deducted: number;
+      description?: string;
+    }>;
+  }> {
+    // Use the same logic as applyBenefitsToBooking, but always return breakdown for all selected
+    const appliedBenefits: any[] = [];
+    let totalDiscount = 0;
+    const breakdown: Array<any> = [];
+
+    if (!selectedBenefitIds || selectedBenefitIds.length === 0) {
+      return {
+        applied_benefits: [],
+        total_discount: 0,
+        final_price: subtotalPrice,
+        breakdown: [],
+      };
+    }
+
+    const membershipData =
+      await this.petMembershipService.getAvailableBenefits(petId);
+    if (!membershipData.has_active_membership) {
+      return {
+        applied_benefits: [],
+        total_discount: 0,
+        final_price: subtotalPrice,
+        breakdown: [],
+      };
+    }
+
+    for (const benefitId of selectedBenefitIds) {
+      const benefit = membershipData.benefits.find(
+        (b: any) => b._id === benefitId,
+      );
+      if (!benefit) continue;
+      if (!benefit.can_apply) continue;
+      let discountAmount = 0;
+      if (benefit.type === 'discount') {
+        discountAmount = (benefit.value / 100) * subtotalPrice;
+      }
+      // quota type = free sessions counter; no monetary deduction
+      breakdown.push({
+        benefit_id: benefitId,
+        benefit_type: benefit.type,
+        benefit_period: benefit.period,
+        benefit_value: benefit.value,
+        amount_deducted: discountAmount,
+        description: benefit.description,
+      });
+      if (discountAmount > 0) {
+        totalDiscount += discountAmount;
+        appliedBenefits.push({
+          benefit_id: new Types.ObjectId(benefitId),
+          benefit_type: benefit.type,
+          benefit_period: benefit.period,
+          benefit_value: benefit.value,
+          amount_deducted: discountAmount,
+          applied_at: new Date(),
+        });
+      }
+    }
+    const finalPrice = Math.max(0, subtotalPrice - totalDiscount);
+    return {
+      applied_benefits: appliedBenefits,
+      total_discount: totalDiscount,
+      final_price: finalPrice,
+      breakdown,
+    };
+  }
 }

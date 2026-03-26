@@ -18,7 +18,6 @@ import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { BookingPreviewRequestDto } from './dto/booking-preview.dto';
 import { ObjectId } from 'mongodb';
-import { BookingStatus } from './dto/booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
 import { AuthGuard } from 'src/auth/auth.guard';
 import { Public } from 'src/auth/public.decorator';
@@ -32,6 +31,7 @@ import { PetMembershipService } from 'src/pet-membership/pet-membership.service'
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UserService } from 'src/user/user.service';
+import { ApplyBenefitPreviewDto } from './dto/apply-benefit-preview.dto';
 
 @Controller('bookings')
 @UseGuards(AuthGuard)
@@ -176,6 +176,21 @@ export class BookingController {
 
     return {
       message: 'Booking created successfully',
+    };
+  }
+
+  // Preview benefit application (public, no booking required)
+  @Public()
+  @Post('public/apply-benefit')
+  async previewApplyBenefit(@Body() dto: ApplyBenefitPreviewDto) {
+    const result = await this.bookingService.previewApplyBenefits(
+      dto.pet_id,
+      dto.selected_benefit_ids,
+      dto.subtotal_price,
+    );
+    return {
+      message: 'Benefit preview calculated successfully',
+      ...result,
     };
   }
 
