@@ -1,4 +1,4 @@
-import { IsMongoId, IsArray, IsNotEmpty, IsNumber } from 'class-validator';
+import { IsMongoId, IsArray, IsNotEmpty, IsOptional } from 'class-validator';
 
 export class ApplyBenefitPreviewDto {
   @IsMongoId({ message: 'pet_id is required and must be a valid MongoId' })
@@ -9,6 +9,16 @@ export class ApplyBenefitPreviewDto {
   @IsMongoId({ each: true, message: 'Each benefit id must be a valid MongoId' })
   selected_benefit_ids: string[];
 
-  @IsNumber({}, { message: 'subtotal_price is required and must be a number' })
-  subtotal_price: number;
+  @IsOptional()
+  @IsMongoId({ message: 'store_id must be a valid MongoId' })
+  store_id?: string;
+
+  @IsOptional()
+  @IsMongoId({ message: 'service_id must be a valid MongoId' })
+  service_id?: string;
+
+  @IsOptional()
+  @IsArray({ message: 'add_on_ids must be an array' })
+  @IsMongoId({ each: true, message: 'Each add_on_id must be a valid MongoId' })
+  add_on_ids?: string[];
 }

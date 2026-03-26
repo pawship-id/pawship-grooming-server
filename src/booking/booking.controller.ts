@@ -186,7 +186,9 @@ export class BookingController {
     const result = await this.bookingService.previewApplyBenefits(
       dto.pet_id,
       dto.selected_benefit_ids,
-      dto.subtotal_price,
+      dto.store_id,
+      dto.service_id,
+      dto.add_on_ids,
     );
     return {
       message: 'Benefit preview calculated successfully',

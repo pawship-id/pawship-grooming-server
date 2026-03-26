@@ -6289,9 +6289,33 @@ Preview the effect of applying selected membership benefits to a booking before 
 {
   "pet_id": "MongoDB ObjectId (required)",
   "selected_benefit_ids": ["MongoDB ObjectId (required)"],
-  "subtotal_price": 100000
+  "store_id": "MongoDB ObjectId (optional)",
+  "service_id": "MongoDB ObjectID (optional)",
+  "add_on_ids": "Array of MongoDB ObjectID (optional)"
 }
 ```
+
+**Example Request Body:**
+
+```json
+{
+  "pet_id": "69ad09a7615651455a811a52",
+  "selected_benefit_ids": [
+    "69c410310993f7ae9b9e1962",
+    "69c410310993f7ae9b9e1961"
+  ],
+  "store_id": "698be0cd80c319b74fe2f073",
+  "service_id": "69c54942ad42bcc455c0d18a"
+}
+```
+
+| Field                  | Type             | Required | Description                                                                                                                         |
+| ---------------------- | ---------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `pet_id`               | MongoId          | ✅       | Pet to preview benefits for                                                                                                         |
+| `selected_benefit_ids` | MongoId[]        | ✅       | Benefit IDs to preview                                                                                                              |
+| `store_id`             | MongoId          | ❌       | Required when any selected benefit has `applies_to: pickup`. Used to compute travel fee via the customer's address and store zones. |
+| `service_id`           | MongoId          | ❌       | Required when any selected benefit has `applies_to: service` and `type: discount`.                                                  |
+| `add_on_ids`           | Array of MongoId | ❌       | Required when any selected benefit has `applies_to: addon` and `type: discount`.                                                    |
 
 **Success Response (200):**
 
@@ -6300,30 +6324,52 @@ Preview the effect of applying selected membership benefits to a booking before 
   "message": "Benefit preview calculated successfully",
   "applied_benefits": [
     {
-      "benefit_id": "607f1f77bcf86cd799439011",
+      "benefit_id": "69c410310993f7ae9b9e1962",
       "benefit_type": "discount",
-      "benefit_period": "monthly",
+      "benefit_period": "unlimited",
       "benefit_value": 10,
-      "amount_deducted": 10000,
-      "applied_at": "2026-03-26T10:00:00.000Z"
+      "amount_deducted": 6900,
+      "applied_at": "2026-03-26T14:57:31.911Z"
+    },
+    {
+      "benefit_id": "69c410310993f7ae9b9e1961",
+      "benefit_type": "discount",
+      "benefit_period": "unlimited",
+      "benefit_value": 20,
+      "amount_deducted": 5000,
+      "applied_at": "2026-03-26T14:57:32.796Z"
     }
   ],
-  "total_discount": 10000,
-  "final_price": 90000,
+  "total_discount": 11900,
+  "final_price": 82100,
   "breakdown": [
     {
       "benefit": {
-        "_id": "607f1f77bcf86cd799439011",
-        "label": "Diskon 10%",
+        "_id": "69c410310993f7ae9b9e1962",
+        "label": "Booking Discount",
         "service": null
       },
+      "applies_to": "service",
       "benefit_type": "discount",
-      "benefit_period": "monthly",
+      "benefit_period": "unlimited",
       "benefit_value": 10,
-      "price_before": 100000,
-      "amount_deducted": 10000,
-      "price_after": 90000,
-      "description": "10% off for monthly benefit"
+      "base_price": 69000,
+      "amount_deducted": 6900,
+      "description": null
+    },
+    {
+      "benefit": {
+        "_id": "69c410310993f7ae9b9e1961",
+        "label": "Pickup Discount",
+        "service": null
+      },
+      "applies_to": "pickup",
+      "benefit_type": "discount",
+      "benefit_period": "unlimited",
+      "benefit_value": 20,
+      "base_price": 25000,
+      "amount_deducted": 5000,
+      "description": null
     }
   ]
 }
@@ -6332,16 +6378,18 @@ Preview the effect of applying selected membership benefits to a booking before 
 **Error Responses:**
 
 - **404 Not Found:** Pet or membership not found
-- **400 Bad Request:** Invalid or missing benefit IDs, subtotal_price, or pet_id
+- **400 Bad Request:** Invalid or missing fields
 
 **Notes:**
 
 - This endpoint does not require a booking to exist. Use it to preview discounts before creating a booking.
-- Each item in `breakdown` shows `price_before` (cumulative price before this benefit is applied), `amount_deducted` (discount from this benefit), and `price_after` (cumulative price after this benefit is applied).
-- `benefit_id` is an object containing `_id`, `label`, and `service` (only `name` field; `null` when the benefit applies to all services).
-- Benefits with type `quota` (free sessions) have `amount_deducted: 0` and `price_before` equals `price_after`; only `discount`-type benefits reduce the price.
+- Each `breakdown` item targets a specific price component via `applies_to`: `service`, `addon`, or `pickup`.
+- `base_price` is the price of the targeted component at the time this benefit is applied (accounts for previous deductions on the same component).
+- `benefit type: discount` → deducts a percentage of `base_price`. `benefit type: quota` → makes the targeted component fully free (`amount_deducted = base_price`).
+- `service` and `addon` benefits look up the price from the benefit's linked `service_id` using the pet's type, size, and hair. If no matching price is found for the pet's config, the benefit is skipped.
+- `pickup` benefits calculate `base_price` by matching the customer's main address against the store's delivery zones — `store_id` must be provided, otherwise the benefit is skipped.
 - Only benefits where `can_apply: true` (from the pet's active membership) are included in the result.
-- If the pet has no active membership, all arrays are empty and `final_price` equals `subtotal_price`.
+- If the pet has no active membership, all arrays are empty and `final_price` is `0`.
 
 ---
 
