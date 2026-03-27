@@ -262,10 +262,11 @@ export class BookingService {
                 can_apply: b.can_apply,
                 period_reset_date: b.period_reset_date,
                 next_reset_date: b.next_reset_date,
-                amount_discount:
-                  b.can_apply && b.type === 'discount'
+                amount_discount: b.can_apply
+                  ? b.type === 'discount'
                     ? (b.value / 100) * discountBase
-                    : 0,
+                    : discountBase // quota = full base price is free
+                  : 0,
                 description: this.getBenefitDescription(b),
               };
             })
@@ -384,6 +385,7 @@ export class BookingService {
     storeId?: string,
     serviceId?: string,
     addOnIds?: string[],
+    originalTotalPrice?: number, // BUG2: when provided, final_price = originalTotalPrice - totalDiscount
   ): Promise<{
     applied_benefits: any[];
     total_discount: number;
@@ -404,15 +406,15 @@ export class BookingService {
       applied_at: Date;
     }>;
   }> {
-    const emptyResult = () => ({
+    const emptyResult = (fallbackTotal = 0) => ({
       applied_benefits: [],
       total_discount: 0,
-      final_price: 0,
+      final_price: fallbackTotal,
       breakdown: [],
     });
 
     if (!selectedBenefitIds || selectedBenefitIds.length === 0) {
-      return emptyResult();
+      return emptyResult(originalTotalPrice ?? 0);
     }
 
     // 1. Get pet attributes for price lookup
@@ -429,7 +431,7 @@ export class BookingService {
     const membershipData =
       await this.petMembershipService.getAvailableBenefits(petId);
     if (!membershipData.has_active_membership) {
-      return emptyResult();
+      return emptyResult(originalTotalPrice ?? 0);
     }
 
     const appliedBenefits: any[] = [];
@@ -451,11 +453,13 @@ export class BookingService {
         if (!service_id) continue;
 
         try {
+          // BUG8 fix: use resolved service_id, not raw serviceId param
+          const resolvedServiceId = benefit.service_id || serviceId;
           const svc = await this.serviceService.getServiceForBooking(
-            new ObjectId(serviceId),
-            pet.size._id ? new ObjectId(pet.size._id) : undefined,
-            pet.pet_type._id ? new ObjectId(pet.pet_type._id) : undefined,
-            pet.hair._id ? new ObjectId(pet.hair._id) : undefined,
+            new ObjectId(resolvedServiceId),
+            pet.size?._id ? new ObjectId(pet.size._id) : undefined,
+            pet.pet_type?._id ? new ObjectId(pet.pet_type._id) : undefined,
+            pet.hair?._id ? new ObjectId(pet.hair._id) : undefined,
           );
           basePrice = svc.price;
         } catch (err) {
@@ -505,6 +509,7 @@ export class BookingService {
           if (addonDiscount > 0) {
             totalDiscount += addonDiscount;
             appliedBenefits.push({
+              pet_membership_id: benefit.pet_membership_id, // needed for deductBenefitUsage
               benefit_id: new Types.ObjectId(benefitId),
               benefit_type: benefit.type,
               benefit_period: benefit.period,
@@ -579,6 +584,7 @@ export class BookingService {
       if (discountAmount > 0) {
         totalDiscount += discountAmount;
         appliedBenefits.push({
+          pet_membership_id: benefit.pet_membership_id, // needed for deductBenefitUsage
           benefit_id: new Types.ObjectId(benefitId),
           benefit_type: benefit.type,
           benefit_period: benefit.period,
@@ -589,11 +595,15 @@ export class BookingService {
       }
     }
 
-    // final_price = sum of (base_price - amount_deducted) per breakdown item
-    const finalPrice = breakdown.reduce(
-      (sum, item) => sum + Math.max(0, item.base_price - item.amount_deducted),
-      0,
-    );
+    // BUG2 fix: if originalTotalPrice provided, final_price = total - discount
+    // (breakdown only contains discounted items, non-discounted items would be missing)
+    const finalPrice =
+      originalTotalPrice != null
+        ? Math.max(0, originalTotalPrice - totalDiscount)
+        : breakdown.reduce(
+            (sum, item) => sum + Math.max(0, item.base_price - item.amount_deducted),
+            0,
+          );
 
     return {
       applied_benefits: appliedBenefits,
@@ -764,20 +774,28 @@ export class BookingService {
       body.travel_fee = travelFee;
 
       // 9. apply benefits if selected
-      let appliedBenefitsData: any;
+      // BUG1 fix: initialize with safe defaults so booking without benefits doesn't crash
+      let appliedBenefitsData: any = {
+        applied_benefits: [],
+        total_discount: 0,
+        final_price: originalTotalPrice,
+        breakdown: [],
+      };
 
       if (body.selected_benefit_ids && body.selected_benefit_ids.length > 0) {
+        // BUG2 fix: pass originalTotalPrice so final_price covers all items
         appliedBenefitsData = await this.applyBenefitsToBooking(
           body.pet_id,
           body.selected_benefit_ids,
           body.store_id,
           body.service_id,
           body.service_addon_ids,
+          originalTotalPrice,
         );
       }
 
       body.total_discount = appliedBenefitsData.total_discount;
-      body.final_total_price = appliedBenefitsData.final_price; // For backward compatibility
+      body.final_total_price = appliedBenefitsData.final_price;
       (body as any).applied_benefits = appliedBenefitsData.breakdown;
 
       // 10. assign body.type base on service.service_location_type
@@ -891,6 +909,23 @@ export class BookingService {
 
       await session.commitTransaction();
       session.endSession();
+
+      // BUG3 fix: deduct benefit usage AFTER successful commit
+      if (appliedBenefitsData.applied_benefits?.length > 0) {
+        for (const applied of appliedBenefitsData.applied_benefits) {
+          if (applied.pet_membership_id && applied.benefit_id) {
+            try {
+              await this.petMembershipService.deductBenefitUsage(
+                applied.pet_membership_id,
+                applied.benefit_id.toString(),
+                1,
+              );
+            } catch {
+              // Non-fatal: deduction failure should not roll back a committed booking
+            }
+          }
+        }
+      }
 
       return booking[0];
     } catch (error) {
@@ -1043,6 +1078,7 @@ export class BookingService {
             body.store_id,
             body.service_id,
             body.service_addon_ids,
+            originalTotalPriceGuest,
           );
         } catch (error) {
           // Guest might not have membership, proceed without benefits
@@ -1054,8 +1090,9 @@ export class BookingService {
         }
       }
 
-      body.total_discount = appliedBenefitsDataGuest.final_price;
-      body.final_total_price = appliedBenefitsDataGuest.final_price; // For backward compatibility
+      // BUG4 fix: was assigning final_price to total_discount (wrong field)
+      body.total_discount = appliedBenefitsDataGuest.total_discount;
+      body.final_total_price = appliedBenefitsDataGuest.final_price;
       (body as any).applied_benefits = appliedBenefitsDataGuest.breakdown;
 
       // assign body.type base on service.service_location_type
@@ -1305,6 +1342,7 @@ export class BookingService {
     storeId?: string,
     serviceId?: string,
     addOnIds?: string[],
+    originalTotalPrice?: number,
   ): Promise<{
     applied_benefits: any[];
     total_discount: number;
@@ -1341,6 +1379,7 @@ export class BookingService {
       storeId,
       serviceId,
       addOnIds,
+      originalTotalPrice,
     );
   }
 }

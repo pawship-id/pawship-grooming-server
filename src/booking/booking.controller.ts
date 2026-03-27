@@ -189,6 +189,7 @@ export class BookingController {
       dto.store_id,
       dto.service_id,
       dto.add_on_ids,
+      dto.original_total_price,
     );
     return {
       message: 'Benefit preview calculated successfully',

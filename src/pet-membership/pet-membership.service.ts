@@ -692,7 +692,7 @@ export class PetMembershipService {
         can_apply: b.limit == null || currentUsed < b.limit,
         period_reset_date: b.period_reset_date ?? null,
         next_reset_date: this.calculateNextPeriodResetDate(
-          b.period_reset_date,
+          hasReset ? now : b.period_reset_date,
           b.period,
         ),
       };
@@ -714,7 +714,7 @@ export class PetMembershipService {
 
     if (period === BenefitPeriod.WEEKLY) {
       // Reset setiap Senin (hari ke-1 minggu)
-      resetDate.setDate(resetDate.getDate() + ((8 - resetDate.getDay()) % 7));
+      resetDate.setDate(resetDate.getDate() + (((8 - resetDate.getDay()) % 7) || 7));
       resetDate.setHours(0, 0, 0, 0);
     } else if (period === BenefitPeriod.MONTHLY) {
       // Reset pada hari 1 setiap bulan
