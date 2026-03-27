@@ -504,6 +504,10 @@ export class BookingService {
             base_price: addonBasePrice,
             amount_deducted: addonDiscount,
             description: benefit.description ?? null,
+            pet_membership_id: benefit.pet_membership_id ?? null,
+            service_id: benefit.service_id
+              ? new Types.ObjectId(benefit.service_id)
+              : null,
             applied_at: new Date(),
           });
           if (addonDiscount > 0) {
@@ -578,6 +582,10 @@ export class BookingService {
         base_price: basePrice,
         amount_deducted: discountAmount,
         description: benefit.description ?? null,
+        pet_membership_id: benefit.pet_membership_id ?? null,
+        service_id: benefit.service_id
+          ? new Types.ObjectId(benefit.service_id)
+          : null,
         applied_at: new Date(),
       });
 
@@ -1325,6 +1333,26 @@ export class BookingService {
         },
         { new: true },
       );
+
+      // Restore benefit usage when booking is cancelled
+      if (
+        status === BookingStatus.CANCELLED &&
+        updatedBooking?.applied_benefits?.length
+      ) {
+        for (const applied of updatedBooking.applied_benefits) {
+          if (applied.pet_membership_id) {
+            try {
+              await this.petMembershipService.restoreBenefitUsage(
+                applied.pet_membership_id.toString(),
+                applied.benefit._id.toString(),
+                1,
+              );
+            } catch {
+              // Non-fatal: restoration failure should not block status update
+            }
+          }
+        }
+      }
 
       return updatedBooking;
     } catch (error) {

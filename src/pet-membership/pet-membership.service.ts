@@ -394,6 +394,37 @@ export class PetMembershipService {
     );
   }
 
+  async restoreBenefitUsage(
+    petMembershipId: string,
+    benefitId: string,
+    amount: number = 1,
+  ): Promise<void> {
+    if (
+      !Types.ObjectId.isValid(petMembershipId) ||
+      !Types.ObjectId.isValid(benefitId)
+    ) {
+      return; // silently skip invalid refs (e.g. old bookings without IDs)
+    }
+
+    const petMembership = await this.petMembershipModel
+      .findById(new Types.ObjectId(petMembershipId))
+      .exec();
+    if (!petMembership) return;
+
+    const benefitIndex = petMembership.benefits_snapshot.findIndex(
+      (b) => b._id.toString() === benefitId,
+    );
+    if (benefitIndex === -1) return; // benefit not found, skip silently
+
+    const benefit = petMembership.benefits_snapshot[benefitIndex];
+    benefit.used = Math.max(0, benefit.used - amount);
+
+    await this.petMembershipModel.findByIdAndUpdate(
+      new Types.ObjectId(petMembershipId),
+      { benefits_snapshot: petMembership.benefits_snapshot },
+    );
+  }
+
   async update(
     id: string,
     updatePetMembershipDto: UpdatePetMembershipDto,

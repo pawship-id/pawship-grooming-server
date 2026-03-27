@@ -64,6 +64,18 @@ export class AppliedBenefit {
 
   @Prop({ required: true })
   applied_at: Date;
+
+  @Prop({ default: null })
+  applies_to?: string; // 'service' | 'addon' | 'pickup' etc.
+
+  @Prop({ default: null })
+  description?: string;
+
+  @Prop({ type: Types.ObjectId, default: null })
+  pet_membership_id?: Types.ObjectId; // for benefit usage restoration on cancel
+
+  @Prop({ type: Types.ObjectId, default: null })
+  service_id?: Types.ObjectId; // for matching service/addon in display
 }
 
 @Schema({
