@@ -228,10 +228,12 @@ export class BookingService {
             .filter((b: any) => {
               const bServiceId = b.service_id?.toString();
               if (b.applies_to === 'service') {
-                return bServiceId === dto.service_id.toString();
+                // null service_id = applies to any service
+                return !bServiceId || bServiceId === dto.service_id.toString();
               }
               if (b.applies_to === 'addon') {
-                return hasAddons && addonIdSet.has(bServiceId);
+                // null service_id = applies to all selected addons
+                return hasAddons && (!bServiceId || addonIdSet.has(bServiceId));
               }
               if (b.applies_to === 'pickup') {
                 return dto.pick_up === true;
@@ -244,10 +246,15 @@ export class BookingService {
               if (b.applies_to === 'service') {
                 discountBase = originalPrice;
               } else if (b.applies_to === 'addon') {
-                const matchingAddon = addonPrices.find(
-                  (a) => a._id.toString() === b.service_id?.toString(),
-                );
-                discountBase = matchingAddon?.price ?? 0;
+                if (b.service_id) {
+                  const matchingAddon = addonPrices.find(
+                    (a) => a._id.toString() === b.service_id.toString(),
+                  );
+                  discountBase = matchingAddon?.price ?? 0;
+                } else {
+                  // no specific addon: benefit discounts all selected addons
+                  discountBase = addonsTotal;
+                }
               } else if (b.applies_to === 'pickup') {
                 discountBase = travelFee;
               }
@@ -444,6 +451,24 @@ export class BookingService {
     let totalDiscount = 0;
     const breakdown: Array<any> = [];
 
+    // Pre-scan: collect which service/addon IDs are fully covered by a quota benefit.
+    // A discount on an already-free item has no effect and should be skipped.
+    const quotaCoveredServiceIds = new Set<string>();
+    const quotaCoveredAddonIds = new Set<string>();
+    for (const bId of selectedBenefitIds) {
+      const b = membershipData.benefits.find((x: any) => x._id === bId);
+      if (!b || !b.can_apply || b.type !== 'quota') continue;
+      if (b.applies_to === 'service') {
+        const resolvedId = b.service_id || serviceId;
+        if (resolvedId) quotaCoveredServiceIds.add(resolvedId.toString());
+      } else if (b.applies_to === 'addon') {
+        const covered: string[] = b.service_id
+          ? [b.service_id.toString()]
+          : (addOnIds || []).map((id) => id.toString());
+        covered.forEach((id) => quotaCoveredAddonIds.add(id));
+      }
+    }
+
     for (const benefitId of selectedBenefitIds) {
       const benefit = membershipData.benefits.find(
         (b: any) => b._id === benefitId,
@@ -452,6 +477,24 @@ export class BookingService {
       if (!benefit.can_apply) continue;
       const appliesTo: string = benefit.applies_to;
       let basePrice = 0;
+
+      // ── Skip discount if target is already free via an applied quota ──────
+      if (benefit.type === 'discount') {
+        if (appliesTo === 'service') {
+          const resolvedId = (benefit.service_id || serviceId)?.toString();
+          if (resolvedId && quotaCoveredServiceIds.has(resolvedId)) continue;
+        } else if (appliesTo === 'addon') {
+          if (benefit.service_id) {
+            if (quotaCoveredAddonIds.has(benefit.service_id.toString())) continue;
+          } else {
+            // null service_id → applies to all selected addons; skip if all are covered
+            const allCovered =
+              (addOnIds || []).length > 0 &&
+              (addOnIds || []).every((id) => quotaCoveredAddonIds.has(id.toString()));
+            if (allCovered) continue;
+          }
+        }
+      }
 
       // ── Resolve base price per scope ─────────────────────────────────────
       if (appliesTo === 'service') {
