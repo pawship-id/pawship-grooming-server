@@ -146,10 +146,8 @@ export class CreateServiceDto {
   })
   is_active?: boolean = true;
 
+  @IsOptional()
   @IsArray({ message: 'sessions must be an array' })
   @IsString({ each: true, message: 'Each session must be a string' })
-  @IsNotEmpty({
-    message: 'sessions is required and must contain at least 1 item',
-  })
-  sessions: string[];
+  sessions?: string[];
 }
