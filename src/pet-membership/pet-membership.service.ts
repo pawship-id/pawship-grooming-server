@@ -324,23 +324,65 @@ export class PetMembershipService {
     options: { limit?: number; skip?: number } = {},
   ): Promise<any> {
     const activeMemberships = await this.getActiveMembership(petId);
+    const hasActive = !!(activeMemberships && activeMemberships.length > 0);
 
-    if (!activeMemberships) {
+    // Fetch ALL pet memberships for this pet (active + expired) to cover full history
+    const allMemberships = await this.petMembershipModel
+      .find({ pet_id: new Types.ObjectId(petId), isDeleted: false })
+      .lean()
+      .exec();
+
+    if (allMemberships.length === 0) {
       return {
-        has_active_membership: false,
+        has_active_membership: hasActive,
         benefits_history: [],
       };
     }
 
-    // Would integrate with BenefitUsageService here
-    // For now, return structure
+    // Collect usage records across all memberships
+    const allUsage: any[] = [];
+    for (const pm of allMemberships) {
+      const usages = await this.benefitUsageService.getUsageHistory(
+        pm._id.toString(),
+        options,
+      );
+      for (const u of usages) {
+        // Resolve benefit type (discount/quota) from the snapshot
+        const snap = (pm.benefits_snapshot as any[]).find(
+          (b) => b._id?.toString() === u.benefit_id?.toString(),
+        );
+        const booking: any =
+          typeof u.booking_id === 'object' && u.booking_id !== null
+            ? u.booking_id
+            : null;
+        const bookingId = booking?._id?.toString() ?? u.booking_id?.toString();
+        allUsage.push({
+          _id: u['_id']?.toString(),
+          type: snap?.type ?? 'discount',
+          applies_to: u.scope ?? snap?.applies_to ?? null,
+          applied_date: u.used_at?.toISOString(),
+          booking_id: bookingId,
+          booking_date: booking?.date ?? null,
+          booking_service: booking?.service_snapshot?.name ?? null,
+          booking_status: booking?.booking_status ?? null,
+          amount_deducted: u.amount_used,
+        });
+      }
+    }
+
+    // Sort newest first
+    allUsage.sort(
+      (a, b) =>
+        new Date(b.applied_date).getTime() - new Date(a.applied_date).getTime(),
+    );
+
     return {
-      has_active_membership: true,
-      memberships: activeMemberships.map((pm: any) => ({
+      has_active_membership: hasActive,
+      memberships: (activeMemberships ?? []).map((pm: any) => ({
         pet_membership_id: pm._id?.toString() || pm.id,
         status: this.computeStatus(pm.is_active, pm.start_date, pm.end_date),
       })),
-      benefits_history: [],
+      benefits_history: allUsage,
     };
   }
 
