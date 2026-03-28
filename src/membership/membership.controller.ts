@@ -5,15 +5,14 @@ import {
   Body,
   Param,
   Delete,
-  BadRequestException,
-  NotFoundException,
-  Put,
+  Query,
   UseGuards,
+  Put,
 } from '@nestjs/common';
 import { MembershipService } from './membership.service';
 import { CreateMembershipDto } from './dto/create-membership.dto';
 import { UpdateMembershipDto } from './dto/update-membership.dto';
-import { ObjectId } from 'mongodb';
+import { GetMembershipQueryDto } from './dto/get-membership-query.dto';
 import { AuthGuard } from 'src/auth/auth.guard';
 
 @Controller('memberships')
@@ -22,68 +21,53 @@ export class MembershipController {
   constructor(private readonly membershipService: MembershipService) {}
 
   @Post()
-  async create(@Body() body: CreateMembershipDto) {
-    await this.membershipService.create(body);
-
+  async create(@Body() createMembershipDto: CreateMembershipDto) {
+    const membership = await this.membershipService.create(createMembershipDto);
     return {
-      message: 'Create membership successfully',
+      message: 'membership created successfully',
+      data: membership,
     };
   }
 
   @Get()
-  async findAll() {
-    const memberships = await this.membershipService.findAll();
-
+  async findAll(@Query() query: GetMembershipQueryDto) {
+    const memberships = await this.membershipService.findAll(query);
     return {
-      message: 'Fetch memberships successfully',
-      memberships,
+      message: 'memberships retrieved successfully',
+      data: memberships,
     };
   }
 
   @Get(':id')
   async findOne(@Param('id') id: string) {
-    if (!id) throw new BadRequestException('id is required');
-
-    const _id = new ObjectId(id);
-    const membership = await this.membershipService.findOne(_id);
-    if (!membership || membership.isDeleted)
-      throw new NotFoundException('data not found');
-
+    const membership = await this.membershipService.findById(id);
     return {
-      message: 'Fetch membership successfully',
-      membership,
+      message: 'membership retrieved successfully',
+      data: membership,
     };
   }
 
   @Put(':id')
-  async update(@Param('id') id: string, @Body() body: UpdateMembershipDto) {
-    if (!id) throw new BadRequestException('id is required');
-
-    const _id = new ObjectId(id);
-    const membership = await this.membershipService.findOne(_id);
-    if (!membership || membership.isDeleted)
-      throw new NotFoundException('data not found');
-
-    await this.membershipService.update(_id, body);
-
+  async update(
+    @Param('id') id: string,
+    @Body() updateMembershipDto: UpdateMembershipDto,
+  ) {
+    const membership = await this.membershipService.update(
+      id,
+      updateMembershipDto,
+    );
     return {
-      message: 'Update membership successfully',
+      message: 'membership updated successfully',
+      data: membership,
     };
   }
 
   @Delete(':id')
   async remove(@Param('id') id: string) {
-    if (!id) throw new BadRequestException('id is required');
-
-    const _id = new ObjectId(id);
-    const membership = await this.membershipService.findOne(_id);
-    if (!membership || membership.isDeleted)
-      throw new NotFoundException('data not found');
-
-    await this.membershipService.remove(_id);
-
+    const membership = await this.membershipService.delete(id);
     return {
-      message: 'Delete membership successfully',
+      message: 'membership deleted successfully',
+      data: membership,
     };
   }
 }

@@ -366,4 +366,67 @@ export class SessionService {
       throw error;
     }
   }
+
+  // Upload media for a booking (booking-level, not session-level)
+  async uploadBookingMedia(
+    bookingId: ObjectId,
+    file: Express.Multer.File,
+    body: GroomingMediaDto,
+    user?: { _id: ObjectId; username: string; role: string },
+  ) {
+    try {
+      const booking = await this.bookingModel.findById(bookingId);
+      if (!booking || booking.isDeleted) {
+        throw new NotFoundException('Booking not found');
+      }
+
+      const base64Image = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+
+      const uploadResult = await uploadToCloudinary(
+        base64Image,
+        generateGroomingSessionFolder(booking.pet_snapshot.name, body.type),
+      );
+
+      const mediaItem = {
+        type: body.type,
+        secure_url: uploadResult.secure_url,
+        public_id: uploadResult.public_id,
+        created_by: {
+          user_id: user?._id,
+          name_snapshot: user?.username,
+        },
+        note: body.note || '',
+        uploaded_at: new Date(),
+      };
+
+      const updatedBooking = await this.bookingModel.findByIdAndUpdate(
+        bookingId,
+        { $push: { media: mediaItem } },
+        { new: true },
+      );
+
+      return updatedBooking;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Delete a specific media item from a booking (matched by public_id)
+  async deleteBookingMedia(bookingId: ObjectId, publicId: string) {
+    try {
+      const updatedBooking = await this.bookingModel.findByIdAndUpdate(
+        bookingId,
+        { $pull: { media: { public_id: publicId } } },
+        { new: true },
+      );
+
+      if (!updatedBooking) {
+        throw new NotFoundException('Booking not found');
+      }
+
+      return updatedBooking;
+    } catch (error) {
+      throw error;
+    }
+  }
 }

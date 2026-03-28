@@ -10,6 +10,7 @@ import {
   Delete,
   UseGuards,
   Req,
+  Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SessionService } from './session.service';
@@ -156,6 +157,48 @@ export class SessionController {
 
     return {
       message: 'Media uploaded successfully',
+    };
+  }
+
+  // Upload media for a booking (booking-level)
+  @Post(':bookingId/media')
+  @UseInterceptors(FileInterceptor('image'))
+  async uploadBookingMedia(
+    @Param('bookingId') bookingId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: GroomingMediaDto,
+    @Req() request: any,
+  ) {
+    if (!bookingId) throw new BadRequestException('bookingId is required');
+    if (!file) throw new BadRequestException('image file is required');
+
+    const _bookingId = new ObjectId(bookingId);
+    await this.sessionService.uploadBookingMedia(
+      _bookingId,
+      file,
+      body,
+      request.user,
+    );
+
+    return {
+      message: 'Media uploaded successfully',
+    };
+  }
+
+  // Delete a media item from a booking (matched by public_id)
+  @Delete(':bookingId/media')
+  async deleteBookingMedia(
+    @Param('bookingId') bookingId: string,
+    @Query('public_id') publicId: string,
+  ) {
+    if (!bookingId) throw new BadRequestException('bookingId is required');
+    if (!publicId) throw new BadRequestException('public_id is required');
+
+    const _bookingId = new ObjectId(bookingId);
+    await this.sessionService.deleteBookingMedia(_bookingId, publicId);
+
+    return {
+      message: 'Media deleted successfully',
     };
   }
 }

@@ -16,9 +16,11 @@ Base URL: `http://localhost:3000`
 8. [Upload File](#upload-file)
 9. [Pets](#pets)
 10. [Memberships](#memberships)
-11. [Bookings](#bookings) _(includes public/guest endpoints)_
-12. [Grooming Sessions](#grooming-sessions)
-13. [Promotions](#promotions)
+11. [Pet Memberships](#pet-memberships)
+12. [Benefit Usages](#benefit-usages)
+13. [Bookings](#bookings) _(includes public/guest endpoints)_
+14. [Grooming Sessions](#grooming-sessions)
+15. [Promotions](#promotions)
 
 ---
 
@@ -408,11 +410,21 @@ Authorization: Bearer <jwt_token>
   "groomer_rating": "number >= 0 (optional, groomer only)",
   "customer_category_id": "MongoDB ObjectId — Option ref (optional, customer only)",
   "tags": ["string"],
-  "address": {
-    "street": "string (optional)",
-    "city": "string (optional)",
-    "zone": "string (optional)"
-  }
+  "addresses": [
+    {
+      "label": "string (optional) — e.g. 'Home', 'Office'",
+      "street": "string (optional)",
+      "subdistrict": "string (optional)",
+      "district": "string (optional)",
+      "city": "string (optional)",
+      "province": "string (optional)",
+      "postal_code": "string (optional)",
+      "note": "string (optional) — note for courier/driver",
+      "latitude": "number (optional)",
+      "longitude": "number (optional)",
+      "is_main_address": "boolean (optional) — default true if first address, else false"
+    }
+  ]
 }
 ```
 
@@ -434,11 +446,29 @@ Authorization: Bearer <jwt_token>
       "placement": "507f1f77bcf86cd799439099",
       "groomer_skills": ["Dog grooming", "Cat grooming"],
       "tags": ["experienced"],
-      "address": {
-        "street": "Jl. Merdeka No. 1",
-        "city": "Jakarta",
-        "zone": "Pusat"
-      }
+      "addresses": [
+        {
+          "label": "Home",
+          "street": "Jl. Merdeka No. 1",
+          "subdistrict": "Gambir",
+          "district": "Gambir",
+          "city": "Jakarta Pusat",
+          "province": "DKI Jakarta",
+          "postal_code": "10110",
+          "note": "Blue gate, left alley",
+          "latitude": -6.1751,
+          "longitude": 106.8272,
+          "is_main_address": true
+        },
+        {
+          "label": "Office",
+          "street": "Jl. Sudirman No. 10",
+          "city": "Jakarta Selatan",
+          "province": "DKI Jakarta",
+          "postal_code": "10220",
+          "is_main_address": false
+        }
+      ]
     },
     "is_active": true,
     "isDeleted": false,
@@ -2094,7 +2124,8 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
   "order": 0,
   "service_location_type": "in store",
   "is_pick_up_available": false,
-  "is_active": true
+  "is_active": true,
+  "sessions": ["bathing", "styling", "nail_trimming"]
 }
 ```
 
@@ -2135,7 +2166,8 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
   "order": 0,
   "service_location_type": "in store",
   "is_pick_up_available": false,
-  "is_active": true
+  "is_active": true,
+  "sessions": ["bathing", "styling", "nail_trimming"]
 }
 ```
 
@@ -2162,6 +2194,7 @@ Services support flexible pricing per entry with optional `pet_id`, `size_id`, a
 - `service_location_type`: Location where the service is performed — `in home` or `in store` (optional, default: `in store`)
 - `is_pick_up_available`: Whether this service can be booked as a pick-up service (optional, default: false). When true, customers can request pick-up delivery if the store supports it and their location is within a delivery zone
 - `is_active`: Active status (optional, default: true)
+- `sessions`: Array of session type strings that will be auto-generated for all bookings of this service (required, minimum 1 item). Examples: `["bathing", "styling", "nail_trimming"]`. These sessions are created automatically when a booking is made, regardless of who creates it (admin, customer, or guest)
 
 **Success Response (201):**
 
@@ -2623,7 +2656,7 @@ GET /service-types?search=grooming&is_active=true&page=1&limit=5
 
 ## Banners
 
-Banners are promotional images displayed on the app, optionally with a CTA button. Position of text and CTA button can be configured per banner.
+Banners are promotional images displayed on the app, optionally with a CTA button. Position of text and CTA button can be configured per banner. Each banner has separate images for desktop and mobile.
 
 **Base route:** `/banners`
 
@@ -2633,23 +2666,28 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
 
 ### Schema
 
-| Field                     | Type    | Required    | Default  | Description                                |
-| ------------------------- | ------- | ----------- | -------- | ------------------------------------------ |
-| `image_url`               | string  | ✅          | —        | Cloudinary secure URL of the image         |
-| `public_id`               | string  | ✅          | —        | Cloudinary public ID                       |
-| `title`                   | string  | —           | —        | Banner title text                          |
-| `subtitle`                | string  | —           | —        | Banner subtitle / body text                |
-| `text_align`              | string  | —           | —        | Text alignment (`left`, `center`, `right`) |
-| `text_color`              | string  | —           | —        | Text color (CSS value, e.g. `#ffffff`)     |
-| `cta`                     | object  | —           | `null`   | CTA button config (see below)              |
-| `cta.label`               | string  | ✅ (if cta) | —        | Button label text                          |
-| `cta.link`                | string  | ✅ (if cta) | —        | URL the button navigates to                |
-| `cta.background_color`    | string  | —           | —        | Button background color                    |
-| `cta.text_color`          | string  | —           | —        | Button text color                          |
-| `cta.vertical_position`   | string  | —           | `bottom` | `top` \| `center` \| `bottom`              |
-| `cta.horizontal_position` | string  | —           | `center` | `left` \| `center` \| `right`              |
-| `order`                   | number  | —           | `0`      | Display order (ascending)                  |
-| `is_active`               | boolean | —           | `false`  | Whether banner is visible                  |
+| Field                      | Type    | Required    | Default  | Description                                |
+| -------------------------- | ------- | ----------- | -------- | ------------------------------------------ |
+| `banner_desktop`           | object  | ✅          | —        | Desktop image                              |
+| `banner_desktop.image_url` | string  | ✅          | —        | Cloudinary secure URL                      |
+| `banner_desktop.public_id` | string  | ✅          | —        | Cloudinary public ID                       |
+| `banner_mobile`            | object  | ✅          | —        | Mobile image                               |
+| `banner_mobile.image_url`  | string  | ✅          | —        | Cloudinary secure URL                      |
+| `banner_mobile.public_id`  | string  | ✅          | —        | Cloudinary public ID                       |
+| `add_text`                 | boolean | —           | `false`  | Whether to show text overlay on the banner |
+| `title`                    | string  | —           | —        | Banner title text                          |
+| `subtitle`                 | string  | —           | —        | Banner subtitle / body text                |
+| `text_align`               | string  | —           | —        | Text alignment (`left`, `center`, `right`) |
+| `text_color`               | string  | —           | —        | Text color (CSS value, e.g. `#ffffff`)     |
+| `cta`                      | object  | —           | `null`   | CTA button config (see below)              |
+| `cta.label`                | string  | ✅ (if cta) | —        | Button label text                          |
+| `cta.link`                 | string  | ✅ (if cta) | —        | URL the button navigates to                |
+| `cta.background_color`     | string  | —           | —        | Button background color                    |
+| `cta.text_color`           | string  | —           | —        | Button text color                          |
+| `cta.vertical_position`    | string  | —           | `bottom` | `top` \| `center` \| `bottom`              |
+| `cta.horizontal_position`  | string  | —           | `center` | `left` \| `center` \| `right`              |
+| `order`                    | number  | —           | `0`      | Display order (ascending)                  |
+| `is_active`                | boolean | —           | `false`  | Whether banner is visible                  |
 
 ---
 
@@ -2673,8 +2711,15 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
   "banners": [
     {
       "_id": "507f1f77bcf86cd799439011",
-      "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo.jpg",
-      "public_id": "banners/promo",
+      "banner_desktop": {
+        "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo-desktop.jpg",
+        "public_id": "banners/promo-desktop"
+      },
+      "banner_mobile": {
+        "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo-mobile.jpg",
+        "public_id": "banners/promo-mobile"
+      },
+      "add_text": true,
       "title": "Promo Maret!",
       "subtitle": "Diskon 20% untuk semua layanan grooming",
       "text_align": "center",
@@ -2721,7 +2766,15 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
   "banners": [
     {
       "_id": "60d21b4667d0d8992e610c85",
-      "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo.jpg",
+      "banner_desktop": {
+        "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo-desktop.jpg",
+        "public_id": "banners/promo-desktop"
+      },
+      "banner_mobile": {
+        "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo-mobile.jpg",
+        "public_id": "banners/promo-mobile"
+      },
+      "add_text": true,
       "title": "Promo Maret!",
       "subtitle": "Diskon 20% untuk semua layanan grooming",
       "text_align": "center",
@@ -2743,7 +2796,7 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
 **Notes:**
 
 - Response hanya menyertakan field yang relevan untuk tampilan publik
-- Field internal seperti `public_id`, `isDeleted`, `deletedAt`, `createdAt`, `updatedAt` tidak disertakan
+- Field internal seperti `isDeleted`, `deletedAt`, `createdAt`, `updatedAt` tidak disertakan
 
 ---
 
@@ -2782,8 +2835,15 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
 
 ```json
 {
-  "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo.jpg",
-  "public_id": "banners/promo",
+  "banner_desktop": {
+    "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo-desktop.jpg",
+    "public_id": "banners/promo-desktop"
+  },
+  "banner_mobile": {
+    "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo-mobile.jpg",
+    "public_id": "banners/promo-mobile"
+  },
+  "add_text": true,
   "title": "Promo Maret!",
   "subtitle": "Diskon 20% untuk semua layanan grooming",
   "text_align": "center",
@@ -2800,7 +2860,9 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
 }
 ```
 
-> `cta` bersifat opsional. Jika tidak dikirim, banner tidak memiliki tombol CTA.
+> `banner_desktop` dan `banner_mobile` wajib diisi, masing-masing berisi `image_url` dan `public_id` dari Cloudinary.
+>
+> `add_text` (default: `false`) — set `true` untuk menampilkan overlay teks (title, subtitle, dll) di atas banner.
 >
 > `cta.vertical_position` enum: `top` | `center` | `bottom` (default: `bottom`)
 >
@@ -2830,6 +2892,11 @@ Banners are promotional images displayed on the app, optionally with a CTA butto
 
 ```json
 {
+  "banner_mobile": {
+    "image_url": "https://res.cloudinary.com/example/image/upload/v1/banners/promo-mobile-v2.jpg",
+    "public_id": "banners/promo-mobile-v2"
+  },
+  "add_text": false,
   "title": "Promo April!",
   "is_active": true,
   "order": 2,
@@ -3092,16 +3159,6 @@ Key: folder | Type: text
       "_id": "507f1f77bcf86cd799439017",
       "username": "john_doe"
     },
-    "memberships": [
-      {
-        "membership_id": "507f1f77bcf86cd799439018",
-        "start_date": "2026-01-01T00:00:00.000Z",
-        "end_date": "2026-12-31T00:00:00.000Z",
-        "status": "active",
-        "usage_count": 2,
-        "max_usage": 12
-      }
-    ],
     "is_active": true,
     "createdAt": "2026-01-10T10:30:00.000Z",
     "updatedAt": "2026-02-01T10:30:00.000Z"
@@ -3125,6 +3182,7 @@ Key: folder | Type: text
 
 - Returns only non-deleted pets (`isDeleted: false`)
 - All relationships are populated with their respective names
+- Pet memberships are now managed through the dedicated **PetMemberships API** (`GET /pet-memberships/:pet_id/active` to view active memberships for a pet)
 
 ---
 
@@ -3154,16 +3212,6 @@ Key: folder | Type: text
   "last_grooming_at": "Date (optional)",
   "last_visit_at": "Date (optional)",
   "customer_id": "MongoDB ObjectId (required)",
-  "memberships": [
-    {
-      "membership_id": "MongoDB ObjectId (required)",
-      "start_date": "Date (required)",
-      "end_date": "Date (required)",
-      "status": "string (required)",
-      "usage_count": "number (optional)",
-      "max_usage": "number (optional)"
-    }
-  ] (optional array),
   "is_active": "boolean (optional)"
 }
 ```
@@ -3175,6 +3223,10 @@ Key: folder | Type: text
   "message": "Create pet successfully"
 }
 ```
+
+**Notes:**
+
+- Pet memberships are now managed through the dedicated **PetMemberships API** (`POST /pet-memberships` to assign memberships to a pet)
 
 ---
 
@@ -3218,29 +3270,158 @@ Key: folder | Type: text
 
 ## Memberships
 
+Memberships provide benefits to pets, including discounts and quota-based session benefits. Benefits can have period-based resets (weekly, monthly, or unlimited).
+
+**Benefit Structure:**
+
+- `applies_to`: `service`, `addon`, `pickup` (scope of the benefit)
+- `service_id`: Reference to a Service (optional; populated with full service details on retrieval)
+- `label`: Human-readable label (optional; **required when `service_id` is not provided**)
+- `type`: `discount` (percentage off subtotal), `quota` (session count — no monetary deduction)
+- `period`: `weekly` (resets Monday 00:00), `monthly` (resets 1st day 00:00), `unlimited` (no reset)
+- `limit`: Max usage count per period (optional — omit or `null` for unlimited)
+- `value`: Discount percentage (required for `type: discount`, omit for `type: quota`)
+
+---
+
 ### 1. Get All Memberships
 
 **Endpoint:** `GET /memberships`
+
+**Authentication:** Required (JWT)
+
+**Query Parameters:**
+
+- `pet_type_id` (optional): Filter by pet type MongoDB ObjectId
+- `is_active` (optional): Filter by active status (true/false)
 
 **Success Response (200):**
 
 ```json
 {
-  "message": "Fetch memberships successfully",
-  "memberships": [
+  "message": "memberships retrieved successfully",
+  "data": [
     {
       "_id": "507f1f77bcf86cd799439011",
       "name": "Gold Membership",
       "description": "Premium membership package",
-      "pet_type_ids": ["507f1f77bcf86cd799439012"],
       "duration_months": 12,
       "price": 1200000,
-      "max_usage": 12,
-      "service_include_ids": [
-        "507f1f77bcf86cd799439013",
-        "507f1f77bcf86cd799439014"
+      "note": "Includes 12 free grooming sessions",
+      "pet_type_ids": ["507f1f77bcf86cd799439012"],
+      "is_active": true,
+      "benefits": [
+        {
+          "_id": "69bcbbc3183a5d93fb342b82",
+          "applies_to": "service",
+          "type": "quota",
+          "period": "weekly",
+          "limit": 1,
+          "service": {
+            "price": 0,
+            "_id": "69a45774ecf65d9a74d53fe6",
+            "code": "SVC-0001",
+            "name": "Basic Grooming",
+            "prices": [
+              {
+                "pet_type_id": "698bf0d362f5760ac021c595",
+                "pet_name": "Cat",
+                "size_id": "698bf0e462f5760ac021c597",
+                "size_name": "Small",
+                "hair_id": "69a0fe2bdee77f169eb32598",
+                "hair_name": "Sort Hair",
+                "price": 69000
+              },
+              {
+                "pet_type_id": "698bf0d362f5760ac021c595",
+                "pet_name": "Cat",
+                "size_id": "698bf0e462f5760ac021c597",
+                "size_name": "Small",
+                "hair_id": "69a0fe38dee77f169eb3259b",
+                "hair_name": "Long Hair",
+                "price": 89000
+              },
+              {
+                "pet_type_id": "698bf0d362f5760ac021c595",
+                "pet_name": "Cat",
+                "size_id": "698bf0e862f5760ac021c599",
+                "size_name": "Medium",
+                "hair_id": "69a0fe2bdee77f169eb32598",
+                "hair_name": "Sort Hair",
+                "price": 89000
+              },
+              {
+                "pet_type_id": "698bf0d362f5760ac021c595",
+                "pet_name": "Cat",
+                "size_id": "698bf0e862f5760ac021c599",
+                "size_name": "Medium",
+                "hair_id": "69a0fe38dee77f169eb3259b",
+                "hair_name": "Long Hair",
+                "price": 109000
+              },
+              {
+                "pet_type_id": "698bf0d362f5760ac021c595",
+                "pet_name": "Cat",
+                "size_id": "698bf0ea62f5760ac021c59b",
+                "size_name": "Large",
+                "hair_id": "69a0fe2bdee77f169eb32598",
+                "hair_name": "Sort Hair",
+                "price": 109000
+              },
+              {
+                "pet_type_id": "698bf0d362f5760ac021c595",
+                "pet_name": "Cat",
+                "size_id": "698bf0ea62f5760ac021c59b",
+                "size_name": "Large",
+                "hair_id": "69a0fe38dee77f169eb3259b",
+                "hair_name": "Long Hair",
+                "price": 129000
+              }
+            ],
+            "price_type": "multiple"
+          }
+        },
+        {
+          "_id": "69bcbbc3183a5d93fb342b83",
+          "applies_to": "addon",
+          "type": "quota",
+          "period": "unlimited",
+          "service": {
+            "_id": "69ad38fa00e9af98d2941074",
+            "code": "SVC-0003",
+            "name": "Nail Trim",
+            "prices": [],
+            "price_type": "single",
+            "price": 40000
+          }
+        },
+        {
+          "_id": "69bcbbc3183a5d93fb342b84",
+          "applies_to": "addon",
+          "label": "Add ons Discount",
+          "type": "discount",
+          "period": "unlimited",
+          "value": 10
+        },
+        {
+          "_id": "69bcbbc3183a5d93fb342b85",
+          "applies_to": "pickup",
+          "label": "Pickup & Delivery",
+          "type": "quota",
+          "period": "monthly",
+          "limit": 1
+        },
+        {
+          "_id": "69bcbbc3183a5d93fb342b86",
+          "applies_to": "pickup",
+          "label": "Pickup Discount",
+          "type": "discount",
+          "period": "unlimited",
+          "value": 20
+        }
       ],
-      "is_active": true
+      "createdAt": "2026-01-15T10:30:00.000Z",
+      "updatedAt": "2026-03-19T08:45:00.000Z"
     }
   ]
 }
@@ -3252,6 +3433,8 @@ Key: folder | Type: text
 
 **Endpoint:** `GET /memberships/:id`
 
+**Authentication:** Required (JWT)
+
 **Parameters:**
 
 - `id` (path): MongoDB ObjectId
@@ -3260,14 +3443,146 @@ Key: folder | Type: text
 
 ```json
 {
-  "message": "Fetch membership successfully",
-  "membership": { ... }
+  "message": "membership retrieved successfully",
+  "data": {
+    "_id": "507f1f77bcf86cd799439011",
+    "name": "Gold Membership",
+    "description": "Premium membership package",
+    "duration_months": 12,
+    "price": 1200000,
+    "note": "Includes 12 free grooming sessions",
+    "pet_type_ids": ["507f1f77bcf86cd799439012"],
+    "is_active": true,
+    "benefits": [
+      {
+        "_id": "69bcbbc3183a5d93fb342b82",
+        "applies_to": "service",
+        "type": "quota",
+        "period": "weekly",
+        "limit": 1,
+        "service": {
+          "price": 0,
+          "_id": "69a45774ecf65d9a74d53fe6",
+          "code": "SVC-0001",
+          "name": "Basic Grooming",
+          "prices": [
+            {
+              "pet_type_id": "698bf0d362f5760ac021c595",
+              "pet_name": "Cat",
+              "size_id": "698bf0e462f5760ac021c597",
+              "size_name": "Small",
+              "hair_id": "69a0fe2bdee77f169eb32598",
+              "hair_name": "Sort Hair",
+              "price": 69000
+            },
+            {
+              "pet_type_id": "698bf0d362f5760ac021c595",
+              "pet_name": "Cat",
+              "size_id": "698bf0e462f5760ac021c597",
+              "size_name": "Small",
+              "hair_id": "69a0fe38dee77f169eb3259b",
+              "hair_name": "Long Hair",
+              "price": 89000
+            },
+            {
+              "pet_type_id": "698bf0d362f5760ac021c595",
+              "pet_name": "Cat",
+              "size_id": "698bf0e862f5760ac021c599",
+              "size_name": "Medium",
+              "hair_id": "69a0fe2bdee77f169eb32598",
+              "hair_name": "Sort Hair",
+              "price": 89000
+            },
+            {
+              "pet_type_id": "698bf0d362f5760ac021c595",
+              "pet_name": "Cat",
+              "size_id": "698bf0e862f5760ac021c599",
+              "size_name": "Medium",
+              "hair_id": "69a0fe38dee77f169eb3259b",
+              "hair_name": "Long Hair",
+              "price": 109000
+            },
+            {
+              "pet_type_id": "698bf0d362f5760ac021c595",
+              "pet_name": "Cat",
+              "size_id": "698bf0ea62f5760ac021c59b",
+              "size_name": "Large",
+              "hair_id": "69a0fe2bdee77f169eb32598",
+              "hair_name": "Sort Hair",
+              "price": 109000
+            },
+            {
+              "pet_type_id": "698bf0d362f5760ac021c595",
+              "pet_name": "Cat",
+              "size_id": "698bf0ea62f5760ac021c59b",
+              "size_name": "Large",
+              "hair_id": "69a0fe38dee77f169eb3259b",
+              "hair_name": "Long Hair",
+              "price": 129000
+            }
+          ],
+          "price_type": "multiple"
+        }
+      },
+      {
+        "_id": "69bcbbc3183a5d93fb342b83",
+        "applies_to": "addon",
+        "type": "quota",
+        "period": "unlimited",
+        "service": {
+          "_id": "69ad38fa00e9af98d2941074",
+          "code": "SVC-0003",
+          "name": "Nail Trim",
+          "prices": [],
+          "price_type": "single",
+          "price": 40000
+        }
+      },
+      {
+        "_id": "69bcbbc3183a5d93fb342b84",
+        "applies_to": "addon",
+        "label": "Add ons Discount",
+        "type": "discount",
+        "period": "unlimited",
+        "value": 10
+      },
+      {
+        "_id": "69bcbbc3183a5d93fb342b85",
+        "applies_to": "pickup",
+        "label": "Pickup & Delivery",
+        "type": "quota",
+        "period": "monthly",
+        "limit": 1
+      },
+      {
+        "_id": "69bcbbc3183a5d93fb342b86",
+        "applies_to": "pickup",
+        "label": "Pickup Discount",
+        "type": "discount",
+        "period": "unlimited",
+        "value": 20
+      }
+    ],
+    "pet_types": [
+      {
+        "_id": "698d5573b70c2a3711e368dd",
+        "name": "Dog"
+      },
+      {
+        "_id": "698bf0d362f5760ac021c595",
+        "name": "Cat"
+      }
+    ],
+    "createdAt": "2026-01-15T10:30:00.000Z",
+    "updatedAt": "2026-03-19T08:45:00.000Z"
+  }
 }
 ```
 
 **Error Responses:**
 
 - **404 Not Found:** Membership not found
+- **400 Bad Request:** Invalid membership ID format
 
 ---
 
@@ -3275,34 +3590,169 @@ Key: folder | Type: text
 
 **Endpoint:** `POST /memberships`
 
+**Authentication:** Required (JWT)
+
 **Request Body:**
 
 ```json
 {
-  "name": "string (required)",
+  "name": "string (required, max 100 chars, unique)",
   "description": "string (optional)",
-  "pet_type_ids": ["MongoDB ObjectId"] (optional array),
   "duration_months": "number (required, min: 1)",
   "price": "number (required, min: 0)",
-  "max_usage": "number (optional)",
-  "service_include_ids": ["MongoDB ObjectId"] (optional array),
-  "is_active": "boolean (optional, default: true)"
+  "note": "string (optional)",
+  "pet_type_ids": ["MongoDB ObjectId (required, min. 1)"],
+  "benefits": [
+    {
+      "applies_to": "service | addon | pickup (required)",
+      "service_id": "MongoDB ObjectId (optional), require when applies_to service or addon",
+      "label": "string (required when service_id is not provided)",
+      "type": "discount | quota (required)",
+      "period": "weekly | monthly | unlimited (optional, default: unlimited)",
+      "limit": "number (optional, omit or null = unlimited, min: 0)",
+      "value": "number (required for type: discount, percentage 0-100)"
+    }
+  ]
 }
 ```
 
-**Success Response (200):**
+**Example Request Body:**
 
 ```json
 {
-  "message": "Create membership successfully"
+  "name": "Gold Membership",
+  "description": "Premium membership package",
+  "duration_months": 12,
+  "price": 1200000,
+  "note": "Includes 12 free grooming sessions",
+  "pet_type_ids": ["507f1f77bcf86cd799439012"],
+  "benefits": [
+    {
+      "applies_to": "service",
+      "label": "Monthly Service Discount",
+      "type": "discount",
+      "period": "monthly",
+      "limit": 5,
+      "value": 10
+    },
+    {
+      "applies_to": "service",
+      "service_id": "69a45774ecf65d9a74d53fe6",
+      "type": "quota",
+      "period": "unlimited",
+      "limit": 12
+    },
+    {
+      "applies_to": "pickup",
+      "label": "Free Pickup",
+      "type": "quota",
+      "period": "monthly",
+      "limit": 2
+    }
+  ]
 }
 ```
+
+**Success Response (201):**
+
+```json
+{
+  "message": "membership created successfully",
+  "data": {
+    "_id": "507f1f77bcf86cd799439011",
+    "name": "Gold Membership",
+    "description": "Premium membership package",
+    "duration_months": 12,
+    "price": 1200000,
+    "note": "Includes 12 free grooming sessions",
+    "pet_type_ids": ["507f1f77bcf86cd799439012"],
+    "is_active": true,
+    "benefits": [
+      {
+        "_id": "607f1f77bcf86cd799439021",
+        "applies_to": "service",
+        "service_id": null,
+        "label": "Monthly Service Discount",
+        "type": "discount",
+        "period": "monthly",
+        "limit": 5,
+        "value": 10
+      },
+      {
+        "_id": "607f1f77bcf86cd799439022",
+        "applies_to": "service",
+        "service_id": {
+          "_id": "69a45774ecf65d9a74d53fe6",
+          "name": "Basic Grooming",
+          "price": 350000,
+          "code": "SVC-0001"
+        },
+        "label": null,
+        "type": "quota",
+        "period": "unlimited",
+        "limit": 12,
+        "value": null
+      },
+      {
+        "_id": "607f1f77bcf86cd799439023",
+        "applies_to": "pickup",
+        "service_id": null,
+        "label": "Free Pickup",
+        "type": "quota",
+        "period": "monthly",
+        "limit": 2,
+        "value": null
+      }
+    ],
+    "createdAt": "2026-03-19T10:30:00.000Z",
+    "updatedAt": "2026-03-19T10:30:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Validation error or duplicate name
+
+```json
+{
+  "statusCode": 400,
+  "message": "membership with this name already exists",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": "label is required when service_id is not provided",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": "value is required for discount type",
+  "error": "Bad Request"
+}
+```
+
+**Notes:**
+
+- Each benefit **must** have either `service_id` or `label` (or both)
+- `label` is required when `service_id` is not provided
+- `value` (percentage) is required when `type` is `discount`
+- `limit` omitted or `null` means unlimited usage
+- `applies_to: 'pickup'` does not need a `service_id` — use `label` instead
 
 ---
 
 ### 4. Update Membership
 
 **Endpoint:** `PUT /memberships/:id`
+
+**Authentication:** Required (JWT)
 
 **Parameters:**
 
@@ -3314,15 +3764,58 @@ Key: folder | Type: text
 
 ```json
 {
-  "message": "Update membership successfully"
+  "message": "membership updated successfully",
+  "data": {
+    "_id": "507f1f77bcf86cd799439011",
+    "name": "Gold Membership Updated",
+    "description": "Premium membership package",
+    "duration_months": 12,
+    "price": 1300000,
+    "note": "Updated benefits",
+    "pet_type_ids": ["507f1f77bcf86cd799439012"],
+    "is_active": true,
+    "benefits": [],
+    "createdAt": "2026-01-15T10:30:00.000Z",
+    "updatedAt": "2026-03-19T11:45:00.000Z"
+  }
 }
 ```
 
+**Error Responses:**
+
+- **404 Not Found:** Membership not found
+- **400 Bad Request:** Invalid ID format or validation error
+
+```json
+{
+  "statusCode": 400,
+  "message": "label is required when service_id is not provided",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": "value is required for discount type",
+  "error": "Bad Request"
+}
+```
+
+**Notes:**
+
+- `benefits` is a full replacement — the entire array is replaced on update
+- Each benefit **must** have either `service_id` or `label`
+- Existing benefit `_id` can be passed to preserve the same ID
+- Snapshot in existing `PetMembership` records is **not** retroactively updated
+
 ---
 
-### 5. Delete Membership
+### 5. Delete Membership (Soft Delete)
 
 **Endpoint:** `DELETE /memberships/:id`
+
+**Authentication:** Required (JWT)
 
 **Parameters:**
 
@@ -3332,9 +3825,1770 @@ Key: folder | Type: text
 
 ```json
 {
-  "message": "Delete membership successfully"
+  "message": "membership deleted successfully",
+  "data": {
+    "_id": "507f1f77bcf86cd799439011",
+    "name": "Gold Membership",
+    "isDeleted": true,
+    "deletedAt": "2026-03-19T12:00:00.000Z"
+  }
 }
 ```
+
+**Error Responses:**
+
+- **404 Not Found:** Membership not found
+- **400 Bad Request:** Invalid membership ID format
+
+---
+
+## Pet Memberships
+
+Pet Memberships represent the purchased membership plans for individual pets. Each pet membership tracks the pet, membership plan, dates, and benefits snapshot with usage tracking. Benefits have period-based resets to track usage per week/month, and unlimited benefits never reset.
+
+**Key Concepts:**
+
+- **benefits_snapshot**: Denormalized copy of membership benefits at purchase time, includes `used` counter and `period_reset_date` for tracking
+- **Period Resets**: Weekly (every Monday 00:00), Monthly (1st day 00:00), or Unlimited (never)
+- **used counter**: Tracks how many times a benefit has been used in the current period
+- **limit**: `null` means unlimited (no cap); a positive number sets the max per period
+- **remaining**: `null` means unlimited; a number shows how many uses are left
+- **MembershipLog**: Every lifecycle event (purchased, renewed, cancelled, updated) is recorded as a log entry with a `benefits_snapshot_before` — the full snapshot state at the moment the event occurred
+- **is_active**: `true` = membership is still valid (not cancelled); `false` = cancelled. Use date range to determine if a membership is currently active vs expired. Cancellation sets `is_active: false` without hard-deleting the record
+
+---
+
+### 1. Get All Pet Memberships
+
+**Endpoint:** `GET /pet-memberships`
+
+**Authentication:** Required (JWT)
+
+**Query Parameters:**
+
+- `pet_id` (optional, MongoDB ObjectId): Filter by pet ID
+- `membership_plan_id` (optional, MongoDB ObjectId): Filter by membership plan ID
+
+**Success Response (200):**
+
+```json
+{
+  "message": "pet memberships retrieved successfully",
+  "data": [
+    {
+      "_id": "69bba72cb163fca04487f97a",
+      "start_date": "2026-03-19T07:35:08.749Z",
+      "end_date": "2026-09-19T07:35:08.749Z",
+      "benefits_snapshot": [
+        {
+          "_id": "69bb9d015c840eeb3bb38c80",
+          "applies_to": "service",
+          "service_id": "69a45774ecf65d9a74d53fe6",
+          "label": null,
+          "service": {
+            "_id": "69a45774ecf65d9a74d53fe6",
+            "code": "BATH_PREMIUM",
+            "name": "Premium Bath Service",
+            "price": 150000,
+            "description": "Premium bathing with premium shampoo",
+            "service_location_type": "store"
+          },
+          "type": "quota",
+          "period": "unlimited",
+          "limit": 1,
+          "value": null,
+          "used": 0,
+          "period_reset_date": "2026-03-19T07:35:08.749Z"
+        },
+        {
+          "_id": "69bb9d015c840eeb3bb38c81",
+          "applies_to": "service",
+          "service_id": "69ad38fa00e9af98d2941074",
+          "label": null,
+          "service": {
+            "_id": "69ad38fa00e9af98d2941074",
+            "code": "HOTEL_STANDARD",
+            "name": "Standard Hotel Service",
+            "price": 200000,
+            "description": "Standard overnight hotel stay",
+            "service_location_type": "store"
+          },
+          "type": "quota",
+          "period": "unlimited",
+          "limit": null,
+          "value": null,
+          "used": 0,
+          "period_reset_date": null
+        },
+        {
+          "_id": "69bb9d015c840eeb3bb38c82",
+          "applies_to": "addon",
+          "service_id": null,
+          "label": "Addon Discount 10%",
+          "service": null,
+          "type": "discount",
+          "period": "unlimited",
+          "limit": null,
+          "value": 10,
+          "used": 0,
+          "period_reset_date": null
+        },
+        {
+          "_id": "69bb9d015c840eeb3bb38c84",
+          "applies_to": "pickup",
+          "service_id": null,
+          "label": "Free Pickup",
+          "service": null,
+          "type": "quota",
+          "period": "monthly",
+          "limit": 2,
+          "value": null,
+          "used": 0,
+          "period_reset_date": "2026-04-01T00:00:00.000Z"
+        }
+      ],
+      "is_active": true,
+      "isDeleted": false,
+      "deletedAt": null,
+      "createdAt": "2026-03-19T07:35:08.758Z",
+      "updatedAt": "2026-03-19T07:35:08.758Z",
+      "status": "active",
+      "pet": {
+        "_id": "699a6285a99f14a4be787c77",
+        "name": "Pet 1",
+        "tags": ["Cat", "Grooming"],
+        "pet_type": {
+          "_id": "698bf0d362f5760ac021c595",
+          "name": "Cat"
+        },
+        "owner": {
+          "_id": "699a5d240d322c3d4e81dfbc",
+          "username": "Cantika"
+        }
+      },
+      "membership": [
+        {
+          "_id": "69bb920087f62205055d6ae9",
+          "name": "Unlimited Grooming Bronze (6 Month)",
+          "description": "Booking jadwal prioritas, Biaya sudah pasti, Groomer terpercaya, Ter-dia in-store dan dari rumah",
+          "duration_months": 6,
+          "price": 1500000
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Notes:**
+
+- `benefits_snapshot` is a denormalized copy of membership benefits with usage tracking
+- Each benefit in the array is automatically populated with a full `service` object if `service_id` is set:
+  - `service` object includes: `_id`, `code`, `name`, `price`, `description`, `service_location_type`
+  - `service: null` if benefit doesn't reference a specific service (e.g., general discounts on addons/orders)
+- `used`: Current usage count for this period
+- `period_reset_date`: When the usage counter last reset (null for UNLIMITED period)
+- `pet` includes nested `owner` (customer) and `pet_type` details
+- `membership` is an array containing the applicable membership plan(s)
+- `status`: computed membership status — `"active"` | `"expired"` | `"pending"` | `"cancelled"`
+  - `"active"`: `is_active = true` and today is within `start_date` – `end_date`
+  - `"expired"`: `is_active = true` and today is past `end_date`
+  - `"pending"`: `is_active = true` and today is before `start_date`
+  - `"cancelled"`: `is_active = false`
+
+---
+
+### 2. Get Pet Membership By ID
+
+**Endpoint:** `GET /pet-memberships/:id`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId of the pet membership
+
+**Success Response (200):**
+
+```json
+{
+  "message": "pet membership retrieved successfully",
+  "data": {
+    "_id": "69bba72cb163fca04487f97a",
+    "start_date": "2026-03-19T07:35:08.749Z",
+    "end_date": "2026-09-19T07:35:08.749Z",
+    "benefits_snapshot": [
+      {
+        "_id": "69bb9d015c840eeb3bb38c80",
+        "type": "quota",
+        "applies_to": "service",
+        "period": "unlimited",
+        "service_id": "69a45774ecf65d9a74d53fe6",
+        "service": {
+          "_id": "69a45774ecf65d9a74d53fe6",
+          "code": "SVC-0001",
+          "name": "Basic Grooming",
+          "price": 89000,
+          "description": "Perawatan dasar yang bikin pawfriends bersih, wangi, dan nyaman lagi",
+          "service_location_type": "in store"
+        },
+        "limit": 1,
+        "used": 0,
+        "period_reset_date": "2026-03-19T07:35:08.749Z",
+        "id": "69bb9d015c840eeb3bb38c80"
+      },
+      {
+        "_id": "69bb9d015c840eeb3bb38c81",
+        "type": "quota",
+        "applies_to": "service",
+        "period": "unlimited",
+        "service_id": "69ad38fa00e9af98d2941074",
+        "service": {
+          "_id": "69ad38fa00e9af98d2941074",
+          "code": "SVC-0005",
+          "name": "Premium Detailing",
+          "price": 125000,
+          "description": "Premium grooming dengan extra detailing services",
+          "service_location_type": "in home"
+        },
+        "limit": -1,
+        "used": 0,
+        "period_reset_date": "2026-03-19T07:35:08.749Z",
+        "id": "69bb9d015c840eeb3bb38c81"
+      },
+      {
+        "_id": "69bb9d015c840eeb3bb38c82",
+        "type": "discount",
+        "applies_to": "addon",
+        "period": "unlimited",
+        "value": 10,
+        "service": null,
+        "limit": -1,
+        "used": 0,
+        "period_reset_date": "2026-03-19T07:35:08.749Z",
+        "id": "69bb9d015c840eeb3bb38c82"
+      },
+      {
+        "_id": "69bb9d015c840eeb3bb38c83",
+        "type": "quota",
+        "applies_to": "service",
+        "period": "unlimited",
+        "service_id": null,
+        "service": null,
+        "limit": 1,
+        "used": 0,
+        "period_reset_date": "2026-03-19T07:35:08.749Z",
+        "id": "69bb9d015c840eeb3bb38c83"
+      },
+      {
+        "_id": "69bb9d015c840eeb3bb38c84",
+        "type": "discount",
+        "applies_to": "service",
+        "period": "unlimited",
+        "value": 20,
+        "service": null,
+        "limit": -1,
+        "used": 0,
+        "period_reset_date": "2026-03-19T07:35:08.749Z",
+        "id": "69bb9d015c840eeb3bb38c84"
+      }
+    ],
+    "isDeleted": false,
+    "deletedAt": null,
+    "createdAt": "2026-03-19T07:35:08.758Z",
+    "updatedAt": "2026-03-19T07:35:08.758Z",
+    "status": "active",
+    "pet": {
+      "_id": "699a6285a99f14a4be787c77",
+      "name": "Pet 1",
+      "tags": ["Cat", "Grooming"],
+      "pet_type": {
+        "_id": "698bf0d362f5760ac021c595",
+        "name": "Cat"
+      },
+      "owner": {
+        "_id": "699a5d240d322c3d4e81dfbc",
+        "username": "Cantika"
+      }
+    },
+    "membership": {
+      "_id": "69bb920087f62205055d6ae9",
+      "name": "Unlimited Grooming Bronze (6 Month)",
+      "description": "Booking jadwal prioritas, Biaya sudah pasti, Groomer terpercaya, Ter-dia in-store dan dari rumah",
+      "duration_months": 6,
+      "price": 1500000
+    }
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Invalid pet membership ID format
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid pet membership ID",
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** Pet membership not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "pet membership not found",
+  "error": "Not Found"
+}
+```
+
+**Notes:**
+
+- `benefits_snapshot` is a denormalized copy of membership benefits with usage tracking
+- Each benefit in the array is automatically populated with a full `service` object if `service_id` is set:
+  - `service` object includes: `_id`, `code`, `name`, `price`, `description`, `service_location_type`
+  - `service: null` if benefit doesn't reference a specific service (e.g., general discounts on addons/orders)
+- `used`: Current usage count for this period
+- `period_reset_date`: When the usage counter last reset (null for UNLIMITED period)
+
+---
+
+### 3. Purchase Pet Membership (Create)
+
+**Endpoint:** `POST /pet-memberships`
+
+**Authentication:** Required (JWT)
+
+**Request Body:**
+
+```json
+{
+  "pet_id": "MongoDB ObjectId (required)",
+  "membership_plan_id": "MongoDB ObjectId (required)"
+}
+```
+
+**Example:**
+
+```json
+{
+  "pet_id": "507f1f77bcf86cd799439020",
+  "membership_plan_id": "507f1f77bcf86cd799439011"
+}
+```
+
+**Success Response (201):**
+
+```json
+{
+  "message": "pet membership purchased successfully",
+  "data": {
+    "_id": "507f1f77bcf86cd799439030",
+    "pet_id": "507f1f77bcf86cd799439020",
+    "membership_plan_id": "507f1f77bcf86cd799439011",
+    "start_date": "2026-03-19T10:30:00.000Z",
+    "end_date": "2027-03-19T10:30:00.000Z",
+    "benefits_snapshot": [
+      {
+        "_id": "607f1f77bcf86cd799439021",
+        "type": "discount",
+        "applies_to": "service",
+        "period": "monthly",
+        "value": 10,
+        "service_id": null,
+        "limit": 5,
+        "used": 0,
+        "period_reset_date": "2026-04-01T00:00:00.000Z"
+      },
+      {
+        "_id": "607f1f77bcf86cd799439022",
+        "type": "free_service",
+        "applies_to": "service",
+        "period": "unlimited",
+        "value": 150000,
+        "service_id": "69a45774ecf65d9a74d53fe6",
+        "limit": 12,
+        "used": 0,
+        "period_reset_date": null
+      }
+    ],
+    "createdAt": "2026-03-19T10:30:00.000Z",
+    "updatedAt": "2026-03-19T10:30:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Pet ID or membership plan ID is invalid/missing
+
+```json
+{
+  "statusCode": 400,
+  "message": "pet_id is required",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": "membership_plan_id must be a valid MongoDB ID",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": "membership plan not found",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": "pet already has an active membership for this plan",
+  "error": "Bad Request"
+}
+```
+
+**Notes:**
+
+- When a pet membership is created, `benefits_snapshot` is populated from the membership plan's benefits
+- `used` counter starts at 0 for each benefit
+- `period_reset_date` is calculated based on the benefit's period type (weekly, monthly, or null for unlimited)
+- `start_date` is the current date/time
+- `end_date` is calculated by adding `membership_plan.duration_months` to the start_date
+
+---
+
+### 4. Get Active Membership for Pet
+
+**Endpoint:** `GET /pet-memberships/:pet_id/active`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `pet_id` (path): MongoDB ObjectId of the pet
+
+**Success Response (200) — With Active Membership:**
+
+```json
+{
+  "message": "active membership found",
+  "data": [
+    {
+      "_id": "69bd2be555b99229f78e9e64",
+      "pet_id": "69ad09a7615651455a811a52",
+      "membership_plan_id": "69bd2b7b55b99229f78e9cc6",
+      "start_date": "2026-03-20T11:13:41.916Z",
+      "end_date": "2026-09-20T11:13:41.916Z",
+      "benefits_snapshot": [
+        {
+          "_id": "69bd2bcf55b99229f78e9e10",
+          "applies_to": "service",
+          "service_id": "69a45774ecf65d9a74d53fe6",
+          "type": "quota",
+          "period": "weekly",
+          "limit": 1,
+          "used": 0,
+          "period_reset_date": "2026-03-22T17:00:00.000Z",
+          "id": "69bd2bcf55b99229f78e9e10",
+          "service": {
+            "_id": "69a45774ecf65d9a74d53fe6",
+            "code": "SVC-0001",
+            "name": "Basic Grooming",
+            "description": "Perawatan dasar yang bikin pawfriends bersih, wangi, dan nyaman lagi. Cocok untuk rutin supaya tetap fresh dan sehat.",
+            "service_location_type": "in store"
+          }
+        },
+        {
+          "_id": "69bd2bcf55b99229f78e9e11",
+          "applies_to": "addon",
+          "service_id": "69ace8ab7fbc3acb5e61f94d",
+          "type": "quota",
+          "period": "unlimited",
+          "limit": null,
+          "used": 0,
+          "period_reset_date": null,
+          "id": "69bd2bcf55b99229f78e9e11",
+          "service": {
+            "_id": "69ace8ab7fbc3acb5e61f94d",
+            "code": "SVC-0002",
+            "name": "3 Spots Detangling",
+            "description": "Buka kusut di 3 area tertentu (biasanya ketiak, belakang telinga, atau ekor) biar bulu balik halus & nggak ketarik sakit.",
+            "price": 35000,
+            "service_location_type": "in store"
+          }
+        }
+      ],
+      "isDeleted": false,
+      "deletedAt": null,
+      "createdAt": "2026-03-20T11:13:41.918Z",
+      "updatedAt": "2026-03-20T11:13:41.918Z",
+      "__v": 0,
+      "status": "active",
+      "pet": {
+        "_id": "69ad09a7615651455a811a52",
+        "name": "Cici",
+        "pet_type_id": "698bf0d362f5760ac021c595",
+        "size_category_id": "698bf0d362f5760ac021c598",
+        "hair_category_id": "698bf0d362f5760ac021c599",
+        "tags": ["Test", "Satu", "Tiga"],
+        "customer_id": "699a5d240d322c3d4e81dfbc",
+        "pet_type": {
+          "_id": "698bf0d362f5760ac021c595",
+          "name": "Cat"
+        },
+        "size": {
+          "_id": "698bf0d362f5760ac021c598",
+          "name": "Small"
+        },
+        "hair": {
+          "_id": "698bf0d362f5760ac021c599",
+          "name": "Short"
+        },
+        "owner": {
+          "_id": "699a5d240d322c3d4e81dfbc",
+          "username": "Cantika"
+        },
+        "id": "69ad09a7615651455a811a52"
+      },
+      "membership": {
+        "_id": "69bd2b7b55b99229f78e9cc6",
+        "name": "Unlimited Grooming Silver (6 Month)",
+        "duration_months": 6,
+        "price": 2300000,
+        "id": "69bd2b7b55b99229f78e9cc6"
+      },
+      "id": "69bd2be555b99229f78e9e64"
+    },
+    {
+      "_id": "69bd2bea55b99229f78e9e79",
+      "pet_id": "69ad09a7615651455a811a52",
+      "membership_plan_id": "69bd231f55b99229f78e9976",
+      "start_date": "2026-03-20T11:13:46.504Z",
+      "end_date": "2026-09-20T11:13:46.504Z",
+      "benefits_snapshot": [
+        {
+          "_id": "69bd290855b99229f78e9a60",
+          "applies_to": "service",
+          "service_id": "69a45774ecf65d9a74d53fe6",
+          "type": "quota",
+          "period": "weekly",
+          "limit": 1,
+          "used": 0,
+          "period_reset_date": "2026-03-22T17:00:00.000Z",
+          "id": "69bd290855b99229f78e9a60",
+          "service": {
+            "_id": "69a45774ecf65d9a74d53fe6",
+            "code": "SVC-0001",
+            "name": "Basic Grooming",
+            "description": "Perawatan dasar yang bikin pawfriends bersih, wangi, dan nyaman lagi. Cocok untuk rutin supaya tetap fresh dan sehat.",
+            "service_location_type": "in store"
+          }
+        },
+        {
+          "_id": "69bd290855b99229f78e9a61",
+          "applies_to": "service",
+          "label": "Full Grooming",
+          "type": "discount",
+          "period": "unlimited",
+          "limit": 2,
+          "value": 10,
+          "used": 0,
+          "period_reset_date": null,
+          "id": "69bd290855b99229f78e9a61",
+          "service": null
+        },
+        {
+          "_id": "69bd290855b99229f78e9a62",
+          "applies_to": "addon",
+          "service_id": "69ace8ab7fbc3acb5e61f94d",
+          "type": "quota",
+          "period": "unlimited",
+          "limit": null,
+          "used": 0,
+          "period_reset_date": null,
+          "id": "69bd290855b99229f78e9a62",
+          "service": {
+            "_id": "69ace8ab7fbc3acb5e61f94d",
+            "code": "SVC-0002",
+            "name": "3 Spots Detangling",
+            "description": "Buka kusut di 3 area tertentu (biasanya ketiak, belakang telinga, atau ekor) biar bulu balik halus & nggak ketarik sakit.",
+            "price": 35000,
+            "service_location_type": "in store"
+          }
+        },
+        {
+          "_id": "69bd290855b99229f78e9a63",
+          "applies_to": "service",
+          "label": "Product Discount (Service excl training, Pawship, Pawlush)",
+          "type": "discount",
+          "period": "unlimited",
+          "limit": null,
+          "value": 10,
+          "used": 0,
+          "period_reset_date": null,
+          "id": "69bd290855b99229f78e9a63",
+          "service": null
+        },
+        {
+          "_id": "69bd290855b99229f78e9a64",
+          "applies_to": "pickup",
+          "label": "Pickup Discount",
+          "type": "discount",
+          "period": "unlimited",
+          "limit": null,
+          "value": 20,
+          "used": 0,
+          "period_reset_date": null,
+          "id": "69bd290855b99229f78e9a64",
+          "service": null
+        }
+      ],
+      "isDeleted": false,
+      "deletedAt": null,
+      "createdAt": "2026-03-20T11:13:46.506Z",
+      "updatedAt": "2026-03-20T11:13:46.506Z",
+      "__v": 0,
+      "status": "active",
+      "pet": {
+        "_id": "69ad09a7615651455a811a52",
+        "name": "Cici",
+        "pet_type_id": "698bf0d362f5760ac021c595",
+        "size_category_id": "698bf0d362f5760ac021c598",
+        "hair_category_id": "698bf0d362f5760ac021c599",
+        "tags": ["Test", "Satu", "Tiga"],
+        "customer_id": "699a5d240d322c3d4e81dfbc",
+        "pet_type": {
+          "_id": "698bf0d362f5760ac021c595",
+          "name": "Cat"
+        },
+        "size": {
+          "_id": "698bf0d362f5760ac021c598",
+          "name": "Small"
+        },
+        "hair": {
+          "_id": "698bf0d362f5760ac021c599",
+          "name": "Short"
+        },
+        "owner": {
+          "_id": "699a5d240d322c3d4e81dfbc",
+          "username": "Cantika"
+        },
+        "id": "69ad09a7615651455a811a52"
+      },
+      "membership": {
+        "_id": "69bd231f55b99229f78e9976",
+        "name": "Bronze Membersip",
+        "description": "Bronze Membership Description",
+        "duration_months": 6,
+        "price": 1500000,
+        "id": "69bd231f55b99229f78e9976"
+      },
+      "id": "69bd2bea55b99229f78e9e79"
+    }
+  ]
+}
+```
+
+**Success Response (200) — No Active Membership:**
+
+```json
+{
+  "message": "no active membership",
+  "data": []
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Invalid pet ID format
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid pet ID",
+  "error": "Bad Request"
+}
+```
+
+**Notes:**
+
+- A membership is "active" if the current date/time is between `start_date` and `end_date`
+- Returns empty array `[]` if no active membership exists
+- `status`: computed membership status — `"active"` | `"expired"` | `"pending"` | `"cancelled"`
+  - `"active"`: `is_active = true` and today is within `start_date` – `end_date`
+  - `"expired"`: `is_active = true` and today is past `end_date`
+  - `"pending"`: `is_active = true` and today is before `start_date`
+  - `"cancelled"`: `is_active = false`
+
+---
+
+### 5. Get Benefits Summary
+
+**Endpoint:** `GET /pet-memberships/:pet_id/benefits-summary`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `pet_id` (path): MongoDB ObjectId of the pet
+
+**Success Response (200) — With Active Membership:**
+
+```json
+{
+  "message": "benefits summary retrieved successfully",
+  "data": [
+    {
+      "membership": {
+        "_id": "69bd2be555b99229f78e9e64",
+        "membership_plan_id": "69bd2b7b55b99229f78e9cc6",
+        "membership_name": "Unlimited Grooming Silver (6 Month)",
+        "start_date": "2026-03-20T11:13:41.916Z",
+        "end_date": "2026-09-20T11:13:41.916Z",
+        "status": "active"
+      },
+      "benefits": [
+        {
+          "_id": "69bd2bcf55b99229f78e9e10",
+          "pet_membership_id": "69bd2be555b99229f78e9e64",
+          "applies_to": "service",
+          "service_id": "69a45774ecf65d9a74d53fe6",
+          "label": null,
+          "service": {
+            "_id": "69a45774ecf65d9a74d53fe6",
+            "code": "SVC-0001",
+            "name": "Basic Grooming",
+            "price": 120000,
+            "description": "Basic grooming package",
+            "service_location_type": "store"
+          },
+          "type": "quota",
+          "period": "weekly",
+          "limit": 1,
+          "value": null,
+          "used": 0,
+          "remaining": 1,
+          "can_apply": true,
+          "period_reset_date": "2026-03-22T17:00:00.000Z",
+          "next_reset_date": "2026-03-29T17:00:00.000Z"
+        },
+        {
+          "_id": "69bd2bcf55b99229f78e9e11",
+          "pet_membership_id": "69bd2be555b99229f78e9e64",
+          "applies_to": "pickup",
+          "service_id": null,
+          "label": "Pickup & Delivery",
+          "service": null,
+          "type": "discount",
+          "period": "monthly",
+          "limit": null,
+          "value": 20,
+          "used": 0,
+          "remaining": null,
+          "can_apply": true,
+          "period_reset_date": null,
+          "next_reset_date": null
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Success Response (200) — No Active Membership:**
+
+```json
+{
+  "message": "benefits summary retrieved successfully",
+  "data": []
+}
+```
+
+**Notes:**
+
+- `data` is an array — one entry per active membership; empty array if no active membership
+- Each entry has `membership` (plan info, including `status`) and `benefits[]` (enriched benefit objects for that membership)
+- `membership.status`: computed status — `"active"` | `"expired"` | `"pending"` | `"cancelled"`
+- `pet_membership_id`: present on every benefit to identify its source membership
+- `can_apply`: `true` if benefit has remaining quota (`limit` is `null` = unlimited, or `used < limit`)
+- `remaining`: `null` for unlimited benefits (`limit` is `null`), otherwise `limit - used`
+- `period_reset_date`: next reset date for the current period; `null` for `unlimited` period benefits
+- `next_reset_date`: the reset date after `period_reset_date`; `null` for `unlimited` period benefits
+- For `weekly`/`monthly` period benefits, `used` is automatically reset to `0` when querying if `period_reset_date` has passed
+- `service`: populated service object when `service_id` is set; `null` otherwise. Includes: `_id`, `code`, `name`, `price`, `description`, `service_location_type`
+- `label`: descriptive label for benefits without `service_id` (e.g. `"Pickup & Delivery"`); `null` when `service_id` is present
+
+---
+
+### 6. Get Benefits History
+
+**Endpoint:** `GET /pet-memberships/:pet_id/benefits-history`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `pet_id` (path): MongoDB ObjectId of the pet
+
+**Query Parameters:**
+
+- `limit` (optional, number): Max records to return (default: 100)
+- `skip` (optional, number): Offset for pagination (default: 0)
+
+**Success Response (200) — With Active Membership:**
+
+```json
+{
+  "message": "benefits history retrieved successfully",
+  "data": {
+    "has_active_membership": true,
+    "memberships": [
+      {
+        "pet_membership_id": "507f1f77bcf86cd799439030",
+        "status": "active"
+      }
+    ],
+    "benefits_history": [
+      {
+        "_id": "607f1f77bcf86cd799439051",
+        "benefit_id": "607f1f77bcf86cd799439021",
+        "type": "discount",
+        "applied_date": "2026-03-18T14:30:00.000Z",
+        "booking_id": "507f1f77bcf86cd799439040",
+        "amount_deducted": 35000
+      },
+      {
+        "_id": "607f1f77bcf86cd799439052",
+        "benefit_id": "607f1f77bcf86cd799439021",
+        "type": "discount",
+        "applied_date": "2026-03-10T10:15:00.000Z",
+        "booking_id": "507f1f77bcf86cd799439041",
+        "amount_deducted": 35000
+      }
+    ]
+  }
+}
+```
+
+**Success Response (200) — No Active Membership:**
+
+```json
+{
+  "message": "benefits history retrieved successfully",
+  "data": {
+    "has_active_membership": false,
+    "benefits_history": []
+  }
+}
+```
+
+**Notes:**
+
+- Currently returns empty `benefits_history`; will be populated once BenefitUsage tracking is integrated
+- Shows audit trail of when benefits were applied to bookings
+- `memberships`: array of objects with `pet_membership_id` and `status` for each active membership
+- `status` values: `"active"` | `"expired"` | `"pending"` | `"cancelled"`
+
+---
+
+### 7. Update Pet Membership
+
+**Endpoint:** `PUT /pet-memberships/:id`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId of the pet membership
+
+**Request Body:**
+
+```json
+{
+  "start_date": "ISO date string (required)",
+  "end_date": "ISO date string (required)"
+}
+```
+
+**Example:**
+
+```json
+{
+  "start_date": "2026-03-20T00:00:00.000Z",
+  "end_date": "2026-09-20T00:00:00.000Z"
+}
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "pet membership updated successfully",
+  "data": {
+    "_id": "507f1f77bcf86cd799439030",
+    "pet_id": "507f1f77bcf86cd799439020",
+    "membership_plan_id": "507f1f77bcf86cd799439011",
+    "start_date": "2026-03-20T00:00:00.000Z",
+    "end_date": "2026-09-20T00:00:00.000Z",
+    "isDeleted": false,
+    "deletedAt": null,
+    "createdAt": "2026-03-19T10:30:00.000Z",
+    "updatedAt": "2026-03-20T09:00:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Invalid ID format or missing/invalid fields
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid pet membership ID",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": ["start_date is required", "end_date is required"],
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** Pet membership not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "pet membership not found",
+  "error": "Not Found"
+}
+```
+
+**Notes:**
+
+- Only `start_date` and `end_date` can be updated — membership plan and benefits snapshot are locked at purchase time
+- A `MembershipLog` entry with `event_type: "updated"` is created automatically recording the new dates
+- `benefits_snapshot_before` is `[]` for update log entries
+
+---
+
+### 8. Cancel Pet Membership
+
+**Endpoint:** `PATCH /pet-memberships/:id/cancelled`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId of the pet membership
+
+**Success Response (200):**
+
+```json
+{
+  "message": "pet membership cancelled successfully",
+  "data": {
+    "_id": "507f1f77bcf86cd799439030",
+    "pet_id": "507f1f77bcf86cd799439020",
+    "membership_plan_id": "507f1f77bcf86cd799439011",
+    "is_active": false,
+    "isDeleted": false,
+    "deletedAt": null
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Invalid ID format
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid pet membership ID",
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** Pet membership not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "pet membership not found",
+  "error": "Not Found"
+}
+```
+
+**Notes:**
+
+- Cancellation sets `is_active: false` (record is kept for history)
+- Cancelled memberships (`is_active: false`) are excluded from all GET endpoints except history
+- Benefits are no longer available after cancellation
+
+---
+
+### 9. Renew Pet Membership
+
+**Endpoint:** `POST /pet-memberships/:id/renew`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId of the pet membership to renew
+
+**Success Response (200):**
+
+```json
+{
+  "message": "membership renewed successfully",
+  "data": {
+    "_id": "69bd2be555b99229f78e9e64",
+    "start_date": "2026-03-20T11:13:41.916Z",
+    "end_date": "2027-03-20T11:13:41.916Z",
+    "benefits_snapshot": [
+      {
+        "_id": "69bd2bcf55b99229f78e9e10",
+        "applies_to": "service",
+        "service_id": "69a45774ecf65d9a74d53fe6",
+        "type": "quota",
+        "period": "weekly",
+        "limit": 1,
+        "used": 0,
+        "period_reset_date": "2026-03-22T17:00:00.000Z"
+      }
+    ],
+    "isDeleted": false
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Membership is still active
+
+```json
+{
+  "statusCode": 400,
+  "message": "membership is still active and cannot be renewed yet",
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** Pet membership not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "pet membership not found",
+  "error": "Not Found"
+}
+```
+
+**Notes:**
+
+- Only expired memberships (where `end_date < now`) can be renewed
+- New `end_date` is calculated from the old `end_date` (contiguous, no gap): `old end_date + duration_months`
+- All `benefits_snapshot.used` counters are reset to `0` and `period_reset_date` is recalculated from the new start
+- A `MembershipLog` entry with `event_type: "renewed"` is created automatically, storing `benefits_snapshot_before` (the state with final used counts before reset)
+
+---
+
+### 10. Get Membership History
+
+**Endpoint:** `GET /pet-memberships/:pet_id/membership-history`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `pet_id` (path): MongoDB ObjectId of the pet
+
+**Success Response (200):**
+
+```json
+{
+  "message": "membership history retrieved successfully",
+  "data": [
+    {
+      "_id": "69bd2be555b99229f78e9e64",
+      "pet_id": "69ad09a7615651455a811a52",
+      "membership_plan_id": "69bd2b7b55b99229f78e9cc6",
+      "start_date": "2026-03-20T11:13:41.916Z",
+      "end_date": "2026-09-20T11:13:41.916Z",
+      "is_active": true,
+      "isDeleted": false,
+      "deletedAt": null,
+      "createdAt": "2026-03-20T11:13:41.918Z",
+      "updatedAt": "2026-03-20T11:13:41.918Z",
+      "status": "active",
+      "membership": {
+        "_id": "69bd2b7b55b99229f78e9cc6",
+        "name": "Unlimited Grooming Silver (6 Month)",
+        "description": "Silver membership with weekly grooming quota",
+        "duration_months": 6,
+        "price": 2300000
+      }
+    },
+    {
+      "_id": "69bc1aa055b99229f78e1234",
+      "pet_id": "69ad09a7615651455a811a52",
+      "membership_plan_id": "69bd231f55b99229f78e9976",
+      "start_date": "2025-09-20T08:00:00.000Z",
+      "end_date": "2026-03-20T08:00:00.000Z",
+      "is_active": false,
+      "isDeleted": false,
+      "deletedAt": "2026-03-20T11:00:00.000Z",
+      "createdAt": "2025-09-20T08:00:00.001Z",
+      "updatedAt": "2026-03-20T11:00:00.001Z",
+      "status": "cancelled",
+      "membership": {
+        "_id": "69bd231f55b99229f78e9976",
+        "name": "Bronze Membership",
+        "description": "Bronze Membership Description",
+        "duration_months": 6,
+        "price": 1500000
+      }
+    }
+  ]
+}
+```
+
+**Success Response (200) — No History:**
+
+```json
+{
+  "message": "membership history retrieved successfully",
+  "data": []
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Invalid pet ID format
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid pet ID",
+  "error": "Bad Request"
+}
+```
+
+**Notes:**
+
+- Returns **all** pet memberships for the pet where `isDeleted: false` — includes active, expired, and cancelled
+- `benefits_snapshot` is excluded from this list — use endpoint 11 for log detail
+- `status`: computed membership status — `"active"` | `"expired"` | `"pending"` | `"cancelled"`
+  - `"active"`: `is_active = true` and today is within `start_date` – `end_date`
+  - `"expired"`: `is_active = true` and today is past `end_date`
+  - `"pending"`: `is_active = true` and today is before `start_date`
+  - `"cancelled"`: `is_active = false`
+- Sorted by `createdAt` descending (newest first)
+- Use `_id` of each item as `pet_membership_id` to call endpoint 11
+
+---
+
+### 11. Get Membership History Detail
+
+**Endpoint:** `GET /pet-memberships/:pet_id/membership-history/:pet_membership_id`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `pet_id` (path): MongoDB ObjectId of the pet
+- `pet_membership_id` (path): MongoDB ObjectId of the pet membership
+
+**Success Response (200):**
+
+```json
+{
+  "message": "membership history detail retrieved successfully",
+  "data": {
+    "pet_membership": {
+      "_id": "69bd2be555b99229f78e9e64",
+      "pet_id": "69ad09a7615651455a811a52",
+      "membership_plan_id": "69bd2b7b55b99229f78e9cc6",
+      "start_date": "2026-03-20T11:13:41.916Z",
+      "end_date": "2026-09-20T11:13:41.916Z",
+      "isDeleted": false,
+      "deletedAt": null,
+      "createdAt": "2026-03-20T11:13:41.918Z",
+      "updatedAt": "2026-03-20T11:13:41.918Z",
+      "status": "active",
+      "membership": {
+        "_id": "69bd2b7b55b99229f78e9cc6",
+        "name": "Unlimited Grooming Silver (6 Month)",
+        "description": "Silver membership with weekly grooming quota",
+        "duration_months": 6,
+        "price": 2300000
+      }
+    },
+    "logs": [
+      {
+        "_id": "69be3cf155b99229f78f0001",
+        "event_type": "updated",
+        "event_date": "2026-03-21T09:00:00.000Z",
+        "start_date": "2026-03-21T09:00:00.000Z",
+        "end_date": "2026-09-21T09:00:00.000Z",
+        "benefits_snapshot_before": [],
+        "note": "Updated dates: start=2026-03-21T09:00:00.000Z, end=2026-09-21T09:00:00.000Z",
+        "createdAt": "2026-03-21T09:00:00.001Z",
+        "updatedAt": "2026-03-21T09:00:00.001Z",
+        "membership": {
+          "_id": "69bd2b7b55b99229f78e9cc6",
+          "name": "Unlimited Grooming Silver (6 Month)",
+          "description": "Silver membership with weekly grooming quota",
+          "duration_months": 6,
+          "price": 2300000
+        }
+      },
+      {
+        "_id": "69bd2cf055b99229f78e9f10",
+        "event_type": "renewed",
+        "event_date": "2026-09-20T11:13:41.916Z",
+        "start_date": "2026-09-20T11:13:41.916Z",
+        "end_date": "2027-03-20T11:13:41.916Z",
+        "benefits_snapshot_before": [
+          {
+            "_id": "69bd2bcf55b99229f78e9e10",
+            "applies_to": "service",
+            "service_id": "69a45774ecf65d9a74d53fe6",
+            "type": "quota",
+            "period": "weekly",
+            "limit": 1,
+            "used": 3,
+            "period_reset_date": "2026-09-27T17:00:00.000Z"
+          }
+        ],
+        "note": "Renewed from 2026-09-20T11:13:41.916Z to 2027-03-20T11:13:41.916Z",
+        "createdAt": "2026-09-20T11:13:41.918Z",
+        "updatedAt": "2026-09-20T11:13:41.918Z",
+        "membership": {
+          "_id": "69bd2b7b55b99229f78e9cc6",
+          "name": "Unlimited Grooming Silver (6 Month)",
+          "description": "Silver membership with weekly grooming quota",
+          "duration_months": 6,
+          "price": 2300000
+        }
+      },
+      {
+        "_id": "69bd2be655b99229f78e9e80",
+        "event_type": "purchased",
+        "event_date": "2026-03-20T11:13:41.916Z",
+        "start_date": "2026-03-20T11:13:41.916Z",
+        "end_date": "2026-09-20T11:13:41.916Z",
+        "benefits_snapshot_before": [
+          {
+            "_id": "69bd2bcf55b99229f78e9e10",
+            "applies_to": "service",
+            "service_id": "69a45774ecf65d9a74d53fe6",
+            "type": "quota",
+            "period": "weekly",
+            "limit": 1,
+            "used": 0,
+            "period_reset_date": "2026-03-22T17:00:00.000Z"
+          }
+        ],
+        "note": null,
+        "createdAt": "2026-03-20T11:13:41.918Z",
+        "updatedAt": "2026-03-20T11:13:41.918Z",
+        "membership": {
+          "_id": "69bd2b7b55b99229f78e9cc6",
+          "name": "Unlimited Grooming Silver (6 Month)",
+          "description": "Silver membership with weekly grooming quota",
+          "duration_months": 6,
+          "price": 2300000
+        }
+      }
+    ]
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Invalid ID format
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid pet ID",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid pet membership ID",
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** Pet membership not found for this pet
+
+```json
+{
+  "statusCode": 404,
+  "message": "pet membership not found",
+  "error": "Not Found"
+}
+```
+
+**Notes:**
+
+- `pet_membership`: the membership record without `benefits_snapshot`
+- `pet_membership.status`: computed status — `"active"` | `"expired"` | `"pending"` | `"cancelled"`
+- `logs`: all `MembershipLog` entries for this specific pet membership, filtered by `pet_id` + `pet_membership_id` + `membership_plan_id`, sorted `event_date` descending
+- `event_type` values: `"purchased"` | `"renewed"` | `"cancelled"` | `"updated"`
+- `benefits_snapshot_before` is `[]` for `updated` events; populated for `purchased`, `renewed`, `cancelled`
+
+---
+
+### 11. Soft Delete Pet Membership
+
+**Endpoint:** `DELETE /pet-memberships/:id`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId of the pet membership
+
+**Success Response (200):**
+
+```json
+{
+  "message": "pet membership cancelled successfully",
+  "data": {
+    "_id": "507f1f77bcf86cd799439030",
+    "pet_id": "507f1f77bcf86cd799439020",
+    "membership_plan_id": "507f1f77bcf86cd799439011",
+    "is_active": false,
+    "isDeleted": false,
+    "deletedAt": "timestamp"
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Invalid ID format
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid pet membership ID",
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** Pet membership not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "pet membership not found",
+  "error": "Not Found"
+}
+```
+
+## Benefit Usages
+
+Benefit Usages track when and how membership benefits are applied to bookings. Each usage record documents which benefit was used, which booking it was applied to, and how much of the benefit was consumed (amount_used).
+
+**Key Concepts:**
+
+- **pet_membership_id**: Reference to the pet membership that owns the benefit
+- **benefit_id**: Reference to the specific benefit in the membership's benefits_snapshot
+- **booking_id**: The booking where the benefit was applied
+- **scope**: Type of benefit applied (`service`, `addon`, or `pickup`)
+- **target_id**: The service or addon that was the target of the benefit (if service-scoped)
+- **amount_used**: How much of the benefit was consumed (discount $ amount, free session count, etc.)
+- **used_at**: When the benefit was applied
+
+---
+
+### 1. Record Benefit Usage
+
+**Endpoint:** `POST /benefit-usage`
+
+**Authentication:** Required (JWT)
+
+**Request Body:**
+
+```json
+{
+  "pet_membership_id": "MongoDB ObjectId (required)",
+  "benefit_id": "MongoDB ObjectId (required, _id from benefits_snapshot)",
+  "booking_id": "MongoDB ObjectId (required)",
+  "target_id": "MongoDB ObjectId (required, service or addon ID)",
+  "amount_used": "number (required, min: 0)"
+}
+```
+
+**Example Request:**
+
+```json
+{
+  "pet_membership_id": "507f1f77bcf86cd799439030",
+  "benefit_id": "607f1f77bcf86cd799439021",
+  "booking_id": "507f1f77bcf86cd799439040",
+  "target_id": "69a45774ecf65d9a74d53fe6",
+  "amount_used": 35000
+}
+```
+
+**Success Response (201):**
+
+```json
+{
+  "message": "benefit usage recorded successfully",
+  "data": {
+    "_id": "607f1f77bcf86cd799439051",
+    "pet_membership_id": "507f1f77bcf86cd799439030",
+    "benefit_id": "607f1f77bcf86cd799439021",
+    "booking_id": "507f1f77bcf86cd799439040",
+    "used_at": "2026-03-19T14:30:00.000Z",
+    "scope": "service",
+    "target_id": "69a45774ecf65d9a74d53fe6",
+    "amount_used": 35000,
+    "isDeleted": false,
+    "createdAt": "2026-03-19T14:30:00.000Z",
+    "updatedAt": "2026-03-19T14:30:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Missing required fields or invalid IDs
+
+```json
+{
+  "statusCode": 400,
+  "message": "pet_membership_id is required",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": "amount_used must be >= 0",
+  "error": "Bad Request"
+}
+```
+
+**Notes:**
+
+- `scope` is auto-derived from the benefit's `applies_to` field in the pet membership
+- This endpoint is typically called automatically by the booking system when a benefit is applied during booking creation
+- `used_at` is automatically set to the current date/time
+- `amount_used` represents the monetary value (in currency units) or count (for quota benefits) consumed
+- Each usage record is immutable once created; updates require deleting and re-creating
+
+---
+
+### 2. Get All Benefit Usage Records
+
+**Endpoint:** `GET /benefit-usage`
+
+**Authentication:** Required (JWT)
+
+**Query Parameters:**
+
+- `pet_membership_id` (optional, MongoDB ObjectId): Filter by pet membership
+- `booking_id` (optional, MongoDB ObjectId): Filter by booking
+
+**Example Requests:**
+
+```bash
+# Get all usage records
+GET /benefit-usage
+
+# Filter by pet membership
+GET /benefit-usage?pet_membership_id=507f1f77bcf86cd799439030
+
+# Filter by booking
+GET /benefit-usage?booking_id=507f1f77bcf86cd799439040
+
+# Combined filters
+GET /benefit-usage?pet_membership_id=507f1f77bcf86cd799439030&booking_id=507f1f77bcf86cd799439040
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "benefit usage records retrieved successfully",
+  "data": [
+    {
+      "_id": "607f1f77bcf86cd799439051",
+      "pet_membership_id": "507f1f77bcf86cd799439030",
+      "benefit_id": "607f1f77bcf86cd799439021",
+      "booking_id": "507f1f77bcf86cd799439040",
+      "booking_id_details": {
+        "_id": "507f1f77bcf86cd799439040",
+        "code": "BK-2026-001",
+        "status": "completed",
+        "total_price": 300000
+      },
+      "used_at": "2026-03-19T14:30:00.000Z",
+      "scope": "service",
+      "target_id": "69a45774ecf65d9a74d53fe6",
+      "amount_used": 35000,
+      "isDeleted": false,
+      "createdAt": "2026-03-19T14:30:00.000Z",
+      "updatedAt": "2026-03-19T14:30:00.000Z"
+    },
+    {
+      "_id": "607f1f77bcf86cd799439052",
+      "pet_membership_id": "507f1f77bcf86cd799439030",
+      "benefit_id": "607f1f77bcf86cd799439021",
+      "booking_id": "507f1f77bcf86cd799439041",
+      "booking_id_details": {
+        "_id": "507f1f77bcf86cd799439041",
+        "code": "BK-2026-002",
+        "status": "completed",
+        "total_price": 280000
+      },
+      "used_at": "2026-03-10T10:15:00.000Z",
+      "scope": "service",
+      "target_id": "69a45774ecf65d9a74d53fe6",
+      "amount_used": 35000,
+      "isDeleted": false,
+      "createdAt": "2026-03-10T10:15:00.000Z",
+      "updatedAt": "2026-03-10T10:15:00.000Z"
+    }
+  ]
+}
+```
+
+**Notes:**
+
+- Results are sorted by `used_at` (newest first)
+- The `booking_id` field is populated with booking details
+- Query filters are AND-ed together (must match all provided filters)
+
+---
+
+### 3. Get Benefit Usage By ID
+
+**Endpoint:** `GET /benefit-usage/:id`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId of the benefit usage record
+
+**Success Response (200):**
+
+```json
+{
+  "message": "benefit usage record retrieved successfully",
+  "data": {
+    "_id": "607f1f77bcf86cd799439051",
+    "pet_membership_id": "507f1f77bcf86cd799439030",
+    "benefit_id": "607f1f77bcf86cd799439021",
+    "booking_id": "507f1f77bcf86cd799439040",
+    "booking_id_details": {
+      "_id": "507f1f77bcf86cd799439040",
+      "code": "BK-2026-001",
+      "status": "completed",
+      "total_price": 300000
+    },
+    "used_at": "2026-03-19T14:30:00.000Z",
+    "scope": "service",
+    "target_id": "69a45774ecf65d9a74d53fe6",
+    "amount_used": 35000,
+    "isDeleted": false,
+    "createdAt": "2026-03-19T14:30:00.000Z",
+    "updatedAt": "2026-03-19T14:30:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Invalid benefit usage ID format
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid benefit usage ID",
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** Benefit usage record not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "benefit usage not found",
+  "error": "Not Found"
+}
+```
+
+---
+
+### 4. Get Usage History for Pet Membership
+
+**Endpoint:** `GET /benefit-usage/:pet_membership_id/history`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `pet_membership_id` (path): MongoDB ObjectId of the pet membership
+
+**Query Parameters:**
+
+- `limit` (optional, number): Max records to return (default: 100)
+- `skip` (optional, number): Offset for pagination (default: 0)
+
+**Example Requests:**
+
+```bash
+# Get all usage history
+GET /benefit-usage/507f1f77bcf86cd799439030/history
+
+# Paginate results
+GET /benefit-usage/507f1f77bcf86cd799439030/history?limit=10&skip=20
+```
+
+**Success Response (200):**
+
+```json
+{
+  "message": "usage history retrieved successfully",
+  "data": [
+    {
+      "_id": "607f1f77bcf86cd799439051",
+      "pet_membership_id": "507f1f77bcf86cd799439030",
+      "benefit_id": "607f1f77bcf86cd799439021",
+      "booking_id": "507f1f77bcf86cd799439040",
+      "booking_id_details": {
+        "_id": "507f1f77bcf86cd799439040",
+        "code": "BK-2026-001",
+        "status": "completed"
+      },
+      "used_at": "2026-03-19T14:30:00.000Z",
+      "scope": "service",
+      "target_id": "69a45774ecf65d9a74d53fe6",
+      "amount_used": 35000
+    },
+    {
+      "_id": "607f1f77bcf86cd799439052",
+      "pet_membership_id": "507f1f77bcf86cd799439030",
+      "benefit_id": "607f1f77bcf86cd799439021",
+      "booking_id": "507f1f77bcf86cd799439041",
+      "booking_id_details": {
+        "_id": "507f1f77bcf86cd799439041",
+        "code": "BK-2026-002",
+        "status": "completed"
+      },
+      "used_at": "2026-03-10T10:15:00.000Z",
+      "scope": "service",
+      "target_id": "69a45774ecf65d9a74d53fe6",
+      "amount_used": 35000
+    }
+  ]
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Invalid pet membership ID format
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid pet membership ID",
+  "error": "Bad Request"
+}
+```
+
+**Notes:**
+
+- Results are sorted by `used_at` (newest first)
+- Paginated results help with large usage histories
+- Useful for auditing benefit consumption over time
+
+---
+
+### 5. Delete Benefit Usage Record (Soft Delete)
+
+**Endpoint:** `DELETE /benefit-usage/:id`
+
+**Authentication:** Required (JWT)
+
+**Parameters:**
+
+- `id` (path): MongoDB ObjectId of the benefit usage record
+
+**Success Response (200):**
+
+```json
+{
+  "message": "benefit usage record deleted successfully",
+  "data": {
+    "_id": "607f1f77bcf86cd799439051",
+    "pet_membership_id": "507f1f77bcf86cd799439030",
+    "benefit_id": "607f1f77bcf86cd799439021",
+    "booking_id": "507f1f77bcf86cd799439040",
+    "isDeleted": true,
+    "deletedAt": "2026-03-19T15:45:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** Invalid benefit usage ID format
+
+```json
+{
+  "statusCode": 400,
+  "message": "invalid benefit usage ID",
+  "error": "Bad Request"
+}
+```
+
+- **404 Not Found:** Benefit usage record not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "benefit usage not found",
+  "error": "Not Found"
+}
+```
+
+**Notes:**
+
+- This is a soft delete operation
+- Record is marked with `isDeleted: true` and `deletedAt` timestamp
+- Useful for reversing/canceling benefit applications if a booking is cancelled
+- Deleted records are excluded from GET endpoints
 
 ---
 
@@ -4020,9 +6274,12 @@ If user not found:
 
 ---
 
-#### 7. Create Guest Booking (Public)
+#### 8. Preview Apply Benefits (Public)
 
-**Endpoint:** `POST /bookings/public`
+**Endpoint:** `POST /bookings/public/apply-benefit`
+
+**Description:**
+Preview the effect of applying selected membership benefits to a booking before the booking is created. Returns the breakdown of each benefit's discount and the final price after all discounts.
 
 **Authentication:** Not Required
 
@@ -4030,35 +6287,109 @@ If user not found:
 
 ```json
 {
-  "customer_id": "MongoDB ObjectId (required)",
   "pet_id": "MongoDB ObjectId (required)",
-  "store_id": "MongoDB ObjectId (required for in store type)",
-  "date": "Date (required, format: YYYY-MM-DD)",
-  "time_range": "string (required, format: HH:mm - HH:mm)",
-  "type": "in home | in store (required)",
-  "service_id": "MongoDB ObjectId (required)",
-  "service_addon_ids": ["MongoDB ObjectId"],
-  "travel_fee": "number (optional)",
-  "note": "string (optional)"
+  "selected_benefit_ids": ["MongoDB ObjectId (required)"],
+  "store_id": "MongoDB ObjectId (optional)",
+  "service_id": "MongoDB ObjectID (optional)",
+  "add_on_ids": "Array of MongoDB ObjectID (optional)"
 }
 ```
 
-**Success Response (201):**
+**Example Request Body:**
 
 ```json
 {
-  "message": "Guest booking created successfully"
+  "pet_id": "69ad09a7615651455a811a52",
+  "selected_benefit_ids": [
+    "69c410310993f7ae9b9e1962",
+    "69c410310993f7ae9b9e1961"
+  ],
+  "store_id": "698be0cd80c319b74fe2f073",
+  "service_id": "69c54942ad42bcc455c0d18a"
 }
 ```
 
-**Business Logic:**
+| Field                  | Type             | Required | Description                                                                                                                         |
+| ---------------------- | ---------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `pet_id`               | MongoId          | ✅       | Pet to preview benefits for                                                                                                         |
+| `selected_benefit_ids` | MongoId[]        | ✅       | Benefit IDs to preview                                                                                                              |
+| `store_id`             | MongoId          | ❌       | Required when any selected benefit has `applies_to: pickup`. Used to compute travel fee via the customer's address and store zones. |
+| `service_id`           | MongoId          | ❌       | Required when any selected benefit has `applies_to: service` and `type: discount`.                                                  |
+| `add_on_ids`           | Array of MongoId | ❌       | Required when any selected benefit has `applies_to: addon` and `type: discount`.                                                    |
 
-- Same capacity validation as authenticated booking
-- If capacity exceeded beyond overbooking limit, booking is created as WAITLIST
-- System automatically calculates pricing based on pet size
-- Creates `pet_snapshot` automatically from pet data
-- Creates `service_snapshot` automatically — stores service code, name, description, service type, and the best-matched price based on the pet's pet type, size, and hair
-- Initial `booking_status` is `requested`
+**Success Response (200):**
+
+```json
+{
+  "message": "Benefit preview calculated successfully",
+  "applied_benefits": [
+    {
+      "benefit_id": "69c410310993f7ae9b9e1962",
+      "benefit_type": "discount",
+      "benefit_period": "unlimited",
+      "benefit_value": 10,
+      "amount_deducted": 6900,
+      "applied_at": "2026-03-26T14:57:31.911Z"
+    },
+    {
+      "benefit_id": "69c410310993f7ae9b9e1961",
+      "benefit_type": "discount",
+      "benefit_period": "unlimited",
+      "benefit_value": 20,
+      "amount_deducted": 5000,
+      "applied_at": "2026-03-26T14:57:32.796Z"
+    }
+  ],
+  "total_discount": 11900,
+  "final_price": 82100,
+  "breakdown": [
+    {
+      "benefit": {
+        "_id": "69c410310993f7ae9b9e1962",
+        "label": "Booking Discount",
+        "service": null
+      },
+      "applies_to": "service",
+      "benefit_type": "discount",
+      "benefit_period": "unlimited",
+      "benefit_value": 10,
+      "base_price": 69000,
+      "amount_deducted": 6900,
+      "description": null
+    },
+    {
+      "benefit": {
+        "_id": "69c410310993f7ae9b9e1961",
+        "label": "Pickup Discount",
+        "service": null
+      },
+      "applies_to": "pickup",
+      "benefit_type": "discount",
+      "benefit_period": "unlimited",
+      "benefit_value": 20,
+      "base_price": 25000,
+      "amount_deducted": 5000,
+      "description": null
+    }
+  ]
+}
+```
+
+**Error Responses:**
+
+- **404 Not Found:** Pet or membership not found
+- **400 Bad Request:** Invalid or missing fields
+
+**Notes:**
+
+- This endpoint does not require a booking to exist. Use it to preview discounts before creating a booking.
+- Each `breakdown` item targets a specific price component via `applies_to`: `service`, `addon`, or `pickup`.
+- `base_price` is the price of the targeted component at the time this benefit is applied (accounts for previous deductions on the same component).
+- `benefit type: discount` → deducts a percentage of `base_price`. `benefit type: quota` → makes the targeted component fully free (`amount_deducted = base_price`).
+- `service` and `addon` benefits look up the price from the benefit's linked `service_id` using the pet's type, size, and hair. If no matching price is found for the pet's config, the benefit is skipped.
+- `pickup` benefits calculate `base_price` by matching the customer's main address against the store's delivery zones — `store_id` must be provided, otherwise the benefit is skipped.
+- Only benefits where `can_apply: true` (from the pet's active membership) are included in the result.
+- If the pet has no active membership, all arrays are empty and `final_price` is `0`.
 
 ---
 
@@ -4268,10 +6599,10 @@ If user not found:
     "date": "2026-03-08T00:00:00.000Z",
     "time_range": "09.00 - 12.00",
     "type": "in store",
-    "booking_status": "requested",
+    "booking_status": "waitlist",
     "status_logs": [
       {
-        "status": "requested",
+        "status": "waitlist",
         "timestamp": "2026-03-08T04:24:19.117Z",
         "note": "Booking is waitlisted (capacity exceeded) - created by Jhon (admin)"
       }
@@ -4301,6 +6632,19 @@ If user not found:
         }
       }
     ],
+    "media": [
+      {
+        "type": "image",
+        "secure_url": "https://res.cloudinary.com/example/image/upload/v1/pawship-grooming/bookings/IMG_001.jpg",
+        "public_id": "pawship-grooming/bookings/IMG_001",
+        "note": "Before grooming photo",
+        "created_by": {
+          "user_id": "699a5d240d322c3d4e81dfbd",
+          "name_snapshot": "groomer_andi"
+        },
+        "uploaded_at": "2026-03-08T05:00:00.000Z"
+      }
+    ],
     "createdAt": "2026-03-08T04:24:19.137Z",
     "updatedAt": "2026-03-08T04:24:19.137Z",
     "customer": {
@@ -4318,10 +6662,215 @@ If user not found:
 ```
 
 > **Note:** `sessions[].groomer_detail` berisi data User groomer yang di-assign ke sesi tertentu. Field `groomer_id` (raw ObjectId) tidak akan muncul di response.
+>
+> **Note:** `media[]` adalah array of media (photos/videos) yang di-upload untuk keseluruhan booking. Berbeda dengan session-level media yang ada di masa lalu, semua media sekarang di-store di level booking untuk kemudahan manajemen. Media dapat di-upload kapan saja selama booking aktif.
 
 **Error Responses:**
 
 - **404 Not Found:** Booking not found
+
+---
+
+### 2. Get Booking Preview with Benefits
+
+**Endpoint:** `POST /bookings/preview`
+
+**Headers:** `Authorization: Bearer {access_token}` (required)
+
+**Description:** Calculate booking price with benefit options and pricing breakdown. Shows available membership benefits that can be applied to reduce the final price. Optionally, include `pick_up: true` together with `store_id` and `customer_id` to also retrieve the matched pickup zone and travel fee for the customer's saved address.
+
+**Request Body:**
+
+```json
+{
+  "pet_id": "MongoDB ObjectId (required)",
+  "service_id": "MongoDB ObjectId (required)",
+  "addon_ids": ["MongoDB ObjectId (optional)"],
+  "date": "Date (required)",
+  "time_range": "string (optional)",
+  "pick_up": "boolean (optional, default: false)",
+  "store_id": "MongoDB ObjectId (required when pick_up is true)",
+  "customer_id": "MongoDB ObjectId (required when pick_up is true)"
+}
+```
+
+**Success Response (200) — without `pick_up`:**
+
+```json
+{
+  "message": "Booking preview calculated successfully",
+  "pet_id": "699a6285a99f14a4be787c77",
+  "pet_name": "Fluffy",
+  "service_id": "69a45774ecf65d9a74d53fe6",
+  "service_name": "Basic Grooming",
+  "pricing": {
+    "original_service_price": 350000,
+    "addon_prices": [
+      {
+        "_id": "69b10c52a58f123456789abc",
+        "name": "Extra Nail Trim",
+        "price": 50000
+      }
+    ],
+    "subtotal_before_benefits": 400000,
+    "has_active_membership": true,
+    "available_benefits": [
+      {
+        "_id": "607f1f77bcf86cd799439011",
+        "applies_to": "service",
+        "service_id": "69a45774ecf65d9a74d53fe6",
+        "type": "discount",
+        "period": "monthly",
+        "value": 10,
+        "limit": 5,
+        "used": 2,
+        "remaining": 3,
+        "can_apply": true,
+        "period_reset_date": "2026-03-21T00:00:00.000Z",
+        "next_reset_date": "2026-04-01T00:00:00.000Z",
+        "amount_discount": 35000,
+        "description": "Discount: 10% (Monthly) - 3/5 remaining"
+      },
+      {
+        "_id": "607f1f77bcf86cd799439013",
+        "applies_to": "addon",
+        "service_id": "69b10c52a58f123456789abc",
+        "type": "discount",
+        "period": "monthly",
+        "value": 20,
+        "limit": 3,
+        "used": 0,
+        "remaining": 3,
+        "can_apply": true,
+        "period_reset_date": null,
+        "next_reset_date": "2026-04-01T00:00:00.000Z",
+        "amount_discount": 10000,
+        "description": "Discount: 20% (Monthly) - 3/3 remaining"
+      }
+    ],
+    "estimated_total_discount": 45000,
+    "estimated_final_price": 355000
+  },
+  "pricing_breakdown": {
+    "service": {
+      "name": "Basic Grooming",
+      "price": 350000
+    },
+    "addons": [
+      {
+        "_id": "69b10c52a58f123456789abc",
+        "name": "Extra Nail Trim",
+        "price": 50000
+      }
+    ],
+    "subtotal": 400000,
+    "travel_fee": 0,
+    "grand_total": 400000,
+    "discount": 45000,
+    "final": 355000
+  }
+}
+```
+
+**Success Response (200) — with `pick_up: true`:**
+
+Same shape as above, but `available_benefits` also includes benefits with `applies_to: "pickup"`, `pricing_breakdown.travel_fee` is set from the matched zone, and `pick_up` is appended at the root:
+
+```json
+{
+  "message": "Booking preview calculated successfully",
+  "pet_id": "699a6285a99f14a4be787c77",
+  "pet_name": "Fluffy",
+  "service_id": "69a45774ecf65d9a74d53fe6",
+  "service_name": "Basic Grooming",
+  "pricing": {
+    "original_service_price": 350000,
+    "addon_prices": [],
+    "subtotal_before_benefits": 350000,
+    "has_active_membership": true,
+    "available_benefits": [
+      {
+        "_id": "607f1f77bcf86cd799439011",
+        "applies_to": "service",
+        "service_id": "69a45774ecf65d9a74d53fe6",
+        "type": "discount",
+        "period": "monthly",
+        "value": 10,
+        "limit": 5,
+        "used": 2,
+        "remaining": 3,
+        "can_apply": true,
+        "amount_discount": 35000,
+        "description": "Discount: 10% (Monthly) - 3/5 remaining"
+      },
+      {
+        "_id": "607f1f77bcf86cd799439014",
+        "applies_to": "pickup",
+        "service_id": null,
+        "type": "discount",
+        "period": "unlimited",
+        "value": 100,
+        "limit": null,
+        "used": 0,
+        "remaining": null,
+        "can_apply": true,
+        "amount_discount": 25000,
+        "description": "Discount: 100% (Unlimited) - ∞/∞ remaining"
+      }
+    ],
+    "estimated_total_discount": 60000,
+    "estimated_final_price": 315000
+  },
+  "pricing_breakdown": {
+    "service": {
+      "name": "Basic Grooming",
+      "price": 350000
+    },
+    "addons": [],
+    "subtotal": 350000,
+    "travel_fee": 25000,
+    "grand_total": 375000,
+    "discount": 60000,
+    "final": 315000
+  },
+  "pick_up": {
+    "is_available": true,
+    "zone": {
+      "area_name": "Zone A",
+      "min_radius_km": 0,
+      "max_radius_km": 5,
+      "travel_time_minutes": 30,
+      "travel_fee": 25000
+    },
+    "distance_km": 3.47
+  }
+}
+```
+
+**Error Responses:**
+
+- **404 Not Found:** Pet or service not found
+- **404 Not Found:** Store or customer not found (when `pick_up: true`)
+- **400 Bad Request:** Invalid pet_id or service_id format
+- **400 Bad Request:** `store_id` is required when `pick_up` is true
+- **400 Bad Request:** `customer_id` is required when `pick_up` is true
+- **400 Bad Request:** Pick-up service is not available for this store
+- **400 Bad Request:** Customer address with latitude and longitude is required for pick-up
+- **400 Bad Request:** Customer location is outside all delivery zones (includes distance in km)
+
+**Notes:**
+
+- `available_benefits` is filtered by request context:
+  - `applies_to: "service"` — only included when the benefit's `service_id` matches the requested `service_id`
+  - `applies_to: "addon"` — only included when `addon_ids` are provided **and** the benefit's `service_id` matches one of them; omitted entirely when no addons are sent
+  - `applies_to: "pickup"` — only included when `pick_up: true` is sent
+- `amount_discount` is calculated against the relevant price base: service price for `service` benefits, that addon's price for `addon` benefits, and `travel_fee` for `pickup` benefits.
+- `pricing_breakdown.travel_fee` is `0` when `pick_up` is not requested; set to the matched zone's fee otherwise.
+- `pricing_breakdown.grand_total` = `subtotal` + `travel_fee`.
+- `pricing_breakdown.final` = `grand_total` − `discount`.
+- When `pick_up: true`, the backend loads the customer's saved `profile.address.latitude` / `profile.address.longitude` — the customer must have their address coordinates set.
+- The `travel_fee` inside `pick_up.zone` is the authoritative fee to pass as `travel_fee` when creating the booking (`POST /bookings` or `POST /bookings/public`). Do **not** compute it on the client side.
+- The `pick_up` block is only present in the response when `pick_up: true` was sent in the request.
 
 ---
 
@@ -4344,8 +6893,10 @@ If user not found:
   "time_range": "09.00 - 12.00 (required)",
   "pick_up": "boolean (optional, default: false)",
   "service_addon_ids": ["MongoDB ObjectId (optional)"],
-  "travel_fee": "number (optional)",
   "discount_ids": ["MongoDB ObjectId (optional)"],
+  "selected_benefit_ids": [
+    "MongoDB ObjectId (optional, benefit IDs from pet membership to apply to booking)"
+  ],
   "sessions": [
     {
       "type": "string (required, e.g. 'bathing', 'styling')",
@@ -4378,15 +6929,79 @@ If user not found:
 
 > `pet_snapshot` dan `service_snapshot` di-generate otomatis oleh server berdasarkan `pet_id` dan `service_id`.
 > `sub_total_service` dan `total_price` dihitung otomatis oleh server.
-> Field `sessions` hanya berlaku untuk booking yang dibuat oleh admin/ops. Jika booking dibuat oleh customer/guest, `sessions` default `[]` dan diabaikan meski dikirim.
+> **IMPORTANT:** Field `sessions` in the request body is **ignored** for all booking types (admin, customer, guest). Sessions are **automatically generated** on the server-side based on the `service.sessions` array defined when the service was created. For example, if a service defines `sessions: ["bathing", "styling", "nail_trimming"]`, all bookings of that service will automatically have these three sessions created. If a service has no sessions defined, the booking will have an empty sessions array.
 > When `pick_up` is `true`, the system validates that:
+>
 > 1. Customer has latitude/longitude in their profile address
 > 2. The store has `is_pick_up_available: true`
 > 3. The service has `is_pick_up_available: true`
 > 4. Customer location falls within one of the store's delivery zones
-> If validation fails, a `BadRequestException` is returned with a descriptive error message.
+>    If validation fails, a `BadRequestException` is returned with a descriptive error message.
+
+**Field Explanations: Membership Benefits**
+
+**`selected_benefit_ids`** (Optional)
+
+- **Purpose:** Array of benefit IDs from the pet's active membership that customer wants to apply to this booking
+- **When to use:**
+  - Customer has an active membership with benefits
+  - Customer wants to use/redeem membership benefits to reduce the booking cost
+  - Call `POST /bookings/preview` first to see available benefits and calculated discounts
+- **How it works:**
+  1. Get the benefit IDs from the returned `available_benefits[]._id` in the preview response
+  2. Select which benefits to apply (e.g., a 10% discount benefit and a free service benefit)
+  3. Include the benefit IDs in the `selected_benefit_ids` array when creating the booking
+  4. System automatically validates and applies selected benefits
+- **Example:**
+  ```json
+  "selected_benefit_ids": [
+    "607f1f77bcf86cd799439011",
+    "607f1f77bcf86cd799439012"
+  ]
+  ```
+
+**`applied_benefits`** (Read-only, returned in response)
+
+- **Purpose:** Audit trail showing which benefits were actually applied to the booking and how much discount/credit was given
+- **Appears in:** GET `/bookings/:id` response (not in POST request)
+- **Contains:**
+  - `benefit_id` — Reference to the benefit that was applied
+  - `benefit_type` — Type of benefit: `discount` (percentage), `free_service` (fixed amount), `quota` (session count)
+  - `benefit_period` — How often the benefit resets: `weekly`, `monthly`, or `unlimited`
+  - `benefit_value` — The benefit's base value (10 for 10% discount, 50000 for fixed 50k discount, etc.)
+  - `amount_deducted` — Actual amount deducted from the booking total price
+  - `applied_at` — Timestamp when the benefit was applied
+- **Example:**
+  ```json
+  "applied_benefits": [
+    {
+      "benefit_id": "607f1f77bcf86cd799439011",
+      "benefit_type": "discount",
+      "benefit_period": "monthly",
+      "benefit_value": 10,
+      "amount_deducted": 40000,
+      "applied_at": "2026-03-19T14:30:00.000Z"
+    },
+    {
+      "benefit_id": "607f1f77bcf86cd799439012",
+      "benefit_type": "free_service",
+      "benefit_period": "unlimited",
+      "benefit_value": 50000,
+      "amount_deducted": 50000,
+      "applied_at": "2026-03-19T14:30:00.000Z"
+    }
+  ]
+  ```
+
+**Price Fields** (Understanding the pricing with benefits)
+
+- `original_total_price` — Total price BEFORE benefits are applied (service + addons + travel fee)
+- `final_total_price` — Total price AFTER selected benefits are applied (original_total_price - total_discount)
+- `total_price` — Deprecated field, always equals `final_total_price` for backward compatibility
 
 **Success Response (200):**
+
+Booking creation is asynchronous - the endpoint returns immediately with status:
 
 ```json
 {
@@ -4394,25 +7009,92 @@ If user not found:
 }
 ```
 
+> **Note:** To view the actual applied benefits in detail, query the booking via `GET /bookings/:id` - the response will include the complete `applied_benefits[]` array with all benefit details and amounts deducted.
+
+**Example: Viewing Applied Benefits in GET Response**
+
+When you fetch the created booking with `GET /bookings/:id`, the response includes:
+
+```json
+{
+  "message": "Fetch booking successfully",
+  "booking": {
+    "_id": "69acf9f3ec21849a308137c5",
+    "original_total_price": 400000,
+    "final_total_price": 310000,
+    "total_price": 310000,
+    "applied_benefits": [
+      {
+        "benefit_id": "607f1f77bcf86cd799439011",
+        "benefit_type": "discount",
+        "benefit_period": "monthly",
+        "benefit_value": 10,
+        "amount_deducted": 40000,
+        "applied_at": "2026-03-19T14:30:00.000Z"
+      },
+      {
+        "benefit_id": "607f1f77bcf86cd799439012",
+        "benefit_type": "free_service",
+        "benefit_period": "unlimited",
+        "benefit_value": 50000,
+        "amount_deducted": 50000,
+        "applied_at": "2026-03-19T14:30:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+**Booking Status After Creation:**
+
+The actual booking status depends on capacity availability:
+
+- **Status: `REQUESTED`** — Booking accepted and scheduled
+  - Booking fits within store's daily capacity + overbooking limit
+  - Can include a note if overbooking occurred: "overbooked by X minutes"
+
+- **Status: `WAITLIST`** — Booking accepted but placed in waitlist
+  - Store has exceeded its overbooking limit for the requested date/time
+  - Booking is created but flagged for manual review
+  - Status log note: "Booking is waitlisted (capacity exceeded)"
+  - Customer should be notified and may need to reschedule
+
+**Note:** To check the actual booking status created, query the booking details endpoint `GET /bookings/:id`
+
 **Business Logic:**
 
 - System automatically creates `pet_snapshot` from pet data
 - System automatically creates `service_snapshot` — stores service code, name, description, service type, and the exact-matched price entry based on the pet's pet type, size, and hair (all three must match)
 - System calculates pricing based on service and pet size (including addons)
-- Initial `booking_status` is "requested"
+- **Benefit Application (if `selected_benefit_ids` provided):**
+  - Validates each selected benefit exists in the pet's active membership
+  - Checks if benefit is still applicable (within period, usage count available)
+  - Calculates discount based on benefit type:
+    - `discount` type: applies percentage discount to subtotal
+    - `free_service` type: applies fixed amount discount
+  - Auto-deducts benefit usage upon successful booking creation
+  - Stores applied benefits as audit trail in `applied_benefits[]` with:
+    - benefit_id, benefit_type, benefit_period, benefit_value, amount_deducted, applied_at
+  - Updates `original_total_price` (before benefits) and `final_total_price` (after benefits)
+  - For backward compatibility, `total_price` is set to `final_total_price`
 - Creates initial status log entry
+- **Capacity Management & Status Assignment:**
+  - Validates against store's daily capacity (checks StoreDailyCapacity override or uses default)
+  - Atomically increments StoreDailyUsage for the date
+  - **If capacity exceeded beyond overbooking_limit_minutes:**
+    - Creates booking with `WAITLIST` status (capacity has been exceeded beyond acceptable limit)
+    - Rolls back the capacity usage increment
+    - Status log note: "Booking is waitlisted (capacity exceeded)"
+  - **If within overbooking limit:**
+    - Creates booking with `REQUESTED` status
+    - If usage > total capacity (but within overbooking limit): status log includes "overbooked by X minutes" note
+  - Uses MongoDB transactions to ensure data consistency
 - **Pick-up Service:**
   - When `pick_up: true`, system validates customer location and store/service capabilities
   - Calculates distance from customer's home location to store using Haversine formula
   - Matches customer location against store's configured delivery zones
   - Stores matched zone info in `pick_up_zone` field with area name, radius, travel time, and travel fee
   - If customer location is outside all zones, booking fails with error: "Customer location is outside all delivery zones"
-- **Capacity Management:**
-  - Validates against store's daily capacity (checks StoreDailyCapacity override or uses default)
-  - Atomically increments StoreDailyUsage for the date
-  - If capacity exceeded beyond overbooking_limit_minutes, creates WAITLIST booking
-  - If within overbooking limit, creates CONFIRMED booking with overbooked note
-  - Uses MongoDB transactions to ensure data consistency
 - All operations are atomic - if any step fails, entire transaction is rolled back
 
 **Error Responses:**
@@ -4638,8 +7320,6 @@ If user not found:
 **Error Responses:**
 
 - **400 Bad Request:** Missing required fields for rescheduled status
-
----
 
 ## Grooming Sessions
 
@@ -5317,12 +7997,28 @@ FINISHED = 'finished';
 ```typescript
 REQUESTED = 'requested';
 CONFIRMED = 'confirmed';
+WAITLIST = 'waitlist';
+DRIVER_ON_THE_WAY = 'driver on the way';
+GROOMER_ON_THE_WAY = 'groomer on the way';
 ARRIVED = 'arrived';
-GROOMING_IN_PROGRESS = 'grooming in progress';
-GROOMING_FINISHED = 'grooming finished';
+IN_PROGRESS = 'in progress';
+COMPLETED = 'completed';
 RESCHEDULED = 'rescheduled';
 CANCELLED = 'cancelled';
 ```
+
+**Status Descriptions:**
+
+- `REQUESTED` — Booking created and pending confirmation
+- `CONFIRMED` — Booking confirmed by admin/system
+- `WAITLIST` — Booking in waitlist due to capacity exceeded
+- `DRIVER_ON_THE_WAY` — Driver is on the way to pick up the pet (pick-up service)
+- `GROOMER_ON_THE_WAY` — Groomer is on the way to customer's location (home service)
+- `ARRIVED` — Customer/groomer/driver has arrived at location
+- `IN_PROGRESS` — Grooming service in progress
+- `COMPLETED` — Service completed successfully
+- `RESCHEDULED` — Booking rescheduled to different date/time
+- `CANCELLED` — Booking cancelled
 
 ### GroomingType
 

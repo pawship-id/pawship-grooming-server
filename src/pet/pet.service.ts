@@ -35,13 +35,6 @@ export class PetService {
       petData.member_category_id = new Types.ObjectId(body.member_category_id);
     }
 
-    if (body.memberships && body.memberships.length > 0) {
-      petData.memberships = body.memberships.map((membership) => ({
-        ...membership,
-        membership_id: new Types.ObjectId(membership.membership_id),
-      }));
-    }
-
     if (body.tags) {
       petData.tags = body.tags.map((tag) => capitalizeWords(tag));
     }
@@ -163,13 +156,6 @@ export class PetService {
         (updateData as any)[field] = new Types.ObjectId(value as any);
       }
     });
-
-    if (body.memberships && body.memberships.length > 0) {
-      updateData.memberships = body.memberships.map((membership) => ({
-        ...membership,
-        membership_id: new Types.ObjectId(membership.membership_id),
-      }));
-    }
 
     if (body.tags) {
       updateData.tags = body.tags.map((tag) => capitalizeWords(tag));

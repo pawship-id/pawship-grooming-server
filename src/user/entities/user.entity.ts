@@ -13,20 +13,47 @@ export enum Gender {
 
 @Schema({ _id: false, minimize: true })
 export class UserAddress {
+  /** e.g. 'Home', 'Office' */
+  @Prop()
+  label?: string;
+
+  /** Street name and number */
   @Prop()
   street?: string;
 
+  /** Subdistrict (Kelurahan/Desa) */
+  @Prop()
+  subdistrict?: string;
+
+  /** District (Kecamatan) */
+  @Prop()
+  district?: string;
+
+  /** City or Regency (Kota/Kabupaten) */
   @Prop()
   city?: string;
 
+  /** Province */
   @Prop()
-  zone?: string;
+  province?: string;
+
+  /** Postal code */
+  @Prop()
+  postal_code?: string;
+
+  /** Additional note for courier/driver */
+  @Prop()
+  note?: string;
 
   @Prop({ type: Number })
   latitude?: number;
 
   @Prop({ type: Number })
   longitude?: number;
+
+  /** Is this the main address? */
+  @Prop({ default: false })
+  is_main_address?: boolean;
 }
 
 export const UserAddressSchema = SchemaFactory.createForClass(UserAddress);
@@ -73,8 +100,9 @@ export class UserProfile {
   @Prop({ type: [String] })
   tags?: string[];
 
-  @Prop({ type: UserAddressSchema })
-  address?: UserAddress;
+  /** Multiple addresses */
+  @Prop({ type: [UserAddressSchema], default: [] })
+  addresses?: UserAddress[];
 }
 
 export const UserProfileSchema = SchemaFactory.createForClass(UserProfile);

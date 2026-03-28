@@ -113,8 +113,8 @@ export class CreateBookingDto {
   service_type_id: string;
 
   @IsMongoId({ message: 'customer must be a valid ID' })
-  @IsNotEmpty({ message: 'customer is required' })
-  customer_id: string;
+  @IsOptional()
+  customer_id?: string;
 
   @IsMongoId({ message: 'pet must be a valid ID' })
   @IsNotEmpty({ message: 'pet is required' })
@@ -156,13 +156,19 @@ export class CreateBookingDto {
   service_addon_ids?: string[];
 
   @IsOptional()
-  travel_fee?: number;
+  travel_fee: number;
 
   @IsOptional()
   sub_total_service: number;
 
   @IsOptional()
-  total_price: number;
+  original_total_price: number;
+
+  @IsOptional()
+  total_discount?: number;
+
+  @IsOptional()
+  final_total_price?: number;
 
   @IsOptional()
   @IsArray()
@@ -196,4 +202,12 @@ export class CreateBookingDto {
   @IsOptional()
   @IsBoolean({ message: 'pick_up must be a boolean' })
   pick_up?: boolean = false;
+
+  @IsOptional()
+  @IsArray({ message: 'selected_benefit_ids must be an array' })
+  @IsMongoId({
+    each: true,
+    message: 'each benefit ID must be a valid MongoDB ID',
+  })
+  selected_benefit_ids?: string[];
 }

@@ -16,8 +16,8 @@ import {
 import { BookingService } from './booking.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
+import { BookingPreviewRequestDto } from './dto/booking-preview.dto';
 import { ObjectId } from 'mongodb';
-import { BookingStatus } from './dto/booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
 import { AuthGuard } from 'src/auth/auth.guard';
 import { Public } from 'src/auth/public.decorator';
@@ -27,6 +27,12 @@ import { CreateGuestPetDto } from './dto/create-guest-pet.dto';
 import { StoreService } from 'src/store/store.service';
 import { ServiceService } from 'src/service/service.service';
 import { OptionService } from 'src/option/option.service';
+import { PetMembershipService } from 'src/pet-membership/pet-membership.service';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { UserService } from 'src/user/user.service';
+import { ApplyBenefitPreviewDto } from './dto/apply-benefit-preview.dto';
+import { ListBookingsDto } from './dto/list-bookings.dto';
 
 @Controller('bookings')
 @UseGuards(AuthGuard)
@@ -37,6 +43,10 @@ export class BookingController {
     private readonly storeService: StoreService,
     private readonly serviceService: ServiceService,
     private readonly optionService: OptionService,
+    private readonly petMembershipService: PetMembershipService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+    private readonly userService: UserService,
   ) {}
 
   // ─── Public (Guest) Endpoints ──────────────────────────────────────────────
@@ -118,21 +128,97 @@ export class BookingController {
     };
   }
 
-  // Create guest booking (public)
+  // Create booking only customer (public)
   @Public()
   @Post('public')
-  async createGuestBooking(@Body() body: CreateBookingDto) {
-    await this.bookingService.create(body);
+  async createGuestBooking(@Body() body: any, @Req() request: any) {
+    let user: { username: string; role: string } | undefined;
+
+    // try to extract and verify token if present
+    const authHeader = request.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7); // Remove 'Bearer ' prefix
+      try {
+        const payload = await this.jwtService.verifyAsync(token, {
+          secret: this.configService.get<string>('JWT_SECRET_KEY'),
+        });
+        user = payload;
+
+        body.customer_id = payload._id;
+      } catch (error) {
+        // token is invalid or expired, proceed as guest
+        console.warn('Invalid token provided, proceeding as guest');
+      }
+    }
+
+    // if the user is not logged in
+    if (!user) {
+      // and does not send customer_id
+      if (!body.customer_id) {
+        // throw bad request
+        throw new BadRequestException('customer_id is required');
+      }
+
+      // find one user by customer_id (because even if the user hasn't logged in, the user data has already been created)
+      let find_user = await this.userService.findById(
+        new ObjectId(body.customer_id),
+      );
+
+      if (find_user) {
+        user = find_user;
+      }
+    }
+
+    // Remove travel_fee if present in body (should always be from zone)
+    if ('travel_fee' in body) {
+      delete body.travel_fee;
+    }
+    await this.bookingService.create(body, user);
+
     return {
-      message: 'Guest booking created successfully',
+      message: 'Booking created successfully',
+    };
+  }
+
+  // Preview benefit application (public, no booking required)
+  @Public()
+  @Post('public/apply-benefit')
+  async previewApplyBenefit(@Body() dto: ApplyBenefitPreviewDto) {
+    const result = await this.bookingService.previewApplyBenefits(
+      dto.pet_id,
+      dto.selected_benefit_ids,
+      dto.store_id,
+      dto.service_id,
+      dto.add_on_ids,
+      dto.original_total_price,
+      dto.booking_date ? new Date(dto.booking_date) : undefined,
+    );
+    return {
+      message: 'Benefit preview calculated successfully',
+      ...result,
     };
   }
 
   // ─── Admin Endpoints ────────────────────────────────────────────────────────
 
+  // booking preview with benefit calculation
+  @Post('preview')
+  async preview(@Body() dto: BookingPreviewRequestDto, @Req() request: any) {
+    const preview = await this.bookingService.getBookingPreview(dto);
+
+    return {
+      message: 'Booking preview calculated successfully',
+      ...preview,
+    };
+  }
+
   // create booking (admin)
   @Post()
   async create(@Body() body: CreateBookingDto, @Req() request: any) {
+    if (!body.customer_id) {
+      throw new BadRequestException('customer_id is required');
+    }
+
     await this.bookingService.create(body, request.user);
 
     return {
@@ -142,12 +228,12 @@ export class BookingController {
 
   // get all booking (admin)
   @Get()
-  async findAll() {
-    const bookings = await this.bookingService.findAll();
+  async findAll(@Query() query: ListBookingsDto) {
+    const result = await this.bookingService.findAll(query);
 
     return {
       message: 'Fetch bookings successfully',
-      bookings,
+      ...result,
     };
   }
 

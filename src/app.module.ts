@@ -9,6 +9,8 @@ import { UserModule } from './user/user.module';
 import { StoreModule } from './store/store.module';
 import { ServiceModule } from './service/service.module';
 import { MembershipModule } from './membership/membership.module';
+import { PetMembershipModule } from './pet-membership/pet-membership.module';
+import { BenefitUsageModule } from './benefit-usage/benefit-usage.module';
 import { PetModule } from './pet/pet.module';
 import { BookingModule } from './booking/booking.module';
 import { StoreDailyCapacityModule } from './store-daily-capacity/store-daily-capacity.module';
@@ -36,6 +38,8 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
     StoreModule,
     ServiceModule,
     MembershipModule,
+    PetMembershipModule,
+    BenefitUsageModule,
     PetModule,
     BookingModule,
     StoreDailyCapacityModule,

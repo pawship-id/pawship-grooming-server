@@ -27,6 +27,57 @@ export class ZoneSnapshot {
   travel_fee?: number;
 }
 
+@Schema({ _id: false })
+export class AppliedBenefit {
+  @Prop({
+    type: {
+      _id: { type: Types.ObjectId, required: true },
+      label: { type: String, default: null },
+      service: {
+        type: { name: { type: String } },
+        default: null,
+      },
+    },
+    required: true,
+    _id: false,
+  })
+  benefit: {
+    _id: Types.ObjectId;
+    label: string | null;
+    service: { name: string } | null;
+  };
+
+  @Prop({ required: true })
+  benefit_type: string; // 'discount', 'quota'
+
+  @Prop({ required: true })
+  benefit_period: string; // 'weekly', 'monthly', 'unlimited'
+
+  @Prop()
+  benefit_value?: number; // percentage, amount, or quantity
+
+  @Prop({ required: true })
+  base_price: number; // harga service sebelum diskon
+
+  @Prop({ required: true })
+  amount_deducted: number; // amount berkurang dari total harga
+
+  @Prop({ required: true })
+  applied_at: Date;
+
+  @Prop({ default: null })
+  applies_to?: string; // 'service' | 'addon' | 'pickup' etc.
+
+  @Prop({ default: null })
+  description?: string;
+
+  @Prop({ type: Types.ObjectId, default: null })
+  pet_membership_id?: Types.ObjectId; // for benefit usage restoration on cancel
+
+  @Prop({ type: Types.ObjectId, default: null })
+  service_id?: Types.ObjectId; // for matching service/addon in display
+}
+
 @Schema({
   toJSON: {
     virtuals: true,
@@ -101,7 +152,7 @@ export class PetSnapshot {
       delete ret.service_type.id;
       delete ret.id;
 
-      if (ret.addons.length) {
+      if (ret.addons && ret.addons.length) {
         ret.addons.forEach((el: any) => {
           delete el.id;
         });
@@ -156,7 +207,7 @@ export class ServiceSnapshot {
   }[];
 }
 
-@Schema({ _id: false })
+@Schema()
 export class SessionMedia {
   @Prop({
     enum: MediaType,
@@ -318,6 +369,10 @@ export class Booking {
   @Prop({ type: [BookingStatusLog], default: [] })
   status_logs: BookingStatusLog[];
 
+  /* ===== Audit ===== */
+  @Prop({ type: String, enum: ['customer', 'admin'], default: null })
+  created_by_role: string | null;
+
   /* ===== Service ===== */
   @Prop({ type: Types.ObjectId, ref: 'Service', required: true })
   service_id: Types.ObjectId;
@@ -333,10 +388,16 @@ export class Booking {
   travel_fee: number;
 
   @Prop({ default: true })
-  sub_total_service: number;
+  sub_total_service: number; // harga service + harga add on
 
   @Prop({ required: true })
-  total_price: number;
+  original_total_price: number; // harga sub_total_service + harga travel fee sebelum benefit
+
+  @Prop({ required: true })
+  total_discount: number; // total harga discount
+
+  @Prop({ default: null })
+  final_total_price: number; // final total harga yg harus dibayar
 
   @Prop({
     type: [{ type: Types.ObjectId, ref: 'Promo' }],
@@ -361,12 +422,26 @@ export class Booking {
   })
   sessions: GroomingSession[];
 
+  /* ===== Media - Per-booking media uploads (photos/videos) ===== */
+  @Prop({
+    type: [SessionMedia],
+    default: [],
+  })
+  media: SessionMedia[];
+
   /* ===== Pick-up Service ===== */
   @Prop({ default: false })
   pick_up: boolean;
 
   @Prop({ type: ZoneSnapshot })
   pick_up_zone?: ZoneSnapshot;
+
+  /* ===== Membership Benefits ===== */
+  @Prop({ type: [Types.ObjectId], default: [] })
+  selected_benefit_ids: Types.ObjectId[];
+
+  @Prop({ type: [AppliedBenefit], default: [] })
+  applied_benefits: AppliedBenefit[];
 
   /* ===== Soft Delete ===== */
   @Prop({ default: false })

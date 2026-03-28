@@ -13,6 +13,7 @@ import { ObjectId } from 'mongodb';
 import { capitalizeWords } from 'src/helpers/string.helper';
 import { Option, OptionDocument } from 'src/option/entities/option.entity';
 import { Store, StoreDocument } from 'src/store/entities/store.entity';
+import { ServiceType, ServiceTypeDocument } from 'src/service-type/entities/service-type.entity';
 
 @Injectable()
 export class ServiceService {
@@ -23,9 +24,26 @@ export class ServiceService {
     private readonly optionModel: Model<OptionDocument>,
     @InjectModel(Store.name)
     private readonly storeModel: Model<StoreDocument>,
+    @InjectModel(ServiceType.name)
+    private readonly serviceTypeModel: Model<ServiceTypeDocument>,
   ) {}
 
+  private async isAddonServiceType(serviceTypeId: string): Promise<boolean> {
+    const st = await this.serviceTypeModel
+      .findById(serviceTypeId)
+      .select('title')
+      .lean();
+    return !!st && st.title.toLowerCase().includes('addon');
+  }
+
   async create(body: CreateServiceDto) {
+    const isAddon = await this.isAddonServiceType(body.service_type_id);
+    if (!isAddon && (!body.sessions || body.sessions.length === 0)) {
+      throw new BadRequestException(
+        'sessions must contain at least 1 item for non-addon service types',
+      );
+    }
+
     try {
       body.name = capitalizeWords(body.name);
 
@@ -34,7 +52,7 @@ export class ServiceService {
       return await user.save();
     } catch (error) {
       if (error.code === 11000) {
-        const duplicatedField = Object.keys(error.keyPattern)[0]; // ambil field yang duplicate
+        const duplicatedField = Object.keys(error.keyPattern)[0];
         throw new BadRequestException(`${duplicatedField} already exists`);
       }
       throw error;
@@ -159,6 +177,23 @@ export class ServiceService {
   }
 
   async update(id: ObjectId, body: UpdateServiceDto) {
+    // Only validate sessions when they are explicitly provided in the update
+    if (body.sessions !== undefined) {
+      const serviceTypeId =
+        body.service_type_id ??
+        ((await this.serviceModel.findById(id).select('service_type_id').lean()) as any)
+          ?.service_type_id?.toString();
+
+      if (serviceTypeId) {
+        const isAddon = await this.isAddonServiceType(serviceTypeId);
+        if (!isAddon && body.sessions.length === 0) {
+          throw new BadRequestException(
+            'sessions must contain at least 1 item for non-addon service types',
+          );
+        }
+      }
+    }
+
     try {
       if (body.name) {
         body.name = capitalizeWords(body.name);
@@ -173,9 +208,10 @@ export class ServiceService {
       return service;
     } catch (error) {
       if (error.code === 11000) {
-        const duplicatedField = Object.keys(error.keyPattern)[0]; // ambil field yang duplicate
+        const duplicatedField = Object.keys(error.keyPattern)[0];
         throw new BadRequestException(`${duplicatedField} already exists`);
       }
+      throw error;
     }
   }
 
@@ -198,7 +234,7 @@ export class ServiceService {
     const service = await this.serviceModel
       .findById(serviceId)
       .select(
-        'code name price price_type prices isDeleted duration service_location_type',
+        'code name price price_type prices isDeleted duration service_location_type sessions',
       )
       .lean();
 
@@ -238,11 +274,13 @@ export class ServiceService {
     }
 
     return {
+      _id: service._id,
       code: service.code,
       name: service.name,
       price: resolvedPrice,
       duration: service.duration,
       service_location_type: service.service_location_type,
+      sessions: (service as any).sessions || [],
     };
   }
 

@@ -3,29 +3,6 @@ import { HydratedDocument, Types } from 'mongoose';
 
 export type PetDocument = HydratedDocument<Pet>;
 
-@Schema({ _id: false })
-export class MembershipItem {
-  @Prop({ type: Types.ObjectId, ref: 'Membership', required: true })
-  membership_id: Types.ObjectId;
-
-  @Prop({ type: Date, required: true })
-  start_date: Date;
-
-  @Prop({ type: Date, required: true })
-  end_date: Date;
-
-  @Prop({ required: true, enum: ['active', 'expired', 'cancelled'] })
-  status: string;
-
-  @Prop({ default: 0 })
-  usage_count: number;
-
-  @Prop({ default: 0 })
-  max_usage: number;
-}
-
-const MembershipItemSchema = SchemaFactory.createForClass(MembershipItem);
-
 @Schema({
   timestamps: true,
   toJSON: {
@@ -117,9 +94,6 @@ export class Pet {
 
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   customer_id: Types.ObjectId;
-
-  @Prop({ type: [MembershipItemSchema], default: [] })
-  memberships: MembershipItem[];
 
   @Prop({ default: true })
   is_active: boolean;

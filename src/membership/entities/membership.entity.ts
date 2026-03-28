@@ -3,6 +3,50 @@ import { HydratedDocument, Types } from 'mongoose';
 
 export type MembershipDocument = HydratedDocument<Membership>;
 
+export enum BenefitType {
+  DISCOUNT = 'discount',
+  QUOTA = 'quota',
+}
+
+export enum BenefitScope {
+  SERVICE = 'service',
+  ADDON = 'addon',
+  PICKUP = 'pickup',
+}
+
+export enum BenefitPeriod {
+  WEEKLY = 'weekly',
+  MONTHLY = 'monthly',
+  UNLIMITED = 'unlimited', // No reset, berlaku sepanjang membership
+}
+
+@Schema({ _id: false })
+export class MembershipBenefit {
+  @Prop({ type: Types.ObjectId, default: () => new Types.ObjectId() })
+  _id: Types.ObjectId;
+
+  @Prop({ enum: BenefitScope, required: true })
+  applies_to: BenefitScope;
+
+  @Prop({ type: Types.ObjectId, ref: 'Service' })
+  service_id?: Types.ObjectId;
+
+  @Prop()
+  label?: string; // Required when service_id is not set
+
+  @Prop({ enum: BenefitType, required: true })
+  type: BenefitType;
+
+  @Prop({ enum: BenefitPeriod, default: BenefitPeriod.UNLIMITED })
+  period: BenefitPeriod;
+
+  @Prop()
+  limit?: number; // null/omitted = unlimited
+
+  @Prop()
+  value?: number; // Required for discount type (percentage)
+}
+
 @Schema({
   timestamps: true,
   toJSON: {
@@ -10,7 +54,7 @@ export type MembershipDocument = HydratedDocument<Membership>;
     transform: (_: any, ret: any) => {
       delete ret.id;
       delete ret.__v;
-      delete ret.service_include_ids;
+
       delete ret.pet_type_ids;
 
       return ret;
@@ -19,11 +63,23 @@ export type MembershipDocument = HydratedDocument<Membership>;
   toObject: { virtuals: true },
 })
 export class Membership {
-  @Prop({ required: true })
+  @Prop({ required: true, unique: true })
   name: string;
 
   @Prop()
-  description: string;
+  description?: string;
+
+  @Prop({ required: true, min: 1 })
+  duration_months: number;
+
+  @Prop({ required: true, min: 0 })
+  price: number;
+
+  @Prop()
+  note?: string;
+
+  @Prop({ default: true })
+  is_active: boolean;
 
   @Prop({
     type: [{ type: Types.ObjectId, ref: 'Option' }],
@@ -31,23 +87,26 @@ export class Membership {
   })
   pet_type_ids: Types.ObjectId[];
 
-  @Prop({ required: true })
-  duration_months: number;
-
-  @Prop({ required: true })
-  price: number;
-
-  @Prop({ default: 0 })
-  max_usage: number;
-
   @Prop({
-    type: [{ type: Types.ObjectId, ref: 'Service' }],
+    type: [
+      {
+        _id: { type: Types.ObjectId, default: () => new Types.ObjectId() },
+        applies_to: { type: String, enum: Object.values(BenefitScope) },
+        service_id: { type: Types.ObjectId, ref: 'Service' },
+        label: { type: String },
+        type: { type: String, enum: Object.values(BenefitType) },
+        period: {
+          type: String,
+          enum: Object.values(BenefitPeriod),
+          default: BenefitPeriod.UNLIMITED,
+        },
+        limit: { type: Number },
+        value: { type: Number },
+      },
+    ],
     default: [],
   })
-  service_include_ids: Types.ObjectId[];
-
-  @Prop({ default: true })
-  is_active: boolean;
+  benefits: MembershipBenefit[];
 
   @Prop({ default: false })
   isDeleted: boolean;
@@ -61,11 +120,5 @@ export const MembershipSchema = SchemaFactory.createForClass(Membership);
 MembershipSchema.virtual('pet_types', {
   ref: 'Option',
   localField: 'pet_type_ids',
-  foreignField: '_id',
-});
-
-MembershipSchema.virtual('service_includes', {
-  ref: 'Service',
-  localField: 'service_include_ids',
   foreignField: '_id',
 });

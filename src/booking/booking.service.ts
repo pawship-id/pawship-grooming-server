@@ -2,18 +2,22 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  HttpException,
 } from '@nestjs/common';
 import {
   BookingStatusLogDto,
   CreateBookingDto,
 } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
+import { BookingPreviewRequestDto } from './dto/booking-preview.dto';
 import { InjectModel, InjectConnection } from '@nestjs/mongoose';
 import { Booking, BookingDocument } from './entities/booking.entity';
 import { Model, Types, Connection } from 'mongoose';
 import { ObjectId } from 'mongodb';
 import { PetService } from 'src/pet/pet.service';
 import { ServiceService } from 'src/service/service.service';
+import { PetMembershipService } from 'src/pet-membership/pet-membership.service';
+import { BenefitUsageService } from 'src/benefit-usage/benefit-usage.service';
 import { BookingStatus, GroomingType, SessionStatus } from './dto/booking.dto';
 import { Store, StoreDocument } from 'src/store/entities/store.entity';
 import { Service, ServiceDocument } from 'src/service/entities/service.entity';
@@ -26,6 +30,7 @@ import {
   StoreDailyCapacity,
   StoreDailyCapacityDocument,
 } from 'src/store-daily-capacity/entities/store-daily-capacity.entity';
+import { ListBookingsDto } from './dto/list-bookings.dto';
 
 @Injectable()
 export class BookingService {
@@ -46,7 +51,321 @@ export class BookingService {
     private readonly connection: Connection,
     private readonly petService: PetService,
     private readonly serviceService: ServiceService,
+    private readonly petMembershipService: PetMembershipService,
+    private readonly benefitUsageService: BenefitUsageService,
   ) {}
+
+  /**
+   * Get booking preview with pricing calculation and benefit options
+   */
+  async getBookingPreview(dto: BookingPreviewRequestDto): Promise<any> {
+    try {
+      // 1. Validate and fetch pet
+      const pet = await this.petService.getPetSnapshot(
+        new ObjectId(dto.pet_id),
+      );
+
+      if (!pet) {
+        throw new NotFoundException('Pet not found');
+      }
+
+      // 2. Fetch service pricing
+      const service = await this.serviceService.getServiceForBooking(
+        new ObjectId(dto.service_id),
+        pet.size?._id ? new ObjectId(pet.size._id) : undefined,
+        pet.pet_type?._id ? new ObjectId(pet.pet_type._id) : undefined,
+        pet.hair?._id ? new ObjectId(pet.hair._id) : undefined,
+      );
+
+      if (!service) {
+        throw new NotFoundException('Service not found');
+      }
+
+      let originalPrice = service.price || 0;
+      const addonPrices: any[] = [];
+      let addonsTotal = 0;
+
+      // 3. Fetch addon pricing (if provided)
+      if (dto.addon_ids && dto.addon_ids.length > 0) {
+        const addons = await Promise.all(
+          dto.addon_ids.map((addonId) =>
+            this.serviceService.getServiceForBooking(
+              new ObjectId(addonId),
+              pet.size?._id ? new ObjectId(pet.size._id) : undefined,
+              pet.pet_type?._id ? new ObjectId(pet.pet_type._id) : undefined,
+              pet.hair?._id ? new ObjectId(pet.hair._id) : undefined,
+            ),
+          ),
+        );
+
+        for (const addon of addons) {
+          if (addon) {
+            const addonPrice = addon.price || 0;
+            addonsTotal += addonPrice;
+            const addonId = (addon as any)._id
+              ? (addon as any)._id.toString()
+              : (addon as any).id || '';
+            addonPrices.push({
+              _id: addonId,
+              name: addon.name,
+              price: addonPrice,
+            });
+          }
+        }
+      }
+
+      const subtotalBeforeBenefits = originalPrice + addonsTotal;
+
+      // 4. Resolve pick-up zone early (travel_fee is needed as discount base for pickup benefits)
+      let pickUpResult: {
+        is_available: boolean;
+        zone: {
+          area_name: string;
+          min_radius_km: number;
+          max_radius_km: number;
+          travel_time_minutes: number;
+          travel_fee: number;
+        };
+        distance_km: number;
+      } | null = null;
+
+      // Always ignore dto.travel_fee, always use matched zone
+      if (dto.pick_up === true) {
+        if (!dto.store_id) {
+          throw new BadRequestException(
+            'store_id is required when pick_up is true',
+          );
+        }
+        if (!dto.customer_id) {
+          throw new BadRequestException(
+            'customer_id is required when pick_up is true',
+          );
+        }
+
+        const store = await this.storeModel.findOne({
+          _id: new ObjectId(dto.store_id),
+          isDeleted: false,
+        });
+        if (!store) {
+          throw new NotFoundException('Store not found');
+        }
+        if (!store.is_pick_up_available) {
+          throw new BadRequestException(
+            'Pick-up service is not available for this store',
+          );
+        }
+
+        const customer = await this.userModel
+          .findById(new ObjectId(dto.customer_id))
+          .select('profile.addresses')
+          .lean();
+        if (!customer) {
+          throw new NotFoundException('Customer not found');
+        }
+
+        // Find main address
+        const addresses = (customer as any).profile?.addresses || [];
+        let mainAddress = addresses.find((a: any) => a.is_main_address);
+        if (!mainAddress && addresses.length > 0) {
+          mainAddress = addresses[0];
+        }
+        if (
+          !mainAddress ||
+          mainAddress.latitude == null ||
+          mainAddress.longitude == null
+        ) {
+          throw new BadRequestException(
+            'Customer profile must have location (latitude/longitude) to use pick-up service',
+          );
+        }
+        const lat = mainAddress.latitude;
+        const lon = mainAddress.longitude;
+
+        // findPickUpZone validates store.location is properly set before we access it
+        const matchedZone = await this.findPickUpZone(store, lat, lon);
+
+        const distanceKm = this.calculateDistance(
+          lat,
+          lon,
+          store.location!.latitude!,
+          store.location!.longitude!,
+        );
+
+        pickUpResult = {
+          is_available: true,
+          zone: {
+            area_name: matchedZone.area_name,
+            min_radius_km: matchedZone.min_radius_km,
+            max_radius_km: matchedZone.max_radius_km,
+            travel_time_minutes: matchedZone.travel_time_minutes,
+            travel_fee: matchedZone.travel_fee,
+          },
+          distance_km: +distanceKm.toFixed(2),
+        };
+      }
+
+      // travelFee always from matched zone
+      const travelFee = pickUpResult?.zone.travel_fee ?? 0;
+
+      // 5. Get available benefits filtered by context:
+      //    - applies_to 'service' → only benefit whose service_id matches dto.service_id
+      //    - applies_to 'addon'   → only benefit whose service_id is in dto.addon_ids (skipped when no addons)
+      //    - applies_to 'pickup'  → only when pick_up is true
+      const membershipData =
+        await this.petMembershipService.getAvailableBenefits(
+          dto.pet_id,
+          dto.date ? new Date(dto.date) : undefined,
+        );
+
+      const hasActiveMembership = membershipData.has_active_membership;
+
+      const addonIdSet = new Set(
+        (dto.addon_ids || []).map((id) => id.toString()),
+      );
+      const hasAddons = !!(dto.addon_ids && dto.addon_ids.length > 0);
+
+      const availableBenefits = hasActiveMembership
+        ? (membershipData.benefits || [])
+            .filter((b: any) => {
+              const bServiceId = b.service_id?.toString();
+              if (b.applies_to === 'service') {
+                // null service_id = applies to any service
+                return !bServiceId || bServiceId === dto.service_id.toString();
+              }
+              if (b.applies_to === 'addon') {
+                // null service_id = applies to all selected addons
+                return hasAddons && (!bServiceId || addonIdSet.has(bServiceId));
+              }
+              if (b.applies_to === 'pickup') {
+                return dto.pick_up === true;
+              }
+              return false;
+            })
+            .map((b: any) => {
+              // Determine price base for this benefit type
+              let discountBase = 0;
+              if (b.applies_to === 'service') {
+                discountBase = originalPrice;
+              } else if (b.applies_to === 'addon') {
+                if (b.service_id) {
+                  const matchingAddon = addonPrices.find(
+                    (a) => a._id.toString() === b.service_id.toString(),
+                  );
+                  discountBase = matchingAddon?.price ?? 0;
+                } else {
+                  // no specific addon: benefit discounts all selected addons
+                  discountBase = addonsTotal;
+                }
+              } else if (b.applies_to === 'pickup') {
+                discountBase = travelFee;
+              }
+
+              return {
+                _id: b._id,
+                applies_to: b.applies_to,
+                service_id: b.service_id,
+                label: b.label,
+                service: b.service,
+                type: b.type,
+                period: b.period,
+                limit: b.limit,
+                value: b.value,
+                used: b.used,
+                remaining: b.remaining,
+                can_apply: b.can_apply,
+                period_reset_date: b.period_reset_date,
+                next_reset_date: b.next_reset_date,
+                amount_discount: b.can_apply
+                  ? b.type === 'discount'
+                    ? (b.value / 100) * discountBase
+                    : discountBase // quota = full base price is free
+                  : 0,
+                description: this.getBenefitDescription(b),
+              };
+            })
+        : [];
+
+      // 6. Calculate estimated maximum discount and final price
+      let estimatedTotalDiscount = 0;
+      availableBenefits.forEach((benefit: any) => {
+        if (benefit.can_apply && benefit.type === 'discount') {
+          estimatedTotalDiscount += benefit.amount_discount;
+        }
+      });
+
+      const grandTotal = subtotalBeforeBenefits + travelFee;
+      const estimatedFinalPrice = Math.max(
+        0,
+        grandTotal - estimatedTotalDiscount,
+      );
+
+      // 7. Build response
+      const response: any = {
+        pet_id: dto.pet_id,
+        pet_name: pet.name,
+        service_id: dto.service_id,
+        service_name: service.name,
+        pricing: {
+          original_service_price: originalPrice,
+          addon_prices: addonPrices,
+          subtotal_before_benefits: subtotalBeforeBenefits,
+          has_active_membership: hasActiveMembership,
+          available_benefits: availableBenefits,
+          estimated_total_discount: estimatedTotalDiscount,
+          estimated_final_price: estimatedFinalPrice,
+        },
+        pricing_breakdown: {
+          service: {
+            name: service.name,
+            price: originalPrice,
+          },
+          addons: addonPrices,
+          subtotal: subtotalBeforeBenefits,
+          travel_fee: travelFee,
+          grand_total: grandTotal,
+          discount: estimatedTotalDiscount,
+          final: estimatedFinalPrice,
+        },
+      };
+
+      if (pickUpResult !== null) {
+        response.pick_up = pickUpResult;
+      }
+
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Generate human-readable benefit description
+   */
+  private getBenefitDescription(benefit: any): string {
+    const typeLabel =
+      {
+        discount: 'Discount',
+        quota: 'Free Sessions',
+      }[benefit.type] || 'Benefit';
+
+    const valueStr =
+      benefit.type === 'discount'
+        ? `${benefit.value}%`
+        : `${benefit.service.name}`;
+
+    const periodLabel =
+      {
+        weekly: 'Weekly',
+        monthly: 'Monthly',
+        unlimited: 'Unlimited',
+      }[benefit.period] || benefit.period;
+
+    const remainingStr =
+      benefit.remaining === null ? '∞' : `${benefit.remaining}`;
+    const limitStr = benefit.limit === null ? '∞' : `${benefit.limit}`;
+
+    return `${typeLabel}: ${valueStr} (${periodLabel}) - ${remainingStr}/${limitStr} remaining`;
+  }
 
   /**
    * Haversine formula to calculate distance between two lat/long points in km
@@ -68,6 +387,290 @@ export class BookingService {
         Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
+  }
+
+  /**
+   * Calculate and apply selected benefits to booking
+   */
+  private async applyBenefitsToBooking(
+    petId: string,
+    selectedBenefitIds: string[],
+    storeId?: string,
+    serviceId?: string,
+    addOnIds?: string[],
+    originalTotalPrice?: number, // BUG2: when provided, final_price = originalTotalPrice - totalDiscount
+    bookingDate?: Date,
+  ): Promise<{
+    applied_benefits: any[];
+    total_discount: number;
+    final_price: number;
+    breakdown: Array<{
+      benefit: {
+        _id: string;
+        label: string | null;
+        service: { name: string } | null;
+      };
+      applies_to: string;
+      benefit_type: string;
+      benefit_period: string;
+      benefit_value: number | null;
+      base_price: number;
+      amount_deducted: number;
+      description: string | null;
+      applied_at: Date;
+    }>;
+  }> {
+    const emptyResult = (fallbackTotal = 0) => ({
+      applied_benefits: [],
+      total_discount: 0,
+      final_price: fallbackTotal,
+      breakdown: [],
+    });
+
+    if (!selectedBenefitIds || selectedBenefitIds.length === 0) {
+      return emptyResult(originalTotalPrice ?? 0);
+    }
+
+    // 1. Get pet attributes for price lookup
+    const pet = await this.petService.getPetSnapshot(new ObjectId(petId));
+
+    // 2. Lazy-load full pet doc (customer_id needed only for pickup benefit)
+    let petDoc: any = null;
+    const getPetDoc = async () => {
+      if (!petDoc) petDoc = await this.petService.findOne(new ObjectId(petId));
+      return petDoc;
+    };
+
+    // 3. Get active membership benefits
+    const membershipData =
+      await this.petMembershipService.getAvailableBenefits(petId, bookingDate);
+    if (!membershipData.has_active_membership) {
+      return emptyResult(originalTotalPrice ?? 0);
+    }
+
+    const appliedBenefits: any[] = [];
+    let totalDiscount = 0;
+    const breakdown: Array<any> = [];
+
+    // Pre-scan: collect which service/addon IDs are fully covered by a quota benefit.
+    // A discount on an already-free item has no effect and should be skipped.
+    const quotaCoveredServiceIds = new Set<string>();
+    const quotaCoveredAddonIds = new Set<string>();
+    for (const bId of selectedBenefitIds) {
+      const b = membershipData.benefits.find((x: any) => x._id === bId);
+      if (!b || !b.can_apply || b.type !== 'quota') continue;
+      if (b.applies_to === 'service') {
+        const resolvedId = b.service_id || serviceId;
+        if (resolvedId) quotaCoveredServiceIds.add(resolvedId.toString());
+      } else if (b.applies_to === 'addon') {
+        const covered: string[] = b.service_id
+          ? [b.service_id.toString()]
+          : (addOnIds || []).map((id) => id.toString());
+        covered.forEach((id) => quotaCoveredAddonIds.add(id));
+      }
+    }
+
+    for (const benefitId of selectedBenefitIds) {
+      const benefit = membershipData.benefits.find(
+        (b: any) => b._id === benefitId,
+      );
+      if (!benefit) continue;
+      if (!benefit.can_apply) continue;
+      const appliesTo: string = benefit.applies_to;
+      let basePrice = 0;
+
+      // ── Skip discount if target is already free via an applied quota ──────
+      if (benefit.type === 'discount') {
+        if (appliesTo === 'service') {
+          const resolvedId = (benefit.service_id || serviceId)?.toString();
+          if (resolvedId && quotaCoveredServiceIds.has(resolvedId)) continue;
+        } else if (appliesTo === 'addon') {
+          if (benefit.service_id) {
+            if (quotaCoveredAddonIds.has(benefit.service_id.toString())) continue;
+          } else {
+            // null service_id → applies to all selected addons; skip if all are covered
+            const allCovered =
+              (addOnIds || []).length > 0 &&
+              (addOnIds || []).every((id) => quotaCoveredAddonIds.has(id.toString()));
+            if (allCovered) continue;
+          }
+        }
+      }
+
+      // ── Resolve base price per scope ─────────────────────────────────────
+      if (appliesTo === 'service') {
+        let service_id = benefit.service_id || serviceId;
+        if (!service_id) continue;
+
+        try {
+          // BUG8 fix: use resolved service_id, not raw serviceId param
+          const resolvedServiceId = benefit.service_id || serviceId;
+          const svc = await this.serviceService.getServiceForBooking(
+            new ObjectId(resolvedServiceId),
+            pet.size?._id ? new ObjectId(pet.size._id) : undefined,
+            pet.pet_type?._id ? new ObjectId(pet.pet_type._id) : undefined,
+            pet.hair?._id ? new ObjectId(pet.hair._id) : undefined,
+          );
+          basePrice = svc.price;
+        } catch (err) {
+          if (err instanceof HttpException) throw err;
+          continue;
+        }
+      } else if (appliesTo === 'addon') {
+        let add_ons = benefit.service_id ? [benefit.service_id] : addOnIds;
+
+        if (!add_ons || add_ons.length === 0) continue;
+        for (const addonId of add_ons) {
+          // Skip individual addon if already fully free via a quota benefit
+          if (benefit.type === 'discount' && quotaCoveredAddonIds.has(addonId.toString())) continue;
+          let addonBasePrice = 0;
+          try {
+            const addon = await this.serviceService.getServiceForBooking(
+              new ObjectId(addonId),
+              pet.size._id ? new ObjectId(pet.size._id) : undefined,
+              pet.pet_type._id ? new ObjectId(pet.pet_type._id) : undefined,
+              pet.hair._id ? new ObjectId(pet.hair._id) : undefined,
+            );
+            addonBasePrice = addon.price;
+          } catch (err) {
+            if (err instanceof HttpException) throw err;
+            continue; // skip this addon if price lookup fails
+          }
+          let addonDiscount = 0;
+          if (benefit.type === 'discount') {
+            addonDiscount = (benefit.value / 100) * addonBasePrice;
+          } else if (benefit.type === 'quota') {
+            addonDiscount = addonBasePrice;
+          }
+          addonDiscount = Math.max(0, addonDiscount);
+          breakdown.push({
+            benefit: {
+              _id: benefit._id,
+              label: benefit.label ?? null,
+              service: benefit.service ? { name: benefit.service.name } : null,
+            },
+            applies_to: appliesTo,
+            benefit_type: benefit.type,
+            benefit_period: benefit.period,
+            benefit_value: benefit.value ?? null,
+            base_price: addonBasePrice,
+            amount_deducted: addonDiscount,
+            description: benefit.description ?? null,
+            pet_membership_id: benefit.pet_membership_id ?? null,
+            service_id: benefit.service_id
+              ? new Types.ObjectId(benefit.service_id)
+              : null,
+            applied_at: new Date(),
+          });
+          if (addonDiscount > 0) {
+            totalDiscount += addonDiscount;
+            appliedBenefits.push({
+              pet_membership_id: benefit.pet_membership_id, // needed for deductBenefitUsage
+              benefit_id: new Types.ObjectId(benefitId),
+              benefit_type: benefit.type,
+              benefit_period: benefit.period,
+              benefit_value: benefit.value,
+              amount_deducted: addonDiscount,
+              applied_at: new Date(),
+            });
+          }
+        }
+        continue; // addon entries already pushed inside the loop above
+      } else if (appliesTo === 'pickup') {
+        if (!storeId) {
+          throw new BadRequestException(
+            'store_id is required when benefit type is pick_up',
+          );
+        } // store_id required to compute travel fee
+        try {
+          const doc = await getPetDoc();
+          const customerId = (doc as any)?.customer_id;
+          if (!customerId) {
+            throw new BadRequestException('customer_id is required');
+          }
+
+          const customer = await this.userModel.findById(customerId);
+          const addresses = (customer as any)?.profile?.addresses ?? [];
+          let mainAddress = addresses.find((a: any) => a.is_main_address);
+          if (!mainAddress && addresses.length > 0) mainAddress = addresses[0];
+          if (!mainAddress?.latitude || !mainAddress?.longitude) continue;
+
+          const store = await this.storeModel.findById(new ObjectId(storeId));
+          if (!store) {
+            throw new NotFoundException('store is not found');
+          }
+
+          const zone = await this.findPickUpZone(
+            store,
+            mainAddress.latitude,
+            mainAddress.longitude,
+          );
+          basePrice = zone.travel_fee ?? 0;
+        } catch (err) {
+          if (err instanceof HttpException) throw err;
+          continue;
+        }
+      }
+
+      // ── Apply discount or quota ───────────────────────────────────────────
+      let discountAmount = 0;
+      if (benefit.type === 'discount') {
+        discountAmount = (benefit.value / 100) * basePrice;
+      } else if (benefit.type === 'quota') {
+        discountAmount = basePrice; // fully free
+      }
+      discountAmount = Math.max(0, discountAmount);
+
+      breakdown.push({
+        benefit: {
+          _id: benefit._id,
+          label: benefit.label ?? null,
+          service: benefit.service ? { name: benefit.service.name } : null,
+        },
+        applies_to: appliesTo,
+        benefit_type: benefit.type,
+        benefit_period: benefit.period,
+        benefit_value: benefit.value ?? null,
+        base_price: basePrice,
+        amount_deducted: discountAmount,
+        description: benefit.description ?? null,
+        pet_membership_id: benefit.pet_membership_id ?? null,
+        service_id: benefit.service_id
+          ? new Types.ObjectId(benefit.service_id)
+          : null,
+        applied_at: new Date(),
+      });
+
+      if (discountAmount > 0) {
+        totalDiscount += discountAmount;
+        appliedBenefits.push({
+          pet_membership_id: benefit.pet_membership_id, // needed for deductBenefitUsage
+          benefit_id: new Types.ObjectId(benefitId),
+          benefit_type: benefit.type,
+          benefit_period: benefit.period,
+          benefit_value: benefit.value,
+          amount_deducted: discountAmount,
+          applied_at: new Date(),
+        });
+      }
+    }
+
+    // BUG2 fix: if originalTotalPrice provided, final_price = total - discount
+    // (breakdown only contains discounted items, non-discounted items would be missing)
+    const finalPrice =
+      originalTotalPrice != null
+        ? Math.max(0, originalTotalPrice - totalDiscount)
+        : breakdown.reduce(
+            (sum, item) => sum + Math.max(0, item.base_price - item.amount_deducted),
+            0,
+          );
+
+    return {
+      applied_benefits: appliedBenefits,
+      total_discount: totalDiscount,
+      final_price: finalPrice,
+      breakdown,
+    };
   }
 
   /**
@@ -112,7 +715,7 @@ export class BookingService {
     session.startTransaction();
 
     try {
-      // Get pet snapshot
+      // 1. get pet snapshot
       const pet = await this.petService.getPetSnapshot(
         new ObjectId(body.pet_id),
       );
@@ -122,6 +725,7 @@ export class BookingService {
         _id: pet._id.toString(),
       };
 
+      // 2. get service snapshot
       body.service_snapshot = (await this.serviceService.getServiceSnapshot(
         new ObjectId(body.service_id),
         pet.pet_type._id ? new ObjectId(pet.pet_type._id) : undefined,
@@ -130,28 +734,31 @@ export class BookingService {
         body.service_addon_ids?.map((id) => new ObjectId(id)),
       )) as any;
 
-      // 1️⃣ Ambil Store dengan session
+      // 3. get Store with session
       const store = await this.storeModel
         .findById(body.store_id)
         .session(session);
 
       if (!store) throw new NotFoundException('Store not found');
 
-      // Handle pick-up service validation and zone matching
-      let pickUpZone = null;
+      // 4. handle pick-up service validation and zone matching
+      let pickUpZone: Store['zones'][0] | null = null;
       if (body.pick_up) {
-        // Get customer location from profile
+        // 4.1 get customer location from profile
         const customer = await this.userModel.findById(body.customer_id);
-        if (
-          !customer?.profile?.address?.latitude ||
-          !customer?.profile?.address?.longitude
-        ) {
+
+        const addresses = (customer as any).profile?.addresses || [];
+        let mainAddress = addresses.find((a: any) => a.is_main_address);
+        if (!mainAddress && addresses.length > 0) {
+          mainAddress = addresses[0];
+        }
+        if (!mainAddress || !mainAddress.latitude || !mainAddress.longitude) {
           throw new BadRequestException(
             'Customer profile must have location (latitude/longitude) to use pick-up service',
           );
         }
 
-        // Check if store and service support pick-up
+        // 4.2 check if store and service support pick-up
         if (!store.is_pick_up_available) {
           throw new BadRequestException(
             'This store does not support pick-up service',
@@ -167,18 +774,21 @@ export class BookingService {
 
         pickUpZone = await this.findPickUpZone(
           store,
-          customer.profile.address.latitude,
-          customer.profile.address.longitude,
+          mainAddress.latitude,
+          mainAddress.longitude,
         );
       }
 
-      // Attach pick_up_zone to booking if determined
+      // 5. attach pick_up_zone to booking if determined
       if (pickUpZone) {
         (body as any).pick_up_zone = pickUpZone;
       }
 
-      // 2️⃣ Ambil Service dan Addons
-      // Handle service price calculation
+      // travelFee always from matched zone (or 0 if not pick up)
+      const travelFee = pickUpZone?.travel_fee ?? 0;
+
+      // 6. get service and addons
+      // 6.1 handle service price calculation
       const service = await this.serviceService.getServiceForBooking(
         new ObjectId(body.service_id),
         pet.size._id ? new ObjectId(pet.size._id) : undefined,
@@ -186,7 +796,7 @@ export class BookingService {
         pet.hair._id ? new ObjectId(pet.hair._id) : undefined,
       );
 
-      // Handle add-ons jika ada
+      // 6.2 handle add-ons (if any)
       let addonsTotal = 0;
       let addonsTotalDuration = 0;
       if (body.service_addon_ids && body.service_addon_ids.length > 0) {
@@ -211,37 +821,63 @@ export class BookingService {
         );
       }
 
+      // 7. calculate service and addons duration
       const serviceDuration =
         (Number(service.duration) || 0) + addonsTotalDuration;
-      body.sub_total_service = service.price + addonsTotal;
-      body.total_price = (body.sub_total_service || 0) + (body.travel_fee || 0);
 
-      // assign body.type base on service.service_location_type
+      // 8. calculate service and addons price
+      body.sub_total_service = service.price + addonsTotal;
+      const originalTotalPrice =
+        (body.sub_total_service || 0) +
+        (typeof travelFee === 'number' ? travelFee : 0);
+      body.original_total_price = originalTotalPrice;
+      body.travel_fee = travelFee;
+
+      // 9. apply benefits if selected
+      // BUG1 fix: initialize with safe defaults so booking without benefits doesn't crash
+      let appliedBenefitsData: any = {
+        applied_benefits: [],
+        total_discount: 0,
+        final_price: originalTotalPrice,
+        breakdown: [],
+      };
+
+      if (body.selected_benefit_ids && body.selected_benefit_ids.length > 0) {
+        // BUG2 fix: pass originalTotalPrice so final_price covers all items
+        appliedBenefitsData = await this.applyBenefitsToBooking(
+          body.pet_id,
+          body.selected_benefit_ids,
+          body.store_id,
+          body.service_id,
+          body.service_addon_ids,
+          originalTotalPrice,
+        );
+      }
+
+      body.total_discount = appliedBenefitsData.total_discount;
+      body.final_total_price = appliedBenefitsData.final_price;
+      (body as any).applied_benefits = appliedBenefitsData.breakdown;
+
+      // 10. assign body.type base on service.service_location_type
       body.type = service.service_location_type as GroomingType;
 
-      // Handle sessions — admin can provide sessions[], guest/customer gets []
-      if (
-        user &&
-        user.role !== 'customer' &&
-        body.sessions &&
-        body.sessions.length > 0
-      ) {
-        (body as any).sessions = body.sessions.map((s, index) => ({
-          type: s.type,
-          groomer_id: new Types.ObjectId(s.groomer_id),
+      // 11. auto-generate sessions from service.sessions array for all booking types
+      if (service.sessions && service.sessions.length > 0) {
+        (body as any).sessions = service.sessions.map((sessionType, index) => ({
+          type: sessionType,
+          groomer_id: null,
           status: SessionStatus.NOT_STARTED,
           started_at: null,
           finished_at: null,
           notes: null,
           internal_note: null,
-          order: s.order ?? index,
-          media: [],
+          order: index,
         }));
       } else {
         (body as any).sessions = [];
       }
 
-      // 3️⃣ Ambil Capacity (override atau default)
+      // 12. get capacity by store_id and date (override or default)
       const dailyOverride = await this.storeDailyCapacityModel
         .findOne({
           store_id: new ObjectId(body.store_id),
@@ -256,7 +892,7 @@ export class BookingService {
       const overbookingLimit = store.capacity.overbooking_limit_minutes;
       const maxAllowedCapacity = totalCapacity + overbookingLimit;
 
-      // 4️⃣ Atomic increment usage
+      // 13. atomic increment usage store by date
       const usage = await this.storeDailyUsageModel.findOneAndUpdate(
         {
           store_id: new ObjectId(body.store_id),
@@ -272,7 +908,7 @@ export class BookingService {
         },
       );
 
-      // 5️⃣ Validasi Overbooking Limit
+      // 14. validate overbooking Limit
       if (usage.used_minutes > maxAllowedCapacity) {
         // Rollback increment
         await this.storeDailyUsageModel.findOneAndUpdate(
@@ -288,13 +924,13 @@ export class BookingService {
 
         // Create status log for WAITLIST
         const waitlistStatusLog: BookingStatusLogDto = {
-          status: BookingStatus.REQUESTED,
+          status: BookingStatus.WAITLIST,
           timestamp: new Date(),
           note: `Booking is waitlisted (capacity exceeded) - created by ${user?.username || 'unknown'} (${user?.role || 'unknown'})`,
         };
 
         body.status_logs = [waitlistStatusLog];
-        body.booking_status = BookingStatus.REQUESTED;
+        body.booking_status = BookingStatus.WAITLIST;
 
         const waitlistBooking = await this.bookingModel.create([body], {
           session,
@@ -306,26 +942,63 @@ export class BookingService {
         return waitlistBooking[0];
       }
 
-      // 6️⃣ Hitung overbooked_minutes
+      // 15. calculate overbooked_minutes
       let overbookedMinutes = 0;
 
       if (usage.used_minutes > totalCapacity) {
         overbookedMinutes = usage.used_minutes - totalCapacity;
       }
 
-      // 7️⃣ Create CONFIRMED Booking
+      // 16. create CONFIRMED booking
       const statusLog: BookingStatusLogDto = {
-        status: BookingStatus.REQUESTED,
+        status:
+          user?.role === 'admin'
+            ? BookingStatus.CONFIRMED
+            : BookingStatus.REQUESTED,
         timestamp: new Date(),
         note: `Booking is created by ${user?.username || 'unknown'} (${user?.role || 'unknown'})${overbookedMinutes > 0 ? ` - overbooked by ${overbookedMinutes} minutes` : ''}`,
       };
 
       body.status_logs = [statusLog];
+      body.booking_status =
+        user?.role === 'admin'
+          ? BookingStatus.CONFIRMED
+          : BookingStatus.REQUESTED;
+
+      (body as any).created_by_role =
+        user?.role === 'admin' ? 'admin' : user?.role === 'customer' ? 'customer' : null;
 
       const booking = await this.bookingModel.create([body], { session });
 
       await session.commitTransaction();
       session.endSession();
+
+      // Record per-period benefit usage AFTER successful commit
+      if (appliedBenefitsData.applied_benefits?.length > 0) {
+        const bookingDate = new Date(body.date);
+        const bookingId = (booking[0] as any)._id.toString();
+        for (const applied of appliedBenefitsData.applied_benefits) {
+          if (applied.pet_membership_id && applied.benefit_id) {
+            try {
+              await this.benefitUsageService.recordUsage({
+                pet_membership_id: applied.pet_membership_id,
+                benefit_id: applied.benefit_id.toString(),
+                booking_id: bookingId,
+                target_id: bookingId,
+                amount_used: 1,
+                booking_date: bookingDate,
+                period_key: BenefitUsageService.computePeriodKey(
+                  bookingDate,
+                  applied.benefit_period,
+                ),
+                benefit_period: applied.benefit_period,
+              });
+            } catch {
+              // Non-fatal: usage recording failure should not roll back a committed booking
+            }
+          }
+        }
+      }
 
       return booking[0];
     } catch (error) {
@@ -335,14 +1008,40 @@ export class BookingService {
     }
   }
 
-  async findAll() {
-    const bookings = await this.bookingModel
-      .find({ isDeleted: false })
-      .populate('customer', 'username email phone_number')
-      .populate('store', 'name')
-      .exec();
+  async findAll(query: ListBookingsDto = {}) {
+    const { page = 1, limit = 20, status, date_from, date_to, created_by_role } = query;
 
-    return bookings;
+    const filter: any = { isDeleted: false };
+
+    if (status) {
+      filter.booking_status = status;
+    }
+
+    if (date_from || date_to) {
+      filter.date = {};
+      if (date_from) filter.date.$gte = date_from;
+      if (date_to) filter.date.$lte = date_to;
+    }
+
+    if (created_by_role) {
+      filter.created_by_role = created_by_role;
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [bookings, total] = await Promise.all([
+      this.bookingModel
+        .find(filter)
+        .sort({ date: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('customer', 'username email phone_number')
+        .populate('store', 'name')
+        .exec(),
+      this.bookingModel.countDocuments(filter),
+    ]);
+
+    return { bookings, total, page, limit };
   }
 
   async findOne(id: ObjectId) {
@@ -448,7 +1147,52 @@ export class BookingService {
         (Number(service.duration) || 0) + addonsTotalDuration;
 
       body.sub_total_service = service.price + addonsTotal;
-      body.total_price = (body.sub_total_service || 0) + (body.travel_fee || 0);
+      // travelFee always from matched zone (or 0 if not pick up)
+      let travelFee = 0;
+      if (
+        (body as any).pick_up_zone &&
+        typeof (body as any).pick_up_zone.travel_fee === 'number'
+      ) {
+        travelFee = (body as any).pick_up_zone.travel_fee;
+      }
+      const originalTotalPriceGuest = (body.sub_total_service || 0) + travelFee;
+      body.original_total_price = originalTotalPriceGuest;
+
+      // Apply benefits for guest if applicable
+      let appliedBenefitsDataGuest: any = {
+        applied_benefits: [],
+        total_discount: 0,
+        final_price: originalTotalPriceGuest,
+      };
+
+      if (
+        body.selected_benefit_ids &&
+        body.selected_benefit_ids.length > 0 &&
+        body.pet_id
+      ) {
+        try {
+          appliedBenefitsDataGuest = await this.applyBenefitsToBooking(
+            body.pet_id,
+            body.selected_benefit_ids,
+            body.store_id,
+            body.service_id,
+            body.service_addon_ids,
+            originalTotalPriceGuest,
+          );
+        } catch (error) {
+          // Guest might not have membership, proceed without benefits
+          appliedBenefitsDataGuest = {
+            applied_benefits: [],
+            total_discount: 0,
+            final_price: originalTotalPriceGuest,
+          };
+        }
+      }
+
+      // BUG4 fix: was assigning final_price to total_discount (wrong field)
+      body.total_discount = appliedBenefitsDataGuest.total_discount;
+      body.final_total_price = appliedBenefitsDataGuest.final_price;
+      (body as any).applied_benefits = appliedBenefitsDataGuest.breakdown;
 
       // assign body.type base on service.service_location_type
       body.type = service.service_location_type as GroomingType;
@@ -640,7 +1384,7 @@ export class BookingService {
     user?: { username: string; role: string },
   ) {
     try {
-      // status yang diupdate dari API ini hanya untuk CONFIRMED, RESCHEDULED, CANCELLED
+      // status yang diupdate dari API ini hanya untuk CONFIRMED, RESCHEDULED, CANCELLED, GROOMER ON THE WAY, DRIVER ON THE WAY
 
       // validasi: jika status RESCHEDULED, date dan time_range harus ada
       if (status === BookingStatus.RESCHEDULED) {
@@ -681,9 +1425,74 @@ export class BookingService {
         { new: true },
       );
 
+      // Restore benefit usage when booking is cancelled (soft-delete all usages for this booking)
+      if (
+        status === BookingStatus.CANCELLED &&
+        updatedBooking?.applied_benefits?.length
+      ) {
+        try {
+          await this.benefitUsageService.softDeleteByBookingId(id.toString());
+        } catch {
+          // Non-fatal: restoration failure should not block status update
+        }
+      }
+
       return updatedBooking;
     } catch (error) {
       throw error;
     }
+  }
+
+  /**
+   * Public: Preview benefit application (no booking required).
+   * Prices are resolved from the DB — no price input required from the client.
+   */
+  async previewApplyBenefits(
+    petId: string,
+    selectedBenefitIds: string[],
+    storeId?: string,
+    serviceId?: string,
+    addOnIds?: string[],
+    originalTotalPrice?: number,
+    bookingDate?: Date,
+  ): Promise<{
+    applied_benefits: any[];
+    total_discount: number;
+    final_price: number;
+    breakdown: Array<{
+      benefit: {
+        _id: string;
+        label: string | null;
+        service: { name: string } | null;
+      };
+      applies_to: string;
+      benefit_type: string;
+      benefit_period: string;
+      benefit_value: number | null;
+      base_price: number;
+      amount_deducted: number;
+      description: string | null;
+    }>;
+  }> {
+    const emptyResult = () => ({
+      applied_benefits: [],
+      total_discount: 0,
+      final_price: 0,
+      breakdown: [],
+    });
+
+    if (!selectedBenefitIds || selectedBenefitIds.length === 0) {
+      return emptyResult();
+    }
+
+    return await this.applyBenefitsToBooking(
+      petId,
+      selectedBenefitIds,
+      storeId,
+      serviceId,
+      addOnIds,
+      originalTotalPrice,
+      bookingDate,
+    );
   }
 }
