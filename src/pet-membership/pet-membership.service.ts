@@ -617,18 +617,14 @@ export class PetMembershipService {
       throw new BadRequestException('invalid pet ID');
     }
 
-    const results = await this.petMembershipModel
+    const results = await this.membershipLogModel
       .find({ pet_id: new Types.ObjectId(petId), isDeleted: false })
       .populate('membership', 'name description duration_months price')
-      .select('-benefits_snapshot')
-      .sort({ createdAt: -1 })
+      .sort({ event_date: -1 })
       .lean({ virtuals: true })
       .exec();
 
-    return results.map((pm: any) => ({
-      ...pm,
-      status: this.computeStatus(pm.is_active, pm.start_date, pm.end_date),
-    }));
+    return results;
   }
 
   async getMembershipHistoryDetail(
