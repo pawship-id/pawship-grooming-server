@@ -23,6 +23,7 @@ import { Service, ServiceDocument } from '../service/entities/service.entity';
 import { CreatePetMembershipDto } from './dto/create-pet-membership.dto';
 import { UpdatePetMembershipDto } from './dto/update-pet-membership.dto';
 import { GetPetMembershipQueryDto } from './dto/get-pet-membership-query.dto';
+import { BenefitUsageService } from 'src/benefit-usage/benefit-usage.service';
 
 @Injectable()
 export class PetMembershipService {
@@ -35,6 +36,7 @@ export class PetMembershipService {
     private membershipModel: Model<MembershipDocument>,
     @InjectModel(Service.name)
     private serviceModel: Model<ServiceDocument>,
+    private readonly benefitUsageService: BenefitUsageService,
   ) {}
 
   async create(
@@ -233,7 +235,7 @@ export class PetMembershipService {
     return this.populateBenefitsWithServices(petMembership);
   }
 
-  async getAvailableBenefits(petId: string): Promise<any> {
+  async getAvailableBenefits(petId: string, bookingDate?: Date): Promise<any> {
     const activeMemberships = await this.getActiveMembership(petId);
 
     if (!activeMemberships) {
@@ -252,10 +254,11 @@ export class PetMembershipService {
       const pmId =
         (petMembership as any)._id?.toString() || (petMembership as any).id;
 
-      const benefits = this.enrichBenefits(
+      const benefits = await this.enrichBenefits(
         petMembership.benefits_snapshot || [],
         pmId,
         now,
+        bookingDate,
       );
 
       allBenefits.push(...benefits);
@@ -278,7 +281,7 @@ export class PetMembershipService {
     };
   }
 
-  async getBenefitsSummary(petId: string): Promise<any[]> {
+  async getBenefitsSummary(petId: string, bookingDate?: Date): Promise<any[]> {
     const activeMemberships = await this.getActiveMembership(petId);
 
     if (!activeMemberships) {
@@ -287,30 +290,33 @@ export class PetMembershipService {
 
     const now = new Date();
 
-    return activeMemberships.map((petMembership: any) => {
-      const pmId = petMembership._id?.toString() || petMembership.id;
+    return Promise.all(
+      activeMemberships.map(async (petMembership: any) => {
+        const pmId = petMembership._id?.toString() || petMembership.id;
 
-      return {
-        membership: {
-          _id: pmId,
-          membership_plan_id:
-            petMembership.membership_plan_id?.toString() ?? null,
-          membership_name: (petMembership as any).membership?.name ?? null,
-          start_date: petMembership.start_date,
-          end_date: petMembership.end_date,
-          status: this.computeStatus(
-            petMembership.is_active,
-            petMembership.start_date,
-            petMembership.end_date,
+        return {
+          membership: {
+            _id: pmId,
+            membership_plan_id:
+              petMembership.membership_plan_id?.toString() ?? null,
+            membership_name: (petMembership as any).membership?.name ?? null,
+            start_date: petMembership.start_date,
+            end_date: petMembership.end_date,
+            status: this.computeStatus(
+              petMembership.is_active,
+              petMembership.start_date,
+              petMembership.end_date,
+            ),
+          },
+          benefits: await this.enrichBenefits(
+            petMembership.benefits_snapshot || [],
+            pmId,
+            now,
+            bookingDate,
           ),
-        },
-        benefits: this.enrichBenefits(
-          petMembership.benefits_snapshot || [],
-          pmId,
-          now,
-        ),
-      };
-    });
+        };
+      }),
+    );
   }
 
   async getBenefitsHistory(
@@ -693,41 +699,62 @@ export class PetMembershipService {
     });
   }
 
-  private enrichBenefits(
+  private async enrichBenefits(
     benefitsSnapshot: any[],
     petMembershipId: string,
     now: Date,
-  ): any[] {
-    return benefitsSnapshot.map((b: any) => {
-      const hasReset = this.shouldResetPeriod(
-        b.period_reset_date,
-        b.period,
-        now,
-      );
-      const currentUsed = hasReset ? 0 : b.used;
-      const remaining = b.limit == null ? null : b.limit - currentUsed;
+    bookingDate?: Date,
+  ): Promise<any[]> {
+    return Promise.all(
+      benefitsSnapshot.map(async (b: any) => {
+        let currentUsed: number;
+        let remaining: number | null;
 
-      return {
-        _id: b._id.toString(),
-        pet_membership_id: petMembershipId,
-        applies_to: b.applies_to,
-        service_id: b.service_id?.toString() ?? null,
-        label: b.label ?? null,
-        service: b.service ?? null,
-        type: b.type,
-        period: b.period,
-        limit: b.limit ?? null,
-        value: b.value ?? null,
-        used: currentUsed,
-        remaining,
-        can_apply: b.limit == null || currentUsed < b.limit,
-        period_reset_date: b.period_reset_date ?? null,
-        next_reset_date: this.calculateNextPeriodResetDate(
-          hasReset ? now : b.period_reset_date,
-          b.period,
-        ),
-      };
-    });
+        if (bookingDate) {
+          // Per-period count from benefitusages collection
+          const periodKey = BenefitUsageService.computePeriodKey(
+            bookingDate,
+            b.period as BenefitPeriod,
+          );
+          currentUsed = await this.benefitUsageService.getUsedInPeriod(
+            petMembershipId,
+            b._id.toString(),
+            periodKey,
+          );
+          remaining = b.limit == null ? null : b.limit - currentUsed;
+        } else {
+          // Fallback: legacy snapshot counter (used when no bookingDate provided)
+          const hasReset = this.shouldResetPeriod(
+            b.period_reset_date,
+            b.period,
+            now,
+          );
+          currentUsed = hasReset ? 0 : b.used;
+          remaining = b.limit == null ? null : b.limit - currentUsed;
+        }
+
+        return {
+          _id: b._id.toString(),
+          pet_membership_id: petMembershipId,
+          applies_to: b.applies_to,
+          service_id: b.service_id?.toString() ?? null,
+          label: b.label ?? null,
+          service: b.service ?? null,
+          type: b.type,
+          period: b.period,
+          limit: b.limit ?? null,
+          value: b.value ?? null,
+          used: currentUsed,
+          remaining,
+          can_apply: b.limit == null || (remaining !== null && remaining > 0),
+          period_reset_date: b.period_reset_date ?? null,
+          next_reset_date: this.calculateNextPeriodResetDate(
+            b.period_reset_date,
+            b.period,
+          ),
+        };
+      }),
+    );
   }
 
   /**

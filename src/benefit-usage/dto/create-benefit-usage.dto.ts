@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
-import { IsNotEmpty, IsMongoId, IsNumber, Min } from 'class-validator';
+import { IsNotEmpty, IsMongoId, IsNumber, Min, IsDate, IsEnum, IsOptional } from 'class-validator';
+import { BenefitPeriod } from 'src/membership/entities/membership.entity';
 
 export class CreateBenefitUsageDto {
   @IsNotEmpty({ message: 'pet_membership_id is required' })
@@ -23,4 +24,20 @@ export class CreateBenefitUsageDto {
   @IsNumber({}, { message: 'amount_used must be a number' })
   @Min(0, { message: 'amount_used must be >= 0' })
   amount_used: number;
+
+  /** The scheduled booking date — determines which period slot owns this usage. */
+  @IsNotEmpty({ message: 'booking_date is required' })
+  @Type(() => Date)
+  @IsDate({ message: 'booking_date must be a date' })
+  booking_date: Date;
+
+  /**
+   * Period slot key: "YYYY-WNN" (weekly), "YYYY-MM" (monthly), null (unlimited).
+   * Computed by the caller before persisting.
+   */
+  period_key: string | null;
+
+  @IsNotEmpty({ message: 'benefit_period is required' })
+  @IsEnum(BenefitPeriod)
+  benefit_period: BenefitPeriod;
 }

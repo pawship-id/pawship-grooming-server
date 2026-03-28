@@ -190,6 +190,7 @@ export class BookingController {
       dto.service_id,
       dto.add_on_ids,
       dto.original_total_price,
+      dto.booking_date ? new Date(dto.booking_date) : undefined,
     );
     return {
       message: 'Benefit preview calculated successfully',

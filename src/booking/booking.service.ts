@@ -17,6 +17,7 @@ import { ObjectId } from 'mongodb';
 import { PetService } from 'src/pet/pet.service';
 import { ServiceService } from 'src/service/service.service';
 import { PetMembershipService } from 'src/pet-membership/pet-membership.service';
+import { BenefitUsageService } from 'src/benefit-usage/benefit-usage.service';
 import { BookingStatus, GroomingType, SessionStatus } from './dto/booking.dto';
 import { Store, StoreDocument } from 'src/store/entities/store.entity';
 import { Service, ServiceDocument } from 'src/service/entities/service.entity';
@@ -50,6 +51,7 @@ export class BookingService {
     private readonly petService: PetService,
     private readonly serviceService: ServiceService,
     private readonly petMembershipService: PetMembershipService,
+    private readonly benefitUsageService: BenefitUsageService,
   ) {}
 
   /**
@@ -209,7 +211,10 @@ export class BookingService {
       //    - applies_to 'addon'   → only benefit whose service_id is in dto.addon_ids (skipped when no addons)
       //    - applies_to 'pickup'  → only when pick_up is true
       const membershipData =
-        await this.petMembershipService.getAvailableBenefits(dto.pet_id);
+        await this.petMembershipService.getAvailableBenefits(
+          dto.pet_id,
+          dto.date ? new Date(dto.date) : undefined,
+        );
 
       const hasActiveMembership = membershipData.has_active_membership;
 
@@ -386,6 +391,7 @@ export class BookingService {
     serviceId?: string,
     addOnIds?: string[],
     originalTotalPrice?: number, // BUG2: when provided, final_price = originalTotalPrice - totalDiscount
+    bookingDate?: Date,
   ): Promise<{
     applied_benefits: any[];
     total_discount: number;
@@ -429,7 +435,7 @@ export class BookingService {
 
     // 3. Get active membership benefits
     const membershipData =
-      await this.petMembershipService.getAvailableBenefits(petId);
+      await this.petMembershipService.getAvailableBenefits(petId, bookingDate);
     if (!membershipData.has_active_membership) {
       return emptyResult(originalTotalPrice ?? 0);
     }
@@ -918,18 +924,28 @@ export class BookingService {
       await session.commitTransaction();
       session.endSession();
 
-      // BUG3 fix: deduct benefit usage AFTER successful commit
+      // Record per-period benefit usage AFTER successful commit
       if (appliedBenefitsData.applied_benefits?.length > 0) {
+        const bookingDate = new Date(body.date);
+        const bookingId = (booking[0] as any)._id.toString();
         for (const applied of appliedBenefitsData.applied_benefits) {
           if (applied.pet_membership_id && applied.benefit_id) {
             try {
-              await this.petMembershipService.deductBenefitUsage(
-                applied.pet_membership_id,
-                applied.benefit_id.toString(),
-                1,
-              );
+              await this.benefitUsageService.recordUsage({
+                pet_membership_id: applied.pet_membership_id,
+                benefit_id: applied.benefit_id.toString(),
+                booking_id: bookingId,
+                target_id: bookingId,
+                amount_used: 1,
+                booking_date: bookingDate,
+                period_key: BenefitUsageService.computePeriodKey(
+                  bookingDate,
+                  applied.benefit_period,
+                ),
+                benefit_period: applied.benefit_period,
+              });
             } catch {
-              // Non-fatal: deduction failure should not roll back a committed booking
+              // Non-fatal: usage recording failure should not roll back a committed booking
             }
           }
         }
@@ -1334,23 +1350,15 @@ export class BookingService {
         { new: true },
       );
 
-      // Restore benefit usage when booking is cancelled
+      // Restore benefit usage when booking is cancelled (soft-delete all usages for this booking)
       if (
         status === BookingStatus.CANCELLED &&
         updatedBooking?.applied_benefits?.length
       ) {
-        for (const applied of updatedBooking.applied_benefits) {
-          if (applied.pet_membership_id) {
-            try {
-              await this.petMembershipService.restoreBenefitUsage(
-                applied.pet_membership_id.toString(),
-                applied.benefit._id.toString(),
-                1,
-              );
-            } catch {
-              // Non-fatal: restoration failure should not block status update
-            }
-          }
+        try {
+          await this.benefitUsageService.softDeleteByBookingId(id.toString());
+        } catch {
+          // Non-fatal: restoration failure should not block status update
         }
       }
 
@@ -1371,6 +1379,7 @@ export class BookingService {
     serviceId?: string,
     addOnIds?: string[],
     originalTotalPrice?: number,
+    bookingDate?: Date,
   ): Promise<{
     applied_benefits: any[];
     total_discount: number;
@@ -1408,6 +1417,7 @@ export class BookingService {
       serviceId,
       addOnIds,
       originalTotalPrice,
+      bookingDate,
     );
   }
 }

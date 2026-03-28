@@ -1,4 +1,4 @@
-import { IsMongoId, IsArray, IsNotEmpty, IsOptional, IsNumber, Min } from 'class-validator';
+import { IsMongoId, IsArray, IsNotEmpty, IsOptional, IsNumber, Min, IsDateString } from 'class-validator';
 
 export class ApplyBenefitPreviewDto {
   @IsMongoId({ message: 'pet_id is required and must be a valid MongoId' })
@@ -26,4 +26,8 @@ export class ApplyBenefitPreviewDto {
   @IsNumber({}, { message: 'original_total_price must be a number' })
   @Min(0)
   original_total_price?: number;
+
+  @IsOptional()
+  @IsDateString({}, { message: 'booking_date must be a valid ISO date string' })
+  booking_date?: string;
 }

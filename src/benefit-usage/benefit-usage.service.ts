@@ -15,6 +15,7 @@ import {
 } from '../pet-membership/entities/pet-membership.entity';
 import { CreateBenefitUsageDto } from './dto/create-benefit-usage.dto';
 import { GetBenefitUsageQueryDto } from './dto/get-benefit-usage-query.dto';
+import { BenefitPeriod } from 'src/membership/entities/membership.entity';
 
 @Injectable()
 export class BenefitUsageService {
@@ -25,6 +26,69 @@ export class BenefitUsageService {
     private petMembershipModel: Model<PetMembershipDocument>,
   ) {}
 
+  /**
+   * Compute the period slot key for a given date and period type.
+   * - weekly   → "YYYY-WNN"  (ISO week number, Monday-based)
+   * - monthly  → "YYYY-MM"
+   * - unlimited → null
+   */
+  static computePeriodKey(date: Date, period: BenefitPeriod): string | null {
+    if (period === BenefitPeriod.UNLIMITED) return null;
+
+    if (period === BenefitPeriod.MONTHLY) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      return `${y}-${m}`;
+    }
+
+    // WEEKLY: ISO week (Monday = day 1)
+    // Algorithm: shift to Thursday of the same week → that Thursday's year/week
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    // Day of week: 0=Sun … 6=Sat → shift so Mon=0 … Sun=6
+    const day = (d.getUTCDay() + 6) % 7;
+    // Thursday of the same ISO week
+    d.setUTCDate(d.getUTCDate() - day + 3);
+    const jan4 = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+    const weekNum = Math.round(
+      ((d.getTime() - jan4.getTime()) / 86_400_000 + ((jan4.getUTCDay() + 6) % 7)) / 7,
+    );
+    const week = String(weekNum).padStart(2, '0');
+    return `${d.getUTCFullYear()}-W${week}`;
+  }
+
+  /**
+   * Count active (non-deleted) usages for a benefit in a given period slot.
+   * For unlimited benefits (periodKey = null), counts all non-deleted usages.
+   */
+  async getUsedInPeriod(
+    petMembershipId: string,
+    benefitId: string,
+    periodKey: string | null,
+  ): Promise<number> {
+    const query: any = {
+      pet_membership_id: new Types.ObjectId(petMembershipId),
+      benefit_id: new Types.ObjectId(benefitId),
+      isDeleted: false,
+    };
+
+    if (periodKey !== null) {
+      query.period_key = periodKey;
+    }
+
+    return this.benefitUsageModel.countDocuments(query).exec();
+  }
+
+  /**
+   * Soft-delete all BenefitUsage records for a booking (restores quota on cancel).
+   */
+  async softDeleteByBookingId(bookingId: string): Promise<void> {
+    if (!Types.ObjectId.isValid(bookingId)) return;
+    await this.benefitUsageModel.updateMany(
+      { booking_id: new Types.ObjectId(bookingId), isDeleted: false },
+      { $set: { isDeleted: true, deletedAt: new Date() } },
+    );
+  }
+
   async recordUsage(
     createBenefitUsageDto: CreateBenefitUsageDto,
   ): Promise<BenefitUsage> {
@@ -34,6 +98,9 @@ export class BenefitUsageService {
       booking_id,
       target_id,
       amount_used,
+      booking_date,
+      period_key,
+      benefit_period,
     } = createBenefitUsageDto;
 
     // Validate pet membership exists
@@ -70,6 +137,9 @@ export class BenefitUsageService {
       scope,
       target_id: new Types.ObjectId(target_id),
       amount_used,
+      booking_date: new Date(booking_date),
+      period_key: period_key ?? null,
+      benefit_period,
     });
 
     return benefitUsage.save();

@@ -16,6 +16,7 @@ import {
 import { AuthModule } from 'src/auth/auth.module';
 import { PetMembershipController } from './pet-membership.controller';
 import { Service, ServiceSchema } from 'src/service/entities/service.entity';
+import { BenefitUsageModule } from 'src/benefit-usage/benefit-usage.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { Service, ServiceSchema } from 'src/service/entities/service.entity';
       { name: Service.name, schema: ServiceSchema },
     ]),
     AuthModule,
+    BenefitUsageModule,
   ],
   controllers: [PetMembershipController],
   providers: [PetMembershipService],
