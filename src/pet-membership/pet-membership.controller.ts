@@ -96,6 +96,15 @@ export class PetMembershipController {
     };
   }
 
+  @Get(':pet_id/counts')
+  async getCounts(@Param('pet_id') petId: string) {
+    const counts = await this.petMembershipService.getCounts(petId);
+    return {
+      message: 'membership counts retrieved successfully',
+      data: counts,
+    };
+  }
+
   @Get(':pet_id/membership-history')
   async getMembershipHistory(@Param('pet_id') petId: string) {
     const history = await this.petMembershipService.getMembershipHistory(petId);
