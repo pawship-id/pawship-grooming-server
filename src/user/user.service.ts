@@ -57,8 +57,39 @@ export class UserService {
       .sort({ createdAt: -1 })
       .exec();
 
+    // Batch-fetch pet counts for customer users in this page
+    const customerUsers = users.filter((u) => u.role === 'customer');
+    let petCountMap: Record<string, number> = {};
+
+    if (customerUsers.length > 0) {
+      const petCounts = await this.petModel.aggregate([
+        {
+          $match: {
+            customer_id: { $in: customerUsers.map((u) => u._id) },
+            isDeleted: false,
+          },
+        },
+        { $group: { _id: '$customer_id', count: { $sum: 1 } } },
+      ]);
+      petCountMap = petCounts.reduce(
+        (acc, { _id, count }) => {
+          acc[_id.toString()] = count;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
+    }
+
+    const usersWithPetCount = users.map((user) => ({
+      ...user.toObject(),
+      pet_count:
+        user.role === 'customer'
+          ? (petCountMap[user._id.toString()] ?? 0)
+          : undefined,
+    }));
+
     return {
-      users,
+      users: usersWithPetCount,
       pagination: {
         total,
         page,
