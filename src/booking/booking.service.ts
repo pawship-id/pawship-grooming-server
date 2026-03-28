@@ -520,6 +520,8 @@ export class BookingService {
 
         if (!add_ons || add_ons.length === 0) continue;
         for (const addonId of add_ons) {
+          // Skip individual addon if already fully free via a quota benefit
+          if (benefit.type === 'discount' && quotaCoveredAddonIds.has(addonId.toString())) continue;
           let addonBasePrice = 0;
           try {
             const addon = await this.serviceService.getServiceForBooking(
