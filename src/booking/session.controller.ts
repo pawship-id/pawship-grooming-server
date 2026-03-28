@@ -158,4 +158,46 @@ export class SessionController {
       message: 'Media uploaded successfully',
     };
   }
+
+  // Upload media for a booking (booking-level)
+  @Post(':bookingId/media')
+  @UseInterceptors(FileInterceptor('image'))
+  async uploadBookingMedia(
+    @Param('bookingId') bookingId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: GroomingMediaDto,
+    @Req() request: any,
+  ) {
+    if (!bookingId) throw new BadRequestException('bookingId is required');
+    if (!file) throw new BadRequestException('image file is required');
+
+    const _bookingId = new ObjectId(bookingId);
+    await this.sessionService.uploadBookingMedia(
+      _bookingId,
+      file,
+      body,
+      request.user,
+    );
+
+    return {
+      message: 'Media uploaded successfully',
+    };
+  }
+
+  // Delete a media item from a booking
+  @Delete(':bookingId/media/:mediaId')
+  async deleteBookingMedia(
+    @Param('bookingId') bookingId: string,
+    @Param('mediaId') mediaId: string,
+  ) {
+    if (!bookingId) throw new BadRequestException('bookingId is required');
+    if (!mediaId) throw new BadRequestException('mediaId is required');
+
+    const _bookingId = new ObjectId(bookingId);
+    await this.sessionService.deleteBookingMedia(_bookingId, mediaId);
+
+    return {
+      message: 'Media deleted successfully',
+    };
+  }
 }

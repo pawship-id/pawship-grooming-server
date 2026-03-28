@@ -207,7 +207,7 @@ export class ServiceSnapshot {
   }[];
 }
 
-@Schema({ _id: false })
+@Schema()
 export class SessionMedia {
   @Prop({
     enum: MediaType,
