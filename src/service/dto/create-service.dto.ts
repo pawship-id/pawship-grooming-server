@@ -84,7 +84,7 @@ export class CreateServiceDto {
 
   @Type(() => Number)
   @IsNumber({}, { message: 'Duration must be a number' })
-  @Min(1, { message: 'Duration must be at least 1 minute' })
+  @Min(0, { message: 'Duration cannot be negative' })
   duration: number;
 
   @IsOptional()
