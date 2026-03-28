@@ -149,11 +149,24 @@ export class UserController {
     return { message: 'Fetch user successfully', user };
   }
 
+  @Put(':id/profile')
+  @HttpCode(HttpStatus.OK)
+  async updateUserProfile(
+    @Param('id') id: string,
+    @Body() body: UpdateProfileDto,
+  ) {
+    if (!id) throw new BadRequestException('id is required');
+    const user = await this.userService.findById(new ObjectId(id));
+    if (!user || user.isDeleted) throw new NotFoundException('data not found');
+    await this.userService.updateProfile(new ObjectId(id), body);
+    return { message: 'Update user profile successfully' };
+  }
+
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async createUser(@Body() body: CreateUserDto) {
-    await this.userService.create(body);
-    return { message: 'Create user successfully' };
+    const user = await this.userService.create(body);
+    return { message: 'Create user successfully', user };
   }
 
   @Put(':id')
