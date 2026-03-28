@@ -411,12 +411,12 @@ export class SessionService {
     }
   }
 
-  // Delete a specific media item from a booking
-  async deleteBookingMedia(bookingId: ObjectId, mediaId: string) {
+  // Delete a specific media item from a booking (matched by public_id)
+  async deleteBookingMedia(bookingId: ObjectId, publicId: string) {
     try {
       const updatedBooking = await this.bookingModel.findByIdAndUpdate(
         bookingId,
-        { $pull: { media: { _id: new Types.ObjectId(mediaId) } } },
+        { $pull: { media: { public_id: publicId } } },
         { new: true },
       );
 

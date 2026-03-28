@@ -10,6 +10,7 @@ import {
   Delete,
   UseGuards,
   Req,
+  Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SessionService } from './session.service';
@@ -184,17 +185,17 @@ export class SessionController {
     };
   }
 
-  // Delete a media item from a booking
-  @Delete(':bookingId/media/:mediaId')
+  // Delete a media item from a booking (matched by public_id)
+  @Delete(':bookingId/media')
   async deleteBookingMedia(
     @Param('bookingId') bookingId: string,
-    @Param('mediaId') mediaId: string,
+    @Query('public_id') publicId: string,
   ) {
     if (!bookingId) throw new BadRequestException('bookingId is required');
-    if (!mediaId) throw new BadRequestException('mediaId is required');
+    if (!publicId) throw new BadRequestException('public_id is required');
 
     const _bookingId = new ObjectId(bookingId);
-    await this.sessionService.deleteBookingMedia(_bookingId, mediaId);
+    await this.sessionService.deleteBookingMedia(_bookingId, publicId);
 
     return {
       message: 'Media deleted successfully',
