@@ -369,6 +369,10 @@ export class Booking {
   @Prop({ type: [BookingStatusLog], default: [] })
   status_logs: BookingStatusLog[];
 
+  /* ===== Audit ===== */
+  @Prop({ type: String, enum: ['customer', 'admin'], default: null })
+  created_by_role: string | null;
+
   /* ===== Service ===== */
   @Prop({ type: Types.ObjectId, ref: 'Service', required: true })
   service_id: Types.ObjectId;

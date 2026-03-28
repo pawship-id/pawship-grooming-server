@@ -30,6 +30,7 @@ import {
   StoreDailyCapacity,
   StoreDailyCapacityDocument,
 } from 'src/store-daily-capacity/entities/store-daily-capacity.entity';
+import { ListBookingsDto } from './dto/list-bookings.dto';
 
 @Injectable()
 export class BookingService {
@@ -964,6 +965,9 @@ export class BookingService {
           ? BookingStatus.CONFIRMED
           : BookingStatus.REQUESTED;
 
+      (body as any).created_by_role =
+        user?.role === 'admin' ? 'admin' : user?.role === 'customer' ? 'customer' : null;
+
       const booking = await this.bookingModel.create([body], { session });
 
       await session.commitTransaction();
@@ -1004,14 +1008,40 @@ export class BookingService {
     }
   }
 
-  async findAll() {
-    const bookings = await this.bookingModel
-      .find({ isDeleted: false })
-      .populate('customer', 'username email phone_number')
-      .populate('store', 'name')
-      .exec();
+  async findAll(query: ListBookingsDto = {}) {
+    const { page = 1, limit = 20, status, date_from, date_to, created_by_role } = query;
 
-    return bookings;
+    const filter: any = { isDeleted: false };
+
+    if (status) {
+      filter.booking_status = status;
+    }
+
+    if (date_from || date_to) {
+      filter.date = {};
+      if (date_from) filter.date.$gte = date_from;
+      if (date_to) filter.date.$lte = date_to;
+    }
+
+    if (created_by_role) {
+      filter.created_by_role = created_by_role;
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [bookings, total] = await Promise.all([
+      this.bookingModel
+        .find(filter)
+        .sort({ date: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('customer', 'username email phone_number')
+        .populate('store', 'name')
+        .exec(),
+      this.bookingModel.countDocuments(filter),
+    ]);
+
+    return { bookings, total, page, limit };
   }
 
   async findOne(id: ObjectId) {

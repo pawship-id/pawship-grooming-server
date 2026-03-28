@@ -32,6 +32,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UserService } from 'src/user/user.service';
 import { ApplyBenefitPreviewDto } from './dto/apply-benefit-preview.dto';
+import { ListBookingsDto } from './dto/list-bookings.dto';
 
 @Controller('bookings')
 @UseGuards(AuthGuard)
@@ -227,12 +228,12 @@ export class BookingController {
 
   // get all booking (admin)
   @Get()
-  async findAll() {
-    const bookings = await this.bookingService.findAll();
+  async findAll(@Query() query: ListBookingsDto) {
+    const result = await this.bookingService.findAll(query);
 
     return {
       message: 'Fetch bookings successfully',
-      bookings,
+      ...result,
     };
   }
 
