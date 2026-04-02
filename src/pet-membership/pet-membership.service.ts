@@ -69,8 +69,10 @@ export class PetMembershipService {
     }
 
     // Calculate dates
-    const startDate = new Date();
-    const endDate = new Date();
+    const startDate = createPetMembershipDto.start_date
+      ? new Date(createPetMembershipDto.start_date)
+      : new Date();
+    const endDate = new Date(startDate);
     endDate.setMonth(endDate.getMonth() + membership.duration_months);
 
     // Create benefits snapshot dari membership dengan period reset date

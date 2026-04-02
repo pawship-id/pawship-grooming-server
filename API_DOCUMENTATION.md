@@ -4145,7 +4145,8 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 ```json
 {
   "pet_id": "MongoDB ObjectId (required)",
-  "membership_plan_id": "MongoDB ObjectId (required)"
+  "membership_plan_id": "MongoDB ObjectId (required)",
+  "start_date": "ISO date string (optional, defaults to current date/time)"
 }
 ```
 
@@ -4154,7 +4155,8 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 ```json
 {
   "pet_id": "507f1f77bcf86cd799439020",
-  "membership_plan_id": "507f1f77bcf86cd799439011"
+  "membership_plan_id": "507f1f77bcf86cd799439011",
+  "start_date": "2026-04-15T00:00:00.000Z"
 }
 ```
 
@@ -4240,8 +4242,8 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 - When a pet membership is created, `benefits_snapshot` is populated from the membership plan's benefits
 - `used` counter starts at 0 for each benefit
 - `period_reset_date` is calculated based on the benefit's period type (weekly, monthly, or null for unlimited)
-- `start_date` is the current date/time
-- `end_date` is calculated by adding `membership_plan.duration_months` to the start_date
+- `start_date` defaults to the current date/time if not provided; admin can pass a custom ISO date to schedule membership activation in the future
+- `end_date` is calculated by adding `membership_plan.duration_months` to the `start_date`
 
 ---
 
