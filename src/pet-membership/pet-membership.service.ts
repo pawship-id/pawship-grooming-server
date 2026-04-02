@@ -548,7 +548,7 @@ export class PetMembershipService {
       start_date: petMembership!.start_date,
       end_date: petMembership!.end_date,
       benefits_snapshot_before: [],
-      note: `Updated dates: start=${petMembership!.start_date.toISOString()}, end=${petMembership!.end_date.toISOString()}`,
+      note: updatePetMembershipDto.note ?? `-`,
     });
 
     return petMembership!;

@@ -4696,16 +4696,21 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 ```json
 {
   "start_date": "ISO date string (required)",
-  "end_date": "ISO date string (required)"
+  "end_date": "ISO date string (required)",
+  "note": "string (optional)"
 }
 ```
+
+**Notes:**
+- `note`: Optional. If not provided, defaults to `"-"` in the membership log.
 
 **Example:**
 
 ```json
 {
   "start_date": "2026-03-20T00:00:00.000Z",
-  "end_date": "2026-09-20T00:00:00.000Z"
+  "end_date": "2026-09-20T00:00:00.000Z",
+  "note": "Penyesuaian tanggal oleh admin"
 }
 ```
 

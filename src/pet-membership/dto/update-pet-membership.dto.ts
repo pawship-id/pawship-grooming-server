@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsDateString } from 'class-validator';
+import { IsNotEmpty, IsDateString, IsOptional, IsString } from 'class-validator';
 
 export class UpdatePetMembershipDto {
   @IsNotEmpty({ message: 'start_date is required' })
@@ -8,4 +8,8 @@ export class UpdatePetMembershipDto {
   @IsNotEmpty({ message: 'end_date is required' })
   @IsDateString({}, { message: 'end_date must be a valid ISO date string' })
   end_date: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
 }
