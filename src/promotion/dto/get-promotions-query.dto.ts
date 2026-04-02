@@ -7,7 +7,7 @@ import {
   IsString,
   Min,
 } from 'class-validator';
-import { ClaimType, PromoType } from './create-promotion.dto';
+import { AppliesTo, DiscountType } from './create-promotion.dto';
 
 export class GetPromotionsQueryDto {
   @IsOptional()
@@ -34,15 +34,28 @@ export class GetPromotionsQueryDto {
   is_active?: boolean;
 
   @IsOptional()
-  @IsEnum(PromoType, {
-    message: 'promo_type must be membership_benefit or general_promo',
+  @IsEnum(AppliesTo, {
+    message: 'applies_to must be service, addon, pickup, or booking',
   })
-  promo_type?: PromoType;
+  applies_to?: AppliesTo;
 
   @IsOptional()
-  @IsEnum(ClaimType, {
-    message:
-      'claim_type must be once_per_membership, every_add_on, or once_per_booking',
+  @IsEnum(DiscountType, {
+    message: 'discount_type must be percent or fixed',
   })
-  claim_type?: ClaimType;
+  discount_type?: DiscountType;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean({ message: 'is_available_to_membership must be a boolean' })
+  is_available_to_membership?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean({ message: 'is_stackable must be a boolean' })
+  is_stackable?: boolean;
 }

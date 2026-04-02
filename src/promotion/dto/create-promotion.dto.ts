@@ -1,35 +1,23 @@
 import { Type } from 'class-transformer';
 import {
-  IsArray,
   IsBoolean,
   IsDateString,
   IsEnum,
-  IsInt,
   IsMongoId,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   Min,
   ValidateIf,
-  ValidateNested,
 } from 'class-validator';
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
-export enum PromoType {
-  MEMBERSHIP_BENEFIT = 'membership_benefit',
-  GENERAL_PROMO = 'general_promo',
-}
-
-export enum ClaimType {
-  ONCE_PER_MEMBERSHIP = 'once_per_membership',
-  EVERY_ADD_ON = 'every_add_on',
-  ONCE_PER_BOOKING = 'once_per_booking',
-}
-
-export enum BenefitType {
-  DISCOUNT = 'discount',
-  FREE_SERVICE = 'free_service',
+export enum AppliesTo {
+  SERVICE = 'service',
+  ADDON = 'addon',
+  PICKUP = 'pickup',
+  BOOKING = 'booking',
 }
 
 export enum DiscountType {
@@ -37,114 +25,59 @@ export enum DiscountType {
   FIXED = 'fixed',
 }
 
-// ─── Nested DTOs ─────────────────────────────────────────────────────────────
-
-export class BenefitDto {
-  @IsNotEmpty({ message: 'benefit type is required' })
-  @IsEnum(BenefitType, {
-    message: 'benefit type must be discount or free_service',
-  })
-  type: BenefitType;
-
-  @ValidateIf((o: BenefitDto) => o.type === BenefitType.DISCOUNT)
-  @IsNotEmpty({
-    message: 'discount_type is required when benefit type is discount',
-  })
-  @IsEnum(DiscountType, { message: 'discount_type must be percent or fixed' })
-  discount_type?: DiscountType;
-
-  @ValidateIf((o: BenefitDto) => o.type === BenefitType.DISCOUNT)
-  @IsNotEmpty({ message: 'value is required when benefit type is discount' })
-  @IsNumber({}, { message: 'value must be a number' })
-  @Min(0, { message: 'value cannot be negative' })
-  @Type(() => Number)
-  value?: number;
-
-  @ValidateIf((o: BenefitDto) => o.type === BenefitType.FREE_SERVICE)
-  @IsNotEmpty({
-    message: 'service_id is required when benefit type is free_service',
-  })
-  @IsMongoId({ message: 'service_id must be a valid MongoDB ObjectId' })
-  service_id?: string;
-}
-
-export class EligibilityDto {
-  @IsNotEmpty({ message: 'is only for membership is required' })
-  @IsBoolean({ message: 'is only for membership must be a boolean' })
-  is_only_for_membership: boolean;
-
-  @IsOptional()
-  @IsArray({ message: 'membership_ids must be an array' })
-  @IsMongoId({
-    each: true,
-    message: 'each membership_id must be a valid MongoDB ObjectId',
-  })
-  membership_ids?: string[];
-
-  @IsOptional()
-  @IsBoolean({ message: 'first_time_user must be a boolean' })
-  first_time_user?: boolean;
-}
-
-export class ValidityDto {
-  @IsNotEmpty({ message: 'start_at is required' })
-  @IsDateString({}, { message: 'start_at must be a valid ISO date string' })
-  start_at: string;
-
-  @IsOptional()
-  @IsDateString({}, { message: 'end_at must be a valid ISO date string' })
-  end_at?: string;
-}
-
 // ─── Create DTO ──────────────────────────────────────────────────────────────
 
 export class CreatePromotionDto {
   @IsNotEmpty({ message: 'code is required' })
-  code: string;
+  code!: string;
 
   @IsNotEmpty({ message: 'name is required' })
-  name: string;
+  name!: string;
 
   @IsOptional()
   description?: string;
 
-  @IsNotEmpty({ message: 'promo_type is required' })
-  @IsEnum(PromoType, {
-    message: 'promo_type must be membership_benefit or general_promo',
+  @IsNotEmpty({ message: 'applies_to is required' })
+  @IsEnum(AppliesTo, {
+    message: 'applies_to must be service, addon, pickup, or booking',
   })
-  promo_type: PromoType;
-
-  @IsNotEmpty({ message: 'claim_type is required' })
-  @IsEnum(ClaimType, {
-    message:
-      'claim_type must be once_per_membership, every_add_on, or once_per_booking',
-  })
-  claim_type: ClaimType;
-
-  @IsNotEmpty({ message: 'benefit is required' })
-  @ValidateNested()
-  @Type(() => BenefitDto)
-  benefit: BenefitDto;
-
-  @IsNotEmpty({ message: 'eligibility is required' })
-  @ValidateNested()
-  @Type(() => EligibilityDto)
-  eligibility: EligibilityDto;
-
-  @IsNotEmpty({ message: 'validity is required' })
-  @ValidateNested()
-  @Type(() => ValidityDto)
-  validity: ValidityDto;
+  applies_to!: AppliesTo;
 
   @IsOptional()
-  @IsBoolean({ message: 'stackable must be a boolean' })
-  stackable?: boolean;
+  @ValidateIf(
+    (o: CreatePromotionDto) =>
+      o.service_id !== null && o.service_id !== undefined,
+  )
+  @IsMongoId({ message: 'service_id must be a valid MongoDB ObjectId' })
+  service_id?: string | null;
 
-  @IsOptional()
-  @IsInt({ message: 'priority must be an integer' })
-  @Min(0, { message: 'priority cannot be negative' })
+  @IsNotEmpty({ message: 'discount_type is required' })
+  @IsEnum(DiscountType, {
+    message: 'discount_type must be percent or fixed',
+  })
+  discount_type!: DiscountType;
+
+  @IsNotEmpty({ message: 'value is required' })
+  @IsNumber({}, { message: 'value must be a number' })
+  @Min(0, { message: 'value cannot be negative' })
   @Type(() => Number)
-  priority?: number;
+  value!: number;
+
+  @IsNotEmpty({ message: 'start_date is required' })
+  @IsDateString({}, { message: 'start_date must be a valid ISO date string' })
+  start_date!: string;
+
+  @IsOptional()
+  @IsDateString({}, { message: 'end_date must be a valid ISO date string' })
+  end_date?: string;
+
+  @IsOptional()
+  @IsBoolean({ message: 'is_available_to_membership must be a boolean' })
+  is_available_to_membership?: boolean;
+
+  @IsOptional()
+  @IsBoolean({ message: 'is_stackable must be a boolean' })
+  is_stackable?: boolean;
 
   @IsOptional()
   @IsBoolean({ message: 'is_active must be a boolean' })
