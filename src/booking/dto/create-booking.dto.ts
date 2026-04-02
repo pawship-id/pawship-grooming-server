@@ -23,6 +23,14 @@ export class PetSnapshotDto {
   name: string;
 
   @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  internal_note?: string;
+
+  @IsOptional()
   @ValidateIf((o) => o.member_type !== null)
   @IsObject()
   member_type?: { _id: string; name: string } | null;

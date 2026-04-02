@@ -29,4 +29,8 @@ export class ListBookingsDto {
   @IsOptional()
   @IsString()
   created_by_role?: string;
+
+  @IsOptional()
+  @IsString()
+  customer_id?: string;
 }

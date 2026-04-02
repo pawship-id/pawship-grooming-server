@@ -113,6 +113,12 @@ export class PetSnapshot {
   @Prop({ required: true })
   name: string;
 
+  @Prop()
+  description?: string;
+
+  @Prop()
+  internal_note?: string;
+
   @Prop({
     type: { _id: { type: Types.ObjectId }, name: { type: String } },
     default: null,

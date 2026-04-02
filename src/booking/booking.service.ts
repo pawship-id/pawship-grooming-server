@@ -442,8 +442,10 @@ export class BookingService {
     };
 
     // 3. Get active membership benefits
-    const membershipData =
-      await this.petMembershipService.getAvailableBenefits(petId, bookingDate);
+    const membershipData = await this.petMembershipService.getAvailableBenefits(
+      petId,
+      bookingDate,
+    );
     if (!membershipData.has_active_membership) {
       return emptyResult(originalTotalPrice ?? 0);
     }
@@ -486,12 +488,15 @@ export class BookingService {
           if (resolvedId && quotaCoveredServiceIds.has(resolvedId)) continue;
         } else if (appliesTo === 'addon') {
           if (benefit.service_id) {
-            if (quotaCoveredAddonIds.has(benefit.service_id.toString())) continue;
+            if (quotaCoveredAddonIds.has(benefit.service_id.toString()))
+              continue;
           } else {
             // null service_id → applies to all selected addons; skip if all are covered
             const allCovered =
               (addOnIds || []).length > 0 &&
-              (addOnIds || []).every((id) => quotaCoveredAddonIds.has(id.toString()));
+              (addOnIds || []).every((id) =>
+                quotaCoveredAddonIds.has(id.toString()),
+              );
             if (allCovered) continue;
           }
         }
@@ -522,7 +527,11 @@ export class BookingService {
         if (!add_ons || add_ons.length === 0) continue;
         for (const addonId of add_ons) {
           // Skip individual addon if already fully free via a quota benefit
-          if (benefit.type === 'discount' && quotaCoveredAddonIds.has(addonId.toString())) continue;
+          if (
+            benefit.type === 'discount' &&
+            quotaCoveredAddonIds.has(addonId.toString())
+          )
+            continue;
           let addonBasePrice = 0;
           try {
             const addon = await this.serviceService.getServiceForBooking(
@@ -661,7 +670,8 @@ export class BookingService {
       originalTotalPrice != null
         ? Math.max(0, originalTotalPrice - totalDiscount)
         : breakdown.reduce(
-            (sum, item) => sum + Math.max(0, item.base_price - item.amount_deducted),
+            (sum, item) =>
+              sum + Math.max(0, item.base_price - item.amount_deducted),
             0,
           );
 
@@ -966,7 +976,11 @@ export class BookingService {
           : BookingStatus.REQUESTED;
 
       (body as any).created_by_role =
-        user?.role === 'admin' ? 'admin' : user?.role === 'customer' ? 'customer' : null;
+        user?.role === 'admin'
+          ? 'admin'
+          : user?.role === 'customer'
+            ? 'customer'
+            : null;
 
       const booking = await this.bookingModel.create([body], { session });
 
@@ -1009,7 +1023,15 @@ export class BookingService {
   }
 
   async findAll(query: ListBookingsDto = {}) {
-    const { page = 1, limit = 20, status, date_from, date_to, created_by_role } = query;
+    const {
+      page = 1,
+      limit = 20,
+      status,
+      date_from,
+      date_to,
+      created_by_role,
+      customer_id,
+    } = query;
 
     const filter: any = { isDeleted: false };
 
@@ -1025,6 +1047,10 @@ export class BookingService {
 
     if (created_by_role) {
       filter.created_by_role = created_by_role;
+    }
+
+    if (customer_id) {
+      filter.customer_id = customer_id;
     }
 
     const skip = (page - 1) * limit;
