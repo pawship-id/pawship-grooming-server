@@ -113,7 +113,6 @@ export class UserService {
         .populate('hair', 'name')
         .populate('size', 'name')
         .populate('breed', 'name')
-        .populate('member_category', 'name')
         .exec();
 
       return { ...user.toObject(), pets };

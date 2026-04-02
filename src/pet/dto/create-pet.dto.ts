@@ -49,10 +49,6 @@ export class CreatePetDto {
   @IsOptional()
   weight: number;
 
-  @IsMongoId({ message: 'member category must be a valid ID' })
-  @IsOptional()
-  member_category_id?: string;
-
   @IsOptional()
   tags?: string[];
 

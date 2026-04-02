@@ -339,10 +339,6 @@ For customer users:
         "breed": {
             "_id": "698da2bb19b8a1bbac7aabb6",
             "name": "Pom"
-        },
-        "member_category": {
-            "_id": "699456cf429638a275fb0456",
-            "name": "Vip - In Store"
         }
     }
   ]
@@ -380,7 +376,7 @@ For customer users:
 - Fields like `groomer_skills` and `groomer_rating` are only meaningful for users with `role: groomer`
 - `customer_category_id` is only meaningful for users with `role: customer`
 - If user role is `customer`, the response includes a `pets` array with all their pets (non-deleted only)
-- Pets are populated with their relationships: pet_type, hair_category, size_category, breed_category, and member_category
+- Pets are populated with their relationships: pet_type, hair_category, size_category, and breed_category
 - Useful for profile pages or checking current user permissions
 
 ---
@@ -528,7 +524,6 @@ Authorization: Bearer <jwt_token>
   "size_category_id": "MongoDB ObjectId (required)",
   "breed_category_id": "MongoDB ObjectId (required)",
   "weight": "number (optional)",
-  "member_category_id": "MongoDB ObjectId (optional)",
   "tags": ["string"],
   "last_grooming_at": "ISO date (optional)",
   "last_visit_at": "ISO date (optional)",
@@ -598,7 +593,6 @@ Authorization: Bearer <jwt_token>
 - `pet_type_id` (optional, MongoDB ObjectId): Filter by pet type
 - `size_category_id` (optional, MongoDB ObjectId): Filter by size
 - `breed_category_id` (optional, MongoDB ObjectId): Filter by breed
-- `member_category_id` (optional, MongoDB ObjectId): Filter by membership category
 
 **Success Response (200):**
 
@@ -719,7 +713,6 @@ Authorization: Bearer <jwt_token>
   "size_category_id": "MongoDB ObjectId",
   "breed_category_id": "MongoDB ObjectId",
   "weight": "number",
-  "member_category_id": "MongoDB ObjectId",
   "tags": ["string"],
   "last_grooming_at": "ISO date",
   "last_visit_at": "ISO date",
@@ -861,10 +854,6 @@ For customer users:
           "name": "Golden Retriever"
         },
         "weight": 15,
-        "member_category": {
-          "_id": "507f1f77bcf86cd799439016",
-          "name": "Gold"
-        },
         "tags": ["friendly", "energetic"],
         "last_grooming_at": "2026-01-15T00:00:00.000Z",
         "last_visit_at": "2026-02-01T00:00:00.000Z",
@@ -913,7 +902,7 @@ For customer users:
 
 - Sensitive fields (`password`, `refresh_token`, `refresh_token_expires_at`) are automatically excluded from response
 - If user role is `customer`, the response includes a `pets` array with all their pets (non-deleted only)
-- Pets are populated with their relationships: pet_type, hair, size, breed, and member_category
+- Pets are populated with their relationships: pet_type, hair, size, and breed
 
 ---
 
@@ -3025,7 +3014,6 @@ Key: folder | Type: text
 - `pet_type_id` (MongoDB ObjectId)
 - `size_category_id` (MongoDB ObjectId)
 - `breed_category_id` (MongoDB ObjectId)
-- `member_category_id` (MongoDB ObjectId)
 - `customer_id` (MongoDB ObjectId)
 
 **Success Response (200):**
@@ -3061,10 +3049,6 @@ Key: folder | Type: text
         "name": "Golden Retriever"
       },
       "weight": 15,
-      "member_category": {
-        "_id": "507f1f77bcf86cd799439016",
-        "name": "Gold"
-      },
       "tags": ["friendly", "energetic"],
       "last_grooming_at": "2026-01-15T00:00:00.000Z",
       "last_visit_at": "2026-02-01T00:00:00.000Z",
@@ -3148,10 +3132,6 @@ Key: folder | Type: text
       "name": "Golden Retriever"
     },
     "weight": 15,
-    "member_category": {
-      "_id": "507f1f77bcf86cd799439016",
-      "name": "Gold"
-    },
     "tags": ["friendly", "energetic"],
     "last_grooming_at": "2026-01-15T00:00:00.000Z",
     "last_visit_at": "2026-02-01T00:00:00.000Z",
@@ -3207,7 +3187,6 @@ Key: folder | Type: text
   "size_category_id": "MongoDB ObjectId (required)",
   "breed_category_id": "MongoDB ObjectId (required)",
   "weight": "number (optional)",
-  "member_category_id": "MongoDB ObjectId (optional)",
   "tags": ["string"] (optional array),
   "last_grooming_at": "Date (optional)",
   "last_visit_at": "Date (optional)",

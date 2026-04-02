@@ -48,9 +48,5 @@ export class GetPetsQueryDto {
 
   @IsOptional()
   @IsMongoId()
-  member_category_id?: string;
-
-  @IsOptional()
-  @IsMongoId()
   customer_id?: string;
 }

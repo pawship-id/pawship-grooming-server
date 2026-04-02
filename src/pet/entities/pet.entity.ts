@@ -14,7 +14,6 @@ export type PetDocument = HydratedDocument<Pet>;
       delete ret.hair_category_id;
       delete ret.size_category_id;
       delete ret.breed_category_id;
-      delete ret.member_category_id;
       delete ret.customer_id;
 
       return ret;
@@ -77,12 +76,6 @@ export class Pet {
   @Prop()
   weight: number;
 
-  @Prop({
-    type: Types.ObjectId,
-    ref: 'Option',
-  })
-  member_category_id: Types.ObjectId;
-
   @Prop({ type: [String], default: [] })
   tags: string[];
 
@@ -131,13 +124,6 @@ PetSchema.virtual('size', {
 PetSchema.virtual('breed', {
   ref: 'Option',
   localField: 'breed_category_id',
-  foreignField: '_id',
-  justOne: true,
-});
-
-PetSchema.virtual('member_category', {
-  ref: 'Option',
-  localField: 'member_category_id',
   foreignField: '_id',
   justOne: true,
 });
