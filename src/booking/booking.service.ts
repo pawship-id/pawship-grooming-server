@@ -1521,4 +1521,168 @@ export class BookingService {
       bookingDate,
     );
   }
+
+  /**
+   * Update the pricing of a booking: override per-item prices and/or apply membership benefits.
+   * Does NOT touch: schedule, capacity, snapshots, or booking status.
+   */
+  async updatePricing(
+    id: ObjectId,
+    dto: {
+      service_price?: number;
+      service_discount?: number;
+      travel_fee?: number;
+      travel_fee_discount?: number;
+      addon_prices?: { addon_id: string; price?: number; discount?: number }[];
+      selected_benefit_ids?: string[];
+    },
+  ) {
+    const existing = await this.bookingModel.findById(id);
+    if (!existing || existing.isDeleted) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    // ── 1. Per-item base prices and item-level discounts ──────────────────────
+    const svcBase = dto.service_price ?? existing.service_snapshot.price ?? 0;
+    const svcDisc = dto.service_discount ?? 0;
+    const svcEffective = Math.max(0, svcBase - svcDisc);
+
+    const tFeeBase = existing.pick_up
+      ? (dto.travel_fee ?? existing.travel_fee ?? 0)
+      : 0;
+    const tFeeDisc = existing.pick_up ? (dto.travel_fee_discount ?? 0) : 0;
+    const tFeeEffective = Math.max(0, tFeeBase - tFeeDisc);
+
+    const addonItems = (existing.service_snapshot.addons ?? []).map((addon) => {
+      const entry = dto.addon_prices?.find(
+        (a) => a.addon_id === addon._id?.toString(),
+      );
+      const base = entry?.price ?? addon.price ?? 0;
+      const disc = entry?.discount ?? 0;
+      return {
+        addon_id: addon._id?.toString() ?? '',
+        base,
+        disc,
+        effective: Math.max(0, base - disc),
+      };
+    });
+    const addonBaseTotal = addonItems.reduce((s, a) => s + a.base, 0);
+    const addonEffective = addonItems.reduce((s, a) => s + a.effective, 0);
+
+    // original_total_price = sum of base prices (before any discounts)
+    const newOriginalTotal = svcBase + tFeeBase + addonBaseTotal;
+    // item-level discount total
+    const itemDiscountTotal =
+      svcDisc +
+      tFeeDisc +
+      addonItems.reduce((s, a) => s + a.disc, 0);
+    // effective subtotal used as the base for membership benefit calculation
+    const effectiveSubtotal = svcEffective + tFeeEffective + addonEffective;
+
+    // ── 2. Apply membership benefits on the effective subtotal ────────────────
+    const selectedBenefitIds = dto.selected_benefit_ids ?? [];
+    const petId = existing.pet_id.toString();
+    const storeId = existing.store_id.toString();
+    const serviceId = existing.service_id.toString();
+    const addonIds = (existing.service_addon_ids ?? []).map((i) =>
+      i.toString(),
+    );
+    const bookingDate = existing.date;
+
+    let benefitResult: {
+      applied_benefits: any[];
+      total_discount: number;
+      final_price: number;
+      breakdown: any[];
+    };
+
+    if (selectedBenefitIds.length > 0) {
+      try {
+        benefitResult = await this.applyBenefitsToBooking(
+          petId,
+          selectedBenefitIds,
+          storeId,
+          serviceId,
+          addonIds,
+          effectiveSubtotal,
+          bookingDate,
+        );
+      } catch {
+        benefitResult = {
+          applied_benefits: [],
+          total_discount: 0,
+          final_price: effectiveSubtotal,
+          breakdown: [],
+        };
+      }
+    } else {
+      benefitResult = {
+        applied_benefits: [],
+        total_discount: 0,
+        final_price: effectiveSubtotal,
+        breakdown: [],
+      };
+    }
+
+    // total_discount = item discounts + membership benefit discounts
+    const totalDiscount = itemDiscountTotal + benefitResult.total_discount;
+    const finalTotalPrice = Math.max(0, newOriginalTotal - totalDiscount);
+
+    // ── 3. Restore old benefit usages ─────────────────────────────────────────
+    await this.benefitUsageService.softDeleteByBookingId(id.toString());
+
+    // ── 4. Persist update ─────────────────────────────────────────────────────
+    await this.bookingModel.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          original_total_price: newOriginalTotal,
+          selected_benefit_ids: selectedBenefitIds.map(
+            (sid) => new Types.ObjectId(sid),
+          ),
+          applied_benefits: benefitResult.breakdown,
+          total_discount: totalDiscount,
+          final_total_price: finalTotalPrice,
+          edited_service_price: dto.service_price ?? null,
+          edited_service_discount: svcDisc > 0 ? svcDisc : null,
+          edited_travel_fee: existing.pick_up ? (dto.travel_fee ?? null) : null,
+          edited_travel_fee_discount:
+            existing.pick_up && tFeeDisc > 0 ? tFeeDisc : null,
+          edited_addon_prices: addonItems.map((a) => ({
+            addon_id: a.addon_id,
+            price: a.base,
+            discount: a.disc,
+          })),
+        },
+      },
+      { new: true },
+    );
+
+    // ── 5. Record new benefit usages ──────────────────────────────────────────
+    if (benefitResult.applied_benefits.length > 0) {
+      const bDate = new Date(bookingDate);
+      const bookingIdStr = id.toString();
+      for (const applied of benefitResult.applied_benefits) {
+        if (applied.pet_membership_id && applied.benefit_id) {
+          try {
+            await this.benefitUsageService.recordUsage({
+              pet_membership_id: applied.pet_membership_id,
+              benefit_id: applied.benefit_id.toString(),
+              booking_id: bookingIdStr,
+              target_id: bookingIdStr,
+              amount_used: 1,
+              booking_date: bDate,
+              period_key: BenefitUsageService.computePeriodKey(
+                bDate,
+                applied.benefit_period,
+              ),
+              benefit_period: applied.benefit_period,
+            });
+          } catch {
+            // Non-fatal
+          }
+        }
+      }
+    }
+  }
 }

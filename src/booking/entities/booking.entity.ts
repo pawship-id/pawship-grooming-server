@@ -306,11 +306,6 @@ export class BookingStatusLog {
     transform: (_: any, ret: any) => {
       delete ret.id;
       delete ret.__v;
-      delete ret.customer_id;
-      delete ret.pet_id;
-      delete ret.store_id;
-      delete ret.service_id;
-      delete ret.service_addon_ids;
 
       if (ret.sessions?.length) {
         ret.sessions = ret.sessions.map((session: any) => {
@@ -404,6 +399,24 @@ export class Booking {
 
   @Prop({ default: null })
   final_total_price: number; // final total harga yg harus dibayar
+
+  @Prop({ type: Number, default: null })
+  edited_service_price: number | null; // admin override for service base price
+
+  @Prop({ type: Number, default: null })
+  edited_service_discount: number | null; // admin item-level discount on service
+
+  @Prop({ type: Number, default: null })
+  edited_travel_fee: number | null; // admin override for travel fee base price
+
+  @Prop({ type: Number, default: null })
+  edited_travel_fee_discount: number | null; // admin item-level discount on travel fee
+
+  @Prop({
+    type: [{ addon_id: { type: String }, price: { type: Number }, discount: { type: Number, default: 0 } }],
+    default: [],
+  })
+  edited_addon_prices: { addon_id: string; price: number; discount?: number }[]; // per-addon price overrides
 
   @Prop({
     type: [{ type: Types.ObjectId, ref: 'Promo' }],

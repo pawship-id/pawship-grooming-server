@@ -33,6 +33,7 @@ import { ConfigService } from '@nestjs/config';
 import { UserService } from 'src/user/user.service';
 import { ApplyBenefitPreviewDto } from './dto/apply-benefit-preview.dto';
 import { ListBookingsDto } from './dto/list-bookings.dto';
+import { UpdateBookingPricingDto } from './dto/update-booking-pricing.dto';
 
 @Controller('bookings')
 @UseGuards(AuthGuard)
@@ -284,6 +285,22 @@ export class BookingController {
 
     return {
       message: 'Delete booking successfully',
+    };
+  }
+
+  // update pricing only (benefits + manual discount)
+  @Patch(':id/pricing')
+  async updatePricing(
+    @Param('id') id: string,
+    @Body() body: UpdateBookingPricingDto,
+  ) {
+    if (!id) throw new BadRequestException('id is required');
+
+    const _id = new ObjectId(id);
+    await this.bookingService.updatePricing(_id, body);
+
+    return {
+      message: 'Booking pricing updated successfully',
     };
   }
 
