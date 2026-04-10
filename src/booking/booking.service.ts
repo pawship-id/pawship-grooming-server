@@ -1089,7 +1089,11 @@ export class BookingService {
     const filter: any = {
       isDeleted: false,
       booking_status: {
-        $in: [BookingStatus.CONFIRMED, BookingStatus.ARRIVED],
+        $in: [
+          BookingStatus.CONFIRMED,
+          BookingStatus.ARRIVED,
+          BookingStatus.IN_PROGRESS,
+        ],
       },
       sessions: {
         $elemMatch: {
