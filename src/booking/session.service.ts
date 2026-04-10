@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -136,6 +137,44 @@ export class SessionService {
     } catch (error) {
       throw error;
     }
+  }
+
+  // ==================== CLAIM SESSION ====================
+
+  // Allow a groomer to claim an unassigned session
+  async claimSession(bookingId: ObjectId, sessionId: ObjectId, groomerId: ObjectId) {
+    const booking = await this.bookingModel.findById(bookingId);
+    if (!booking || booking.isDeleted) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    const sessionIndex = booking.sessions.findIndex(
+      (s: any) => s._id.toString() === sessionId.toString(),
+    );
+
+    if (sessionIndex === -1) {
+      throw new NotFoundException('Session not found');
+    }
+
+    const session = booking.sessions[sessionIndex];
+
+    if (session.groomer_id) {
+      throw new ConflictException('Session is already claimed by another groomer');
+    }
+
+    const basePath = `sessions.${sessionIndex}`;
+
+    const updatedBooking = await this.bookingModel.findByIdAndUpdate(
+      bookingId,
+      {
+        $set: {
+          [`${basePath}.groomer_id`]: new Types.ObjectId(groomerId.toString()),
+        },
+      },
+      { new: true },
+    );
+
+    return updatedBooking;
   }
 
   // ==================== WORKFLOW ACTIONS ====================

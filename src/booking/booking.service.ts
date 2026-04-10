@@ -31,6 +31,10 @@ import {
   StoreDailyCapacityDocument,
 } from 'src/store-daily-capacity/entities/store-daily-capacity.entity';
 import { ListBookingsDto } from './dto/list-bookings.dto';
+import {
+  ListGroomerMyJobsDto,
+  ListGroomerOpenJobsDto,
+} from './dto/list-groomer-bookings.dto';
 
 @Injectable()
 export class BookingService {
@@ -1020,6 +1024,100 @@ export class BookingService {
       session.endSession();
       throw error;
     }
+  }
+
+  // ─── Groomer Endpoints ─────────────────────────────────────────────────────
+
+  /**
+   * Get bookings assigned to a specific groomer (via sessions.groomer_id)
+   */
+  async getGroomerMyJobs(groomerId: ObjectId, query: ListGroomerMyJobsDto = {}) {
+    const { page = 1, limit = 20, session_status, date_from, date_to } = query;
+
+    const filter: any = {
+      isDeleted: false,
+      'sessions.groomer_id': new Types.ObjectId(groomerId.toString()),
+      booking_status: { $nin: [BookingStatus.CANCELLED] },
+    };
+
+    if (date_from || date_to) {
+      filter.date = {};
+      if (date_from) filter.date.$gte = date_from;
+      if (date_to) filter.date.$lte = date_to;
+    }
+
+    if (session_status) {
+      filter.sessions = {
+        ...filter.sessions,
+        $elemMatch: {
+          groomer_id: new Types.ObjectId(groomerId.toString()),
+          status: session_status,
+        },
+      };
+      delete filter['sessions.groomer_id'];
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [bookings, total] = await Promise.all([
+      this.bookingModel
+        .find(filter)
+        .sort({ date: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('customer', 'username email phone_number')
+        .populate('store', 'name')
+        .populate({
+          path: 'sessions.groomer_id',
+          select: 'username email phone_number',
+          model: 'User',
+        })
+        .exec(),
+      this.bookingModel.countDocuments(filter),
+    ]);
+
+    return { bookings, total, page, limit };
+  }
+
+  /**
+   * Get bookings with at least one unassigned session (groomer_id is null)
+   * Only returns confirmed/arrived bookings
+   */
+  async getGroomerOpenJobs(query: ListGroomerOpenJobsDto = {}) {
+    const { page = 1, limit = 20 } = query;
+
+    const filter: any = {
+      isDeleted: false,
+      booking_status: {
+        $in: [BookingStatus.CONFIRMED, BookingStatus.ARRIVED],
+      },
+      sessions: {
+        $elemMatch: {
+          groomer_id: null,
+        },
+      },
+    };
+
+    const skip = (page - 1) * limit;
+
+    const [bookings, total] = await Promise.all([
+      this.bookingModel
+        .find(filter)
+        .sort({ date: 1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('customer', 'username email phone_number')
+        .populate('store', 'name')
+        .populate({
+          path: 'sessions.groomer_id',
+          select: 'username email phone_number',
+          model: 'User',
+        })
+        .exec(),
+      this.bookingModel.countDocuments(filter),
+    ]);
+
+    return { bookings, total, page, limit };
   }
 
   async findAll(query: ListBookingsDto = {}) {

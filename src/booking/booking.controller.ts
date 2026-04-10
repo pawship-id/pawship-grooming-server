@@ -34,6 +34,10 @@ import { UserService } from 'src/user/user.service';
 import { ApplyBenefitPreviewDto } from './dto/apply-benefit-preview.dto';
 import { ListBookingsDto } from './dto/list-bookings.dto';
 import { UpdateBookingPricingDto } from './dto/update-booking-pricing.dto';
+import {
+  ListGroomerMyJobsDto,
+  ListGroomerOpenJobsDto,
+} from './dto/list-groomer-bookings.dto';
 
 @Controller('bookings')
 @UseGuards(AuthGuard)
@@ -196,6 +200,31 @@ export class BookingController {
     );
     return {
       message: 'Benefit preview calculated successfully',
+      ...result,
+    };
+  }
+
+  // ─── Groomer Endpoints ──────────────────────────────────────────────────────
+
+  // get groomer's assigned bookings
+  @Get('groomer/my-jobs')
+  async getGroomerMyJobs(@Query() query: ListGroomerMyJobsDto, @Req() request: any) {
+    const groomerId = new ObjectId(request.user._id);
+    const result = await this.bookingService.getGroomerMyJobs(groomerId, query);
+
+    return {
+      message: 'Fetch groomer jobs successfully',
+      ...result,
+    };
+  }
+
+  // get bookings with unassigned sessions
+  @Get('groomer/open-jobs')
+  async getGroomerOpenJobs(@Query() query: ListGroomerOpenJobsDto) {
+    const result = await this.bookingService.getGroomerOpenJobs(query);
+
+    return {
+      message: 'Fetch open jobs successfully',
       ...result,
     };
   }
