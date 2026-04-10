@@ -14,9 +14,9 @@ export class CreateSessionDto {
   @IsNotEmpty({ message: 'type is required' })
   type: string;
 
+  @IsOptional()
   @IsMongoId({ message: 'groomer_id must be a valid Mongo ID' })
-  @IsNotEmpty({ message: 'groomer_id is required' })
-  groomer_id: string;
+  groomer_id?: string;
 
   @IsOptional()
   @IsInt()

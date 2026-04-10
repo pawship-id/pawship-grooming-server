@@ -37,7 +37,9 @@ export class SessionService {
 
     const newSession = {
       type: dto.type,
-      groomer_id: new Types.ObjectId(dto.groomer_id),
+      ...(dto.groomer_id
+        ? { groomer_id: new Types.ObjectId(dto.groomer_id) }
+        : {}),
       status: SessionStatus.NOT_STARTED,
       started_at: null,
       finished_at: null,
