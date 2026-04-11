@@ -11,7 +11,8 @@ src/seeding/
 ├── utils/
 │   └── excel-reader.util.ts   # Utility untuk membaca file Excel
 ├── scripts/
-│   └── seed-option.ts         # Script seeding untuk Option data
+│   ├── seed-option.ts         # Script seeding untuk Option data
+│   └── seed-store.ts          # Script seeding untuk Store data
 └── README.md                  # Dokumentasi ini
 ```
 
@@ -96,6 +97,100 @@ Total rows processed: 50
 | Medium     | size category    | true      |
 | Dog        | pet type         | true      |
 | Cat        | pet type         | true      |
+
+#### Store Data
+
+```bash
+npm run seed:store
+```
+
+Script ini akan:
+
+- Membaca data dari `data/Data Store.xlsx` (header di row 1-2, data mulai row 3)
+- Memvalidasi data (code, name)
+- Melakukan **upsert** berdasarkan `code`
+- Menampilkan summary hasil seeding
+
+**Output contoh:**
+
+```
+✓ Successfully read 5 rows from Data Store.xlsx
+
+🔄 Processing 5 rows...
+
+✓ Row 3: Inserted "Store Jakarta Pusat" (JKT-001)
+✓ Row 4: Updated "Store Bandung" (BDG-001)
+- Row 5: No changes for "Store Surabaya" (SBY-001)
+
+==================================================
+📊 SEEDING SUMMARY
+==================================================
+Total rows processed: 5
+✓ Inserted: 2
+✓ Updated: 2
+- Skipped: 1
+✗ Errors: 0
+==================================================
+```
+
+### Store Data (`Data Store.xlsx`)
+
+**Note:** Excel file memiliki header di row 1 & 2, data mulai dari row 3.
+
+| Kolom                            | Tipe           | Wajib | Deskripsi                                   | Contoh                                 |
+| -------------------------------- | -------------- | ----- | ------------------------------------------- | -------------------------------------- |
+| `code`                           | String         | Ya    | Kode store (unique)                         | "JKT-001", "BDG-001"                   |
+| `name`                           | String         | Ya    | Nama store                                  | "Store Jakarta Pusat"                  |
+| `description`                    | String         | Tidak | Deskripsi store                             | "Store utama di Jakarta"               |
+| `address`                        | String         | Tidak | Alamat lengkap                              | "Jl. Sudirman No. 123"                 |
+| `city`                           | String         | Tidak | Kota                                        | "Jakarta"                              |
+| `province`                       | String         | Tidak | Provinsi                                    | "DKI Jakarta"                          |
+| `postal_code`                    | String         | Tidak | Kode pos                                    | "12190"                                |
+| `latitude`                       | Number         | Tidak | Koordinat latitude                          | -6.2088                                |
+| `longitude`                      | Number         | Tidak | Koordinat longitude                         | 106.8456                               |
+| `phone_number`                   | String         | Tidak | Nomor telepon                               | "021-12345678"                         |
+| `whatsapp`                       | String         | Tidak | Nomor WhatsApp                              | "628123456789"                         |
+| `email`                          | String         | Tidak | Email                                       | "store@example.com"                    |
+| `opening_time`                   | String         | Tidak | Jam buka                                    | "09:00"                                |
+| `closing_time`                   | String         | Tidak | Jam tutup                                   | "18:00"                                |
+| `operational_days`               | String         | Tidak | Hari operasional (comma-separated)          | "Monday,Tuesday,Wednesday"             |
+| `timezone`                       | String         | Tidak | Timezone (default: "Asia/Jakarta")          | "Asia/Jakarta"                         |
+| `default_daily_capacity_minutes` | Number         | Tidak | Kapasitas harian dalam menit (default: 960) | 960                                    |
+| `overbooking_limit_minutes`      | Number         | Tidak | Limit overbooking (default: 120)            | 120                                    |
+| `zones`                          | String (JSON)  | Tidak | Zones dalam format JSON array               | (lihat contoh di bawah)                |
+| `sessions`                       | String         | Tidak | Sessions (comma-separated)                  | "morning,afternoon,evening"            |
+| `is_default_store`               | Boolean/String | Tidak | Default store (default: false)              | true, false, "true", "false", "1", "0" |
+| `is_pick_up_available`           | Boolean/String | Tidak | Pickup tersedia (default: false)            | true, false, "true", "false", "1", "0" |
+| `is_active`                      | Boolean/String | Tidak | Status aktif (default: true)                | true, false, "true", "false", "1", "0" |
+
+**Contoh zones JSON:**
+
+```json
+[
+  {
+    "area_name": "Zone A",
+    "min_radius_km": 0,
+    "max_radius_km": 5,
+    "travel_time_minutes": 30,
+    "travel_fee": 50000
+  },
+  {
+    "area_name": "Zone B",
+    "min_radius_km": 5,
+    "max_radius_km": 10,
+    "travel_time_minutes": 60,
+    "travel_fee": 100000
+  }
+]
+```
+
+**Contoh data Excel:**
+
+| code    | name                | city     | opening_time | closing_time | operational_days         | is_active |
+| ------- | ------------------- | -------- | ------------ | ------------ | ------------------------ | --------- |
+| JKT-001 | Store Jakarta Pusat | Jakarta  | 09:00        | 18:00        | Monday,Tuesday,Wednesday | true      |
+| BDG-001 | Store Bandung       | Bandung  | 10:00        | 19:00        | Monday,Tuesday,Friday    | true      |
+| SBY-001 | Store Surabaya      | Surabaya | 08:00        | 17:00        | Monday,Tuesday,Thursday  | true      |
 
 ## ⚙️ Cara Kerja Upsert
 
