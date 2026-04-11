@@ -1083,8 +1083,12 @@ export class BookingService {
    * Get bookings with at least one unassigned session (groomer_id is null)
    * Only returns confirmed/arrived bookings
    */
-  async getGroomerOpenJobs(query: ListGroomerOpenJobsDto = {}) {
+  async getGroomerOpenJobs(groomerId: ObjectId, query: ListGroomerOpenJobsDto = {}) {
     const { page = 1, limit = 20 } = query;
+
+    // Look up groomer's placement (store)
+    const groomer = await this.userModel.findById(groomerId).select('profile.placement').lean();
+    const groomerStoreId = groomer?.profile?.placement;
 
     const filter: any = {
       isDeleted: false,
@@ -1101,6 +1105,11 @@ export class BookingService {
         },
       },
     };
+
+    // Filter by groomer's store if they have a placement
+    if (groomerStoreId) {
+      filter.store_id = groomerStoreId;
+    }
 
     const skip = (page - 1) * limit;
 

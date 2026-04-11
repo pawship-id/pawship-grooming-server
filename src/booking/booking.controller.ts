@@ -220,8 +220,9 @@ export class BookingController {
 
   // get bookings with unassigned sessions
   @Get('groomer/open-jobs')
-  async getGroomerOpenJobs(@Query() query: ListGroomerOpenJobsDto) {
-    const result = await this.bookingService.getGroomerOpenJobs(query);
+  async getGroomerOpenJobs(@Query() query: ListGroomerOpenJobsDto, @Req() request: any) {
+    const groomerId = new ObjectId(request.user._id);
+    const result = await this.bookingService.getGroomerOpenJobs(groomerId, query);
 
     return {
       message: 'Fetch open jobs successfully',
