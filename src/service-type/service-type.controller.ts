@@ -19,6 +19,7 @@ import { UpdateServiceTypeDto } from './dto/update-service-type.dto';
 import { GetServiceTypesQueryDto } from './dto/get-service-types-query.dto';
 import { ObjectId } from 'mongodb';
 import { AuthGuard } from 'src/auth/auth.guard';
+import { Public } from 'src/auth/public.decorator';
 
 @Controller('service-types')
 @UseGuards(AuthGuard)
@@ -41,6 +42,16 @@ export class ServiceTypeController {
     return {
       message: 'Fetch service types successfully',
       ...result,
+    };
+  }
+
+  @Public()
+  @Get('public/homepage')
+  async findAllForHomepage() {
+    const serviceTypes = await this.serviceTypeService.findAllForHomepage();
+    return {
+      message: 'Fetch homepage service types successfully',
+      serviceTypes,
     };
   }
 

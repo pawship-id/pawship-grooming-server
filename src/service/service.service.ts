@@ -398,6 +398,30 @@ export class ServiceService {
     };
   }
 
+  async findAllForHomepage() {
+    return await this.serviceModel
+      .find({ isDeleted: false, is_active: true, show_in_homepage: true })
+      .populate('service_type', 'title')
+      .populate('pet_types', 'name')
+      .populate({
+        path: 'prices.pet_type_id',
+        model: 'Option',
+        select: 'name',
+      })
+      .populate({
+        path: 'prices.size_id',
+        model: 'Option',
+        select: 'name',
+      })
+      .populate({
+        path: 'prices.hair_id',
+        model: 'Option',
+        select: 'name',
+      })
+      .sort({ order: 1, createdAt: -1 })
+      .exec();
+  }
+
   // method to retrieve service based on service type and store
   async findAllForGuest(storeId?: string, service_type_id?: string) {
     const filter: any = { isDeleted: false };
