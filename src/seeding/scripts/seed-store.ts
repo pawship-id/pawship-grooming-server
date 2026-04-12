@@ -50,14 +50,39 @@ const StoreSchema = new mongoose.Schema(
         overbooking_limit_minutes: 120,
       }),
     },
-    zones: {
+    home_service_zones: {
       type: [
         {
           area_name: { type: String, required: true },
           min_radius_km: { type: Number, required: true },
           max_radius_km: { type: Number, required: true },
           travel_time_minutes: { type: Number, required: true },
-          travel_fee: { type: Number, required: true },
+          price: { type: Number, required: true },
+        },
+      ],
+      default: [],
+      _id: false,
+    },
+    pickup_delivery_zones: {
+      type: [
+        {
+          area_name: { type: String, required: true },
+          min_radius_km: { type: Number, required: true },
+          max_radius_km: { type: Number, required: true },
+          travel_time_minutes: { type: Number, required: true },
+          prices: {
+            type: [
+              {
+                size_category_id: {
+                  type: mongoose.Schema.Types.ObjectId,
+                  ref: 'Option',
+                  required: true,
+                },
+                price: { type: Number, required: true },
+              },
+            ],
+            required: true,
+          },
         },
       ],
       default: [],
@@ -65,7 +90,7 @@ const StoreSchema = new mongoose.Schema(
     },
     sessions: { type: [String], default: [] },
     is_default_store: { type: Boolean, default: false },
-    is_pick_up_available: { type: Boolean, default: false },
+    is_pickup_delivery_available: { type: Boolean, default: false },
     is_active: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date, default: null },
@@ -100,11 +125,16 @@ interface ExcelRow {
   // Capacity fields
   default_daily_capacity_minutes?: string | number;
   overbooking_limit_minutes?: string | number;
+  // Home service zone fields (single zone per row)
+  area_name?: string;
+  min_radius_km?: string | number;
+  max_radius_km?: string | number;
+  travel_time_minutes?: string | number;
+  price?: string | number;
   // Other fields
-  zones?: string;
   sessions?: string;
   is_default_store?: string | boolean;
-  is_pick_up_available?: string | boolean;
+  is_pickup_delivery_available?: string | boolean;
   is_active?: string | boolean;
 }
 
@@ -172,25 +202,31 @@ function parseArray(value: any): string[] {
 }
 
 /**
- * Parse zones array from JSON string
+ * Parse home service zone from Excel row fields
  */
-function parseZones(value: any): any[] {
-  if (!value) {
+function parseHomeServiceZone(row: ExcelRow): any[] {
+  // Check if zone fields are present
+  if (
+    !row.area_name ||
+    row.min_radius_km === undefined ||
+    row.max_radius_km === undefined ||
+    row.travel_time_minutes === undefined ||
+    row.price === undefined
+  ) {
     return [];
   }
-  if (Array.isArray(value)) {
-    return value;
-  }
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (error) {
-      console.warn('Failed to parse zones JSON:', error.message);
-      return [];
-    }
-  }
-  return [];
+
+  // Create zone object
+  const zone = {
+    area_name: row.area_name.trim(),
+    min_radius_km: parseNumber(row.min_radius_km, 0),
+    max_radius_km: parseNumber(row.max_radius_km, 0),
+    travel_time_minutes: parseNumber(row.travel_time_minutes, 0),
+    price: parseNumber(row.price, 0),
+  };
+
+  // Only return zone if it has valid data (max_radius > 0)
+  return zone.max_radius_km > 0 ? [zone] : [];
 }
 
 /**
@@ -289,6 +325,68 @@ function readExcelFileWithCustomHeaders(filePath: string): any[] {
 }
 
 /**
+ * Group Excel rows by store code (rows without code belong to previous store)
+ */
+function groupRowsByStore(data: ExcelRow[]): Map<string, ExcelRow[]> {
+  const storeGroups = new Map<string, ExcelRow[]>();
+  let currentStoreCode = '';
+
+  for (const row of data) {
+    // If row has a code, it's a new store
+    if (row.code && row.code.trim()) {
+      currentStoreCode = row.code.trim();
+      if (!storeGroups.has(currentStoreCode)) {
+        storeGroups.set(currentStoreCode, []);
+      }
+      storeGroups.get(currentStoreCode)!.push(row);
+    }
+    // If no code but has zone data, belongs to current store
+    else if (currentStoreCode && row.area_name && row.area_name.trim()) {
+      storeGroups.get(currentStoreCode)!.push(row);
+    }
+    // Otherwise, skip empty rows
+  }
+
+  return storeGroups;
+}
+
+/**
+ * Parse all home service zones from grouped rows
+ */
+function parseAllHomeServiceZones(rows: ExcelRow[]): any[] {
+  const zones: any[] = [];
+
+  for (const row of rows) {
+    // Check if zone fields are present
+    if (
+      !row.area_name ||
+      row.min_radius_km === undefined ||
+      row.max_radius_km === undefined ||
+      row.travel_time_minutes === undefined ||
+      row.price === undefined
+    ) {
+      continue;
+    }
+
+    // Create zone object
+    const zone = {
+      area_name: row.area_name.trim(),
+      min_radius_km: parseNumber(row.min_radius_km, 0),
+      max_radius_km: parseNumber(row.max_radius_km, 0),
+      travel_time_minutes: parseNumber(row.travel_time_minutes, 0),
+      price: parseNumber(row.price, 0),
+    };
+
+    // Only add zone if it has valid data (max_radius > 0)
+    if (zone.max_radius_km > 0) {
+      zones.push(zone);
+    }
+  }
+
+  return zones;
+}
+
+/**
  * Seeding data Store from Excel
  */
 async function seedStores(): Promise<void> {
@@ -320,75 +418,87 @@ async function seedStores(): Promise<void> {
     result.total = data.length;
     console.log(`\n🔄 Processing ${result.total} rows...\n`);
 
-    // Process each row
-    for (let i = 0; i < data.length; i++) {
-      const row = data[i] as ExcelRow;
-      const rowNumber = i + 3; // Excel row number (headers in rows 1-2, data starts from row 3)
+    // Group rows by store (rows without code are additional zones for previous store)
+    const storeGroups = groupRowsByStore(data);
+    console.log(`✓ Found ${storeGroups.size} store(s) in Excel\n`);
 
+    // Process each store group
+    for (const [code, rows] of storeGroups) {
       try {
+        // Use first row for main store data
+        const mainRow = rows[0];
+
         // Validate required fields
-        if (!row.code || !row.name) {
+        if (!mainRow.code || !mainRow.name) {
           console.warn(
-            `⚠ Row ${rowNumber}: Missing required fields (code or name)`,
+            `⚠ Store ${code}: Missing required fields (code or name)`,
           );
           result.skipped++;
           continue;
         }
 
-        const code = row.code.trim();
-        const name = row.name.trim();
+        const name = mainRow.name.trim();
 
         // Parse location object
         const location: any = {};
-        if (row.address) location.address = row.address.trim();
-        if (row.city) location.city = row.city.trim();
-        if (row.province) location.province = row.province.trim();
-        if (row.postal_code) location.postal_code = row.postal_code.trim();
-        if (row.latitude) location.latitude = parseNumber(row.latitude);
-        if (row.longitude) location.longitude = parseNumber(row.longitude);
+        if (mainRow.address) location.address = mainRow.address.trim();
+        if (mainRow.city) location.city = mainRow.city.trim();
+        if (mainRow.province) location.province = mainRow.province.trim();
+        if (mainRow.postal_code)
+          location.postal_code = mainRow.postal_code.trim();
+        if (mainRow.latitude) location.latitude = parseNumber(mainRow.latitude);
+        if (mainRow.longitude)
+          location.longitude = parseNumber(mainRow.longitude);
 
         // Parse contact object
         const contact: any = {};
-        if (row.phone_number) contact.phone_number = row.phone_number.trim();
-        if (row.whatsapp) contact.whatsapp = row.whatsapp.trim();
-        if (row.email) contact.email = row.email.trim();
+        if (mainRow.phone_number)
+          contact.phone_number = mainRow.phone_number.trim();
+        if (mainRow.whatsapp) contact.whatsapp = mainRow.whatsapp.trim();
+        if (mainRow.email) contact.email = mainRow.email.trim();
 
         // Parse operational object
         const operational: any = {};
-        if (row.opening_time)
-          operational.opening_time = row.opening_time.trim();
-        if (row.closing_time)
-          operational.closing_time = row.closing_time.trim();
-        if (row.operational_days)
-          operational.operational_days = parseArray(row.operational_days);
-        operational.timezone = row.timezone
-          ? row.timezone.trim()
+        if (mainRow.opening_time)
+          operational.opening_time = mainRow.opening_time.trim();
+        if (mainRow.closing_time)
+          operational.closing_time = mainRow.closing_time.trim();
+        if (mainRow.operational_days)
+          operational.operational_days = parseArray(mainRow.operational_days);
+        operational.timezone = mainRow.timezone
+          ? mainRow.timezone.trim()
           : 'Asia/Jakarta';
 
         // Parse capacity object
         const capacity = {
-          default_daily_capacity_minutes: row.default_daily_capacity_minutes
-            ? parseNumber(row.default_daily_capacity_minutes, 960)
+          default_daily_capacity_minutes: mainRow.default_daily_capacity_minutes
+            ? parseNumber(mainRow.default_daily_capacity_minutes, 960)
             : 960,
-          overbooking_limit_minutes: row.overbooking_limit_minutes
-            ? parseNumber(row.overbooking_limit_minutes, 120)
+          overbooking_limit_minutes: mainRow.overbooking_limit_minutes
+            ? parseNumber(mainRow.overbooking_limit_minutes, 120)
             : 120,
         };
 
-        // Parse zones array (from JSON string)
-        const zones = parseZones(row.zones);
+        // Parse ALL home service zones from all rows for this store
+        const home_service_zones = parseAllHomeServiceZones(rows);
+
+        // Pickup/delivery zones not in Excel, default to empty array
+        const pickup_delivery_zones: any[] = [];
 
         // Parse sessions array (from comma/semicolon separated string)
-        const sessions = parseArray(row.sessions);
+        const sessions = parseArray(mainRow.sessions);
 
         // Parse boolean fields
-        const is_default_store = row.is_default_store
-          ? parseBoolean(row.is_default_store)
+        const is_default_store = mainRow.is_default_store
+          ? parseBoolean(mainRow.is_default_store)
           : false;
-        const is_pick_up_available = row.is_pick_up_available
-          ? parseBoolean(row.is_pick_up_available)
-          : false;
-        const is_active = row.is_active ? parseBoolean(row.is_active) : true;
+        const is_pickup_delivery_available =
+          mainRow.is_pickup_delivery_available
+            ? parseBoolean(mainRow.is_pickup_delivery_available)
+            : false;
+        const is_active = mainRow.is_active
+          ? parseBoolean(mainRow.is_active)
+          : true;
 
         // Prepare update data
         const updateData: any = {
@@ -400,10 +510,11 @@ async function seedStores(): Promise<void> {
             operational:
               Object.keys(operational).length > 0 ? operational : undefined,
             capacity: capacity,
-            zones: zones,
+            home_service_zones: home_service_zones,
+            pickup_delivery_zones: pickup_delivery_zones,
             sessions: sessions,
             is_default_store: is_default_store,
-            is_pick_up_available: is_pick_up_available,
+            is_pickup_delivery_available: is_pickup_delivery_available,
             is_active: is_active,
             isDeleted: false,
             deletedAt: null,
@@ -411,8 +522,8 @@ async function seedStores(): Promise<void> {
         };
 
         // Add description if provided
-        if (row.description) {
-          updateData.$set.description = row.description.trim();
+        if (mainRow.description) {
+          updateData.$set.description = mainRow.description.trim();
         }
 
         // Upsert based on code (unique identifier)
@@ -423,17 +534,23 @@ async function seedStores(): Promise<void> {
         });
 
         if (updateResult.upsertedCount > 0) {
-          console.log(`✓ Row ${rowNumber}: Inserted "${name}" (${code})`);
+          console.log(
+            `✓ Inserted "${name}" (${code}) with ${home_service_zones.length} zone(s)`,
+          );
           result.inserted++;
         } else if (updateResult.modifiedCount > 0) {
-          console.log(`✓ Row ${rowNumber}: Updated "${name}" (${code})`);
+          console.log(
+            `✓ Updated "${name}" (${code}) with ${home_service_zones.length} zone(s)`,
+          );
           result.updated++;
         } else {
-          console.log(`- Row ${rowNumber}: No changes for "${name}" (${code})`);
+          console.log(
+            `- No changes for "${name}" (${code}) - ${home_service_zones.length} zone(s)`,
+          );
           result.skipped++;
         }
       } catch (error) {
-        console.error(`✗ Row ${rowNumber}: Error - ${error.message}`);
+        console.error(`✗ Store ${code}: Error - ${error.message}`);
         result.errors++;
       }
     }
@@ -442,7 +559,8 @@ async function seedStores(): Promise<void> {
     console.log('\n' + '='.repeat(50));
     console.log('📊 SEEDING SUMMARY');
     console.log('='.repeat(50));
-    console.log(`Total rows processed: ${result.total}`);
+    console.log(`Total rows read: ${result.total}`);
+    console.log(`Total stores processed: ${storeGroups.size}`);
     console.log(`✓ Inserted: ${result.inserted}`);
     console.log(`✓ Updated: ${result.updated}`);
     console.log(`- Skipped: ${result.skipped}`);
