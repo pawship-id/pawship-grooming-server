@@ -13,7 +13,10 @@ import { ObjectId } from 'mongodb';
 import { capitalizeWords } from 'src/helpers/string.helper';
 import { Option, OptionDocument } from 'src/option/entities/option.entity';
 import { Store, StoreDocument } from 'src/store/entities/store.entity';
-import { ServiceType, ServiceTypeDocument } from 'src/service-type/entities/service-type.entity';
+import {
+  ServiceType,
+  ServiceTypeDocument,
+} from 'src/service-type/entities/service-type.entity';
 
 @Injectable()
 export class ServiceService {
@@ -70,6 +73,7 @@ export class ServiceService {
       pet_type_id,
       size_category_id,
       store_id,
+      service_location_type,
     } = query;
 
     const filter: any = { isDeleted: false };
@@ -96,6 +100,10 @@ export class ServiceService {
 
     if (store_id) {
       filter.available_store_ids = store_id;
+    }
+
+    if (service_location_type) {
+      filter.service_location_type = service_location_type;
     }
 
     if (search) {
@@ -181,8 +189,12 @@ export class ServiceService {
     if (body.sessions !== undefined) {
       const serviceTypeId =
         body.service_type_id ??
-        ((await this.serviceModel.findById(id).select('service_type_id').lean()) as any)
-          ?.service_type_id?.toString();
+        (
+          (await this.serviceModel
+            .findById(id)
+            .select('service_type_id')
+            .lean()) as any
+        )?.service_type_id?.toString();
 
       if (serviceTypeId) {
         const isAddon = await this.isAddonServiceType(serviceTypeId);

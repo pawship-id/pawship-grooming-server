@@ -872,10 +872,7 @@ export class BookingService {
       body.final_total_price = appliedBenefitsData.final_price;
       (body as any).applied_benefits = appliedBenefitsData.breakdown;
 
-      // 10. assign body.type base on service.service_location_type
-      body.type = service.service_location_type as GroomingType;
-
-      // 11. auto-generate sessions from service.sessions array for all booking types
+      // 10. auto-generate sessions from service.sessions array for all booking types
       if (service.sessions && service.sessions.length > 0) {
         (body as any).sessions = service.sessions.map((sessionType, index) => ({
           type: sessionType,
@@ -1031,7 +1028,10 @@ export class BookingService {
   /**
    * Get bookings assigned to a specific groomer (via sessions.groomer_id)
    */
-  async getGroomerMyJobs(groomerId: ObjectId, query: ListGroomerMyJobsDto = {}) {
+  async getGroomerMyJobs(
+    groomerId: ObjectId,
+    query: ListGroomerMyJobsDto = {},
+  ) {
     const { page = 1, limit = 20, session_status, date_from, date_to } = query;
 
     const filter: any = {
@@ -1083,11 +1083,17 @@ export class BookingService {
    * Get bookings with at least one unassigned session (groomer_id is null)
    * Only returns confirmed/arrived bookings
    */
-  async getGroomerOpenJobs(groomerId: ObjectId, query: ListGroomerOpenJobsDto = {}) {
+  async getGroomerOpenJobs(
+    groomerId: ObjectId,
+    query: ListGroomerOpenJobsDto = {},
+  ) {
     const { page = 1, limit = 20 } = query;
 
     // Look up groomer's placement (store)
-    const groomer = await this.userModel.findById(groomerId).select('profile.placement').lean();
+    const groomer = await this.userModel
+      .findById(groomerId)
+      .select('profile.placement')
+      .lean();
     const groomerStoreId = groomer?.profile?.placement;
 
     const filter: any = {
@@ -1330,9 +1336,6 @@ export class BookingService {
       body.total_discount = appliedBenefitsDataGuest.total_discount;
       body.final_total_price = appliedBenefitsDataGuest.final_price;
       (body as any).applied_benefits = appliedBenefitsDataGuest.breakdown;
-
-      // assign body.type base on service.service_location_type
-      body.type = service.service_location_type as GroomingType;
 
       // Check if date or service/addons changed (affects capacity)
       const oldDate = new Date(existingBooking.date);
@@ -1684,9 +1687,7 @@ export class BookingService {
     const newOriginalTotal = svcBase + tFeeBase + addonBaseTotal;
     // item-level discount total
     const itemDiscountTotal =
-      svcDisc +
-      tFeeDisc +
-      addonItems.reduce((s, a) => s + a.disc, 0);
+      svcDisc + tFeeDisc + addonItems.reduce((s, a) => s + a.disc, 0);
     // effective subtotal used as the base for membership benefit calculation
     const effectiveSubtotal = svcEffective + tFeeEffective + addonEffective;
 
