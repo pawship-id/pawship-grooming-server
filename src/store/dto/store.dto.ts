@@ -6,7 +6,12 @@ import {
   IsNotEmpty,
   IsNumber,
   Min,
+  IsMongoId,
+  IsBoolean,
+  ValidateNested,
+  ArrayMinSize,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export enum DayOfWeek {
   Monday = 'Monday',
@@ -59,6 +64,70 @@ export class CapacityDto {
   overbooking_limit_minutes: number;
 }
 
+export class ZonePriceItemDto {
+  @IsNotEmpty({ message: 'size_category_id is required' })
+  @IsMongoId({ message: 'size_category_id must be a valid MongoDB ObjectId' })
+  size_category_id: string;
+
+  @IsNotEmpty({ message: 'price is required' })
+  @IsNumber({}, { message: 'price must be a number' })
+  @Min(0, { message: 'price must be at least 0' })
+  price: number;
+}
+
+export class HomeServiceZoneDto {
+  @IsNotEmpty({ message: 'area_name is required' })
+  area_name: string;
+
+  @IsNotEmpty({ message: 'min_radius_km is required' })
+  @IsNumber({}, { message: 'min_radius_km must be a number' })
+  @Min(0, { message: 'min_radius_km must be at least 0' })
+  min_radius_km: number;
+
+  @IsNotEmpty({ message: 'max_radius_km is required' })
+  @IsNumber({}, { message: 'max_radius_km must be a number' })
+  @Min(0, { message: 'max_radius_km must be at least 0' })
+  max_radius_km: number;
+
+  @IsNotEmpty({ message: 'travel_time_minutes is required' })
+  @IsNumber({}, { message: 'travel_time_minutes must be a number' })
+  @Min(0, { message: 'travel_time_minutes must be at least 0' })
+  travel_time_minutes: number;
+
+  @IsNotEmpty({ message: 'price is required' })
+  @IsNumber({}, { message: 'price must be a number' })
+  @Min(0, { message: 'price must be at least 0' })
+  price: number;
+}
+
+export class PickupDeliveryZoneDto {
+  @IsNotEmpty({ message: 'area_name is required' })
+  area_name: string;
+
+  @IsNotEmpty({ message: 'min_radius_km is required' })
+  @IsNumber({}, { message: 'min_radius_km must be a number' })
+  @Min(0, { message: 'min_radius_km must be at least 0' })
+  min_radius_km: number;
+
+  @IsNotEmpty({ message: 'max_radius_km is required' })
+  @IsNumber({}, { message: 'max_radius_km must be a number' })
+  @Min(0, { message: 'max_radius_km must be at least 0' })
+  max_radius_km: number;
+
+  @IsNotEmpty({ message: 'travel_time_minutes is required' })
+  @IsNumber({}, { message: 'travel_time_minutes must be a number' })
+  @Min(0, { message: 'travel_time_minutes must be at least 0' })
+  travel_time_minutes: number;
+
+  @IsNotEmpty({ message: 'prices is required' })
+  @IsArray({ message: 'prices must be an array' })
+  @ArrayMinSize(1, { message: 'prices must contain at least 1 item' })
+  @ValidateNested({ each: true })
+  @Type(() => ZonePriceItemDto)
+  prices: ZonePriceItemDto[];
+}
+
+/** @deprecated Use HomeServiceZoneDto instead */
 export class ZoneItemDto {
   @IsNotEmpty({ message: 'area_name is required' })
   area_name: string;

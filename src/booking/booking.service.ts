@@ -120,29 +120,46 @@ export class BookingService {
 
       const subtotalBeforeBenefits = originalPrice + addonsTotal;
 
-      // 4. Resolve pick-up zone early (travel_fee is needed as discount base for pickup benefits)
-      let pickUpResult: {
-        is_available: boolean;
-        zone: {
-          area_name: string;
-          min_radius_km: number;
-          max_radius_km: number;
-          travel_time_minutes: number;
-          travel_fee: number;
-        };
-        distance_km: number;
-      } | null = null;
+      // 4. Determine service type and calculate travel/pickup/delivery fees
+      // Use user's selected location type if provided, otherwise validate against service's available types
+      const serviceLocationType = service.service_location_type || [];
+      const isInHome = serviceLocationType.includes('in home');
+      const isInStore = serviceLocationType.includes('in store');
+      const userSelectedType = dto.service_location_type; // User's choice: "in home" or "in store"
 
-      // Always ignore dto.travel_fee, always use matched zone
-      if (dto.pick_up === true) {
+      // Validate that user's selection is supported by the service
+      if (userSelectedType && !serviceLocationType.includes(userSelectedType)) {
+        throw new BadRequestException(
+          `Service does not support ${userSelectedType} service`,
+        );
+      }
+
+      // Determine which fees to calculate based on user's choice
+      const shouldCalculateInHomeFee =
+        userSelectedType === 'in home' ||
+        (!userSelectedType &&
+          serviceLocationType.includes('in home') &&
+          !serviceLocationType.includes('in store'));
+
+      const shouldCalculatePickupDeliveryFee =
+        userSelectedType === 'in store' ||
+        (!userSelectedType && serviceLocationType.includes('in store'));
+
+      let pickupFee = 0;
+      let deliveryFee = 0;
+      let travelFee = 0;
+      let zoneInfo: any = null;
+
+      // For IN_HOME services: calculate home service fee
+      if (shouldCalculateInHomeFee) {
         if (!dto.store_id) {
           throw new BadRequestException(
-            'store_id is required when pick_up is true',
+            'store_id is required for in-home service',
           );
         }
         if (!dto.customer_id) {
           throw new BadRequestException(
-            'customer_id is required when pick_up is true',
+            'customer_id is required for in-home service',
           );
         }
 
@@ -153,11 +170,6 @@ export class BookingService {
         if (!store) {
           throw new NotFoundException('Store not found');
         }
-        if (!store.is_pick_up_available) {
-          throw new BadRequestException(
-            'Pick-up service is not available for this store',
-          );
-        }
 
         const customer = await this.userModel
           .findById(new ObjectId(dto.customer_id))
@@ -167,7 +179,6 @@ export class BookingService {
           throw new NotFoundException('Customer not found');
         }
 
-        // Find main address
         const addresses = (customer as any).profile?.addresses || [];
         let mainAddress = addresses.find((a: any) => a.is_main_address);
         if (!mainAddress && addresses.length > 0) {
@@ -179,42 +190,109 @@ export class BookingService {
           mainAddress.longitude == null
         ) {
           throw new BadRequestException(
-            'Customer profile must have location (latitude/longitude) to use pick-up service',
+            'Customer must have a location (latitude/longitude) for in-home service',
           );
         }
-        const lat = mainAddress.latitude;
-        const lon = mainAddress.longitude;
 
-        // findPickUpZone validates store.location is properly set before we access it
-        const matchedZone = await this.findPickUpZone(store, lat, lon);
-
-        const distanceKm = this.calculateDistance(
-          lat,
-          lon,
-          store.location!.latitude!,
-          store.location!.longitude!,
+        const result = await this.calculateHomeServiceFee(
+          store,
+          { latitude: mainAddress.latitude, longitude: mainAddress.longitude },
+          pet,
         );
 
-        pickUpResult = {
-          is_available: true,
-          zone: {
-            area_name: matchedZone.area_name,
-            min_radius_km: matchedZone.min_radius_km,
-            max_radius_km: matchedZone.max_radius_km,
-            travel_time_minutes: matchedZone.travel_time_minutes,
-            travel_fee: matchedZone.travel_fee,
-          },
-          distance_km: +distanceKm.toFixed(2),
+        travelFee = result.fee;
+        zoneInfo = {
+          ...result.zone_snapshot,
+          distance_km: this.calculateDistance(
+            mainAddress.latitude,
+            mainAddress.longitude,
+            store.location!.latitude!,
+            store.location!.longitude!,
+          ),
         };
       }
+      // For IN_STORE services: optionally calculate pickup/delivery fees
+      else if (shouldCalculatePickupDeliveryFee) {
+        const needsPickupOrDelivery =
+          dto.pick_up === true || dto.delivery === true;
 
-      // travelFee always from matched zone
-      const travelFee = pickUpResult?.zone.travel_fee ?? 0;
+        if (needsPickupOrDelivery) {
+          if (!dto.store_id) {
+            throw new BadRequestException(
+              'store_id is required when pickup or delivery is requested',
+            );
+          }
+          if (!dto.customer_id) {
+            throw new BadRequestException(
+              'customer_id is required when pickup or delivery is requested',
+            );
+          }
+
+          const store = await this.storeModel.findOne({
+            _id: new ObjectId(dto.store_id),
+            isDeleted: false,
+          });
+          if (!store) {
+            throw new NotFoundException('Store not found');
+          }
+
+          const customer = await this.userModel
+            .findById(new ObjectId(dto.customer_id))
+            .select('profile.addresses')
+            .lean();
+          if (!customer) {
+            throw new NotFoundException('Customer not found');
+          }
+
+          const addresses = (customer as any).profile?.addresses || [];
+          let mainAddress = addresses.find((a: any) => a.is_main_address);
+          if (!mainAddress && addresses.length > 0) {
+            mainAddress = addresses[0];
+          }
+          if (
+            !mainAddress ||
+            mainAddress.latitude == null ||
+            mainAddress.longitude == null
+          ) {
+            throw new BadRequestException(
+              'Customer must have a location (latitude/longitude) for pickup/delivery service',
+            );
+          }
+
+          const result = await this.calculatePickupDeliveryFees(
+            store,
+            {
+              latitude: mainAddress.latitude,
+              longitude: mainAddress.longitude,
+            },
+            pet,
+            dto.pick_up === true,
+            dto.delivery === true,
+          );
+
+          pickupFee = result.pickup_fee;
+          deliveryFee = result.delivery_fee;
+          travelFee = result.total; // backward compatibility
+
+          if (result.zone_snapshot) {
+            zoneInfo = {
+              ...result.zone_snapshot,
+              distance_km: this.calculateDistance(
+                mainAddress.latitude,
+                mainAddress.longitude,
+                store.location!.latitude!,
+                store.location!.longitude!,
+              ),
+            };
+          }
+        }
+        // No pickup or delivery requested - fees remain 0
+      }
 
       // 5. Get available benefits filtered by context:
       //    - applies_to 'service' → only benefit whose service_id matches dto.service_id
       //    - applies_to 'addon'   → only benefit whose service_id is in dto.addon_ids (skipped when no addons)
-      //    - applies_to 'pickup'  → only when pick_up is true
+      //    - applies_to 'pickup'  → only when pick_up is true or travel_fee > 0
       const membershipData =
         await this.petMembershipService.getAvailableBenefits(
           dto.pet_id,
@@ -241,7 +319,9 @@ export class BookingService {
                 return hasAddons && (!bServiceId || addonIdSet.has(bServiceId));
               }
               if (b.applies_to === 'pickup') {
-                return dto.pick_up === true;
+                return (
+                  travelFee > 0 || dto.pick_up === true || dto.delivery === true
+                );
               }
               return false;
             })
@@ -309,10 +389,14 @@ export class BookingService {
         pet_name: pet.name,
         service_id: dto.service_id,
         service_name: service.name,
+        service_type: isInHome ? 'in home' : isInStore ? 'in store' : 'unknown',
         pricing: {
           original_service_price: originalPrice,
           addon_prices: addonPrices,
           subtotal_before_benefits: subtotalBeforeBenefits,
+          pickup_fee: pickupFee,
+          delivery_fee: deliveryFee,
+          travel_fee: travelFee, // backward compatibility (sum of pickup + delivery or home service fee)
           has_active_membership: hasActiveMembership,
           available_benefits: availableBenefits,
           estimated_total_discount: estimatedTotalDiscount,
@@ -325,15 +409,17 @@ export class BookingService {
           },
           addons: addonPrices,
           subtotal: subtotalBeforeBenefits,
-          travel_fee: travelFee,
+          pickup_fee: pickupFee,
+          delivery_fee: deliveryFee,
+          travel_fee: travelFee, // backward compatibility
           grand_total: grandTotal,
           discount: estimatedTotalDiscount,
           final: estimatedFinalPrice,
         },
       };
 
-      if (pickUpResult !== null) {
-        response.pick_up = pickUpResult;
+      if (zoneInfo !== null) {
+        response.zone = zoneInfo;
       }
 
       return response;
@@ -404,6 +490,8 @@ export class BookingService {
     addOnIds?: string[],
     originalTotalPrice?: number, // BUG2: when provided, final_price = originalTotalPrice - totalDiscount
     bookingDate?: Date,
+    pickUp?: boolean,
+    delivery?: boolean,
   ): Promise<{
     applied_benefits: any[];
     total_discount: number;
@@ -592,9 +680,16 @@ export class BookingService {
       } else if (appliesTo === 'pickup') {
         if (!storeId) {
           throw new BadRequestException(
-            'store_id is required when benefit type is pick_up',
+            'store_id is required when benefit type is pickup',
           );
-        } // store_id required to compute travel fee
+        }
+        // Skip if neither pickup nor delivery is selected
+        if (!pickUp && !delivery) {
+          // Check if this might be an in-home service with travel fee
+          // In this case, we should still calculate the fee
+          // We'll detect this by checking if the store has home_service_zones
+        }
+
         try {
           const doc = await getPetDoc();
           const customerId = (doc as any)?.customer_id;
@@ -613,12 +708,37 @@ export class BookingService {
             throw new NotFoundException('store is not found');
           }
 
-          const zone = await this.findPickUpZone(
-            store,
-            mainAddress.latitude,
-            mainAddress.longitude,
-          );
-          basePrice = zone.travel_fee ?? 0;
+          // Determine if this is in-home service or pickup/delivery service
+          // If pickup or delivery is true, use pickup/delivery zones
+          // Otherwise, try home service zones (for in-home service)
+          if (pickUp === true || delivery === true) {
+            // Use the new calculatePickupDeliveryFees method for in-store with pickup/delivery
+            const result = await this.calculatePickupDeliveryFees(
+              store,
+              {
+                latitude: mainAddress.latitude,
+                longitude: mainAddress.longitude,
+              },
+              pet,
+              pickUp === true,
+              delivery === true,
+            );
+
+            // basePrice is the total travel fee (pickup + delivery)
+            basePrice = result.total;
+          } else {
+            // This is likely an in-home service, use home service zones
+            const result = await this.calculateHomeServiceFee(
+              store,
+              {
+                latitude: mainAddress.latitude,
+                longitude: mainAddress.longitude,
+              },
+              pet,
+            );
+
+            basePrice = result.fee;
+          }
         } catch (err) {
           if (err instanceof HttpException) throw err;
           continue;
@@ -688,7 +808,206 @@ export class BookingService {
   }
 
   /**
+   * Extract price for specific pet size from zone's price array
+   */
+  private extractPriceFromZone(zone: any, petSizeCategoryId: string): number {
+    if (!zone.prices || zone.prices.length === 0) {
+      throw new BadRequestException(
+        `Zone "${zone.area_name}" has no pricing configured`,
+      );
+    }
+
+    const priceItem = zone.prices.find(
+      (p: any) =>
+        p.size_category_id.toString() === petSizeCategoryId.toString(),
+    );
+
+    if (!priceItem) {
+      throw new BadRequestException(
+        `Zone "${zone.area_name}" does not have pricing configured for this pet size category`,
+      );
+    }
+
+    return priceItem.price;
+  }
+
+  /**
+   * Find matching zone for customer location based on store zones and zone type
+   */
+  private async findZoneForCustomer(
+    zones: any[],
+    customerLatitude: number,
+    customerLongitude: number,
+    storeLatitude: number,
+    storeLongitude: number,
+    petSizeCategoryId: string | null,
+    zoneType: 'home_service' | 'pickup_delivery',
+  ): Promise<{ zone: any; price: number; distance: number }> {
+    if (!storeLatitude || !storeLongitude) {
+      throw new BadRequestException('Store location not properly configured');
+    }
+
+    if (!zones || zones.length === 0) {
+      throw new BadRequestException(
+        `Store has no ${zoneType === 'home_service' ? 'home service' : 'pickup/delivery'} zones configured`,
+      );
+    }
+
+    const distance = this.calculateDistance(
+      customerLatitude,
+      customerLongitude,
+      storeLatitude,
+      storeLongitude,
+    );
+
+    // Find zone that matches the distance
+    const matchingZone = zones.find(
+      (zone) =>
+        distance >= zone.min_radius_km && distance <= zone.max_radius_km,
+    );
+
+    if (!matchingZone) {
+      throw new BadRequestException(
+        `Customer location is outside all ${zoneType === 'home_service' ? 'home service' : 'pickup/delivery'} zones. Distance: ${distance.toFixed(2)}km`,
+      );
+    }
+
+    // Extract price based on zone type
+    let price: number;
+    if (zoneType === 'home_service') {
+      // Home service has a single flat price
+      price = matchingZone.price;
+      if (!price || price < 0) {
+        throw new BadRequestException(
+          `Zone "${matchingZone.area_name}" has invalid pricing configured`,
+        );
+      }
+    } else {
+      // Pickup/delivery has size-based pricing
+      if (!petSizeCategoryId) {
+        throw new BadRequestException(
+          'Pet size category is required for pickup/delivery service',
+        );
+      }
+      price = this.extractPriceFromZone(matchingZone, petSizeCategoryId);
+    }
+
+    return { zone: matchingZone, price, distance };
+  }
+
+  /**
+   * Calculate home service fee for in-home grooming
+   */
+  private async calculateHomeServiceFee(
+    store: StoreDocument,
+    customerLocation: { latitude: number; longitude: number },
+    pet: any,
+  ): Promise<{ fee: number; zone_snapshot: any }> {
+    if (!store.location?.latitude || !store.location?.longitude) {
+      throw new BadRequestException('Store location not properly configured');
+    }
+
+    const { zone, price, distance } = await this.findZoneForCustomer(
+      store.home_service_zones,
+      customerLocation.latitude,
+      customerLocation.longitude,
+      store.location.latitude,
+      store.location.longitude,
+      null, // Home service doesn't use size-based pricing
+      'home_service',
+    );
+
+    // Create zone snapshot
+    const zone_snapshot = {
+      area_name: zone.area_name,
+      min_radius_km: zone.min_radius_km,
+      max_radius_km: zone.max_radius_km,
+      travel_time_minutes: zone.travel_time_minutes,
+      price: zone.price,
+      zone_type: 'home_service',
+      travel_fee: price, // backward compatibility
+    };
+
+    return { fee: price, zone_snapshot };
+  }
+
+  /**
+   * Calculate pickup and/or delivery fees for in-store services
+   */
+  private async calculatePickupDeliveryFees(
+    store: StoreDocument,
+    customerLocation: { latitude: number; longitude: number },
+    pet: any,
+    pick_up: boolean,
+    delivery: boolean,
+  ): Promise<{
+    pickup_fee: number;
+    delivery_fee: number;
+    total: number;
+    zone_snapshot: any | null;
+  }> {
+    // If neither pickup nor delivery selected, return zeros
+    if (!pick_up && !delivery) {
+      return {
+        pickup_fee: 0,
+        delivery_fee: 0,
+        total: 0,
+        zone_snapshot: null,
+      };
+    }
+
+    if (!store.location?.latitude || !store.location?.longitude) {
+      throw new BadRequestException('Store location not properly configured');
+    }
+
+    const petSizeCategoryId =
+      pet.size_category_id?.toString() || pet.size?._id?.toString();
+
+    if (!petSizeCategoryId) {
+      throw new BadRequestException(
+        'Pet size category is required for pickup/delivery service',
+      );
+    }
+
+    const { zone, price, distance } = await this.findZoneForCustomer(
+      store.pickup_delivery_zones,
+      customerLocation.latitude,
+      customerLocation.longitude,
+      store.location.latitude,
+      store.location.longitude,
+      petSizeCategoryId,
+      'pickup_delivery',
+    );
+
+    // Validate store supports pickup/delivery services
+    if (!store.is_pickup_delivery_available) {
+      throw new BadRequestException(
+        'Pickup/delivery service is not available at this store',
+      );
+    }
+
+    // Calculate fees
+    const pickup_fee = pick_up ? price : 0;
+    const delivery_fee = delivery ? price : 0;
+    const total = pickup_fee + delivery_fee;
+
+    // Create zone snapshot
+    const zone_snapshot = {
+      area_name: zone.area_name,
+      min_radius_km: zone.min_radius_km,
+      max_radius_km: zone.max_radius_km,
+      travel_time_minutes: zone.travel_time_minutes,
+      prices: zone.prices,
+      zone_type: 'pickup_delivery',
+      travel_fee: total, // backward compatibility
+    };
+
+    return { pickup_fee, delivery_fee, total, zone_snapshot };
+  }
+
+  /**
    * Find matching zone for pick-up based on customer location and store zones
+   * @deprecated Use findZoneForCustomer instead
    */
   private async findPickUpZone(
     store: StoreDocument,
@@ -706,8 +1025,9 @@ export class BookingService {
       store.location.longitude,
     );
 
-    // Find zone that matches the distance
-    const matchingZone = store.zones?.find(
+    // Find zone that matches the distance - fallback to old zones field for backward compatibility
+    const zones = store.home_service_zones || (store as any).zones || [];
+    const matchingZone = zones.find(
       (zone) =>
         distance >= zone.min_radius_km && distance <= zone.max_radius_km,
     );
@@ -755,11 +1075,27 @@ export class BookingService {
 
       if (!store) throw new NotFoundException('Store not found');
 
-      // 4. handle pick-up service validation and zone matching
-      let pickUpZone: Store['zones'][0] | null = null;
-      if (body.pick_up) {
-        // 4.1 get customer location from profile
+      // 4. Determine service type and handle zone/fee calculation
+      const serviceDoc = await this.serviceModel.findById(body.service_id);
+      if (!serviceDoc) {
+        throw new NotFoundException('Service not found');
+      }
+
+      const serviceLocationType = serviceDoc.service_location_type || [];
+      const isInHome = serviceLocationType.includes('in home');
+      const isInStore = serviceLocationType.includes('in store');
+
+      let pickupFee = 0;
+      let deliveryFee = 0;
+      let travelFee = 0;
+      let matchedZone: any = null;
+
+      // For IN_HOME services: calculate home service fee (always required)
+      if (isInHome && !isInStore) {
         const customer = await this.userModel.findById(body.customer_id);
+        if (!customer) {
+          throw new NotFoundException('Customer not found');
+        }
 
         const addresses = (customer as any).profile?.addresses || [];
         let mainAddress = addresses.find((a: any) => a.is_main_address);
@@ -768,38 +1104,70 @@ export class BookingService {
         }
         if (!mainAddress || !mainAddress.latitude || !mainAddress.longitude) {
           throw new BadRequestException(
-            'Customer profile must have location (latitude/longitude) to use pick-up service',
+            'Customer must have a location (latitude/longitude) for in-home service',
           );
         }
 
-        // 4.2 check if store and service support pick-up
-        if (!store.is_pick_up_available) {
-          throw new BadRequestException(
-            'This store does not support pick-up service',
-          );
-        }
-
-        const serviceDoc = await this.serviceModel.findById(body.service_id);
-        if (!serviceDoc?.is_pick_up_available) {
-          throw new BadRequestException(
-            'This service does not support pick-up',
-          );
-        }
-
-        pickUpZone = await this.findPickUpZone(
+        const result = await this.calculateHomeServiceFee(
           store,
-          mainAddress.latitude,
-          mainAddress.longitude,
+          { latitude: mainAddress.latitude, longitude: mainAddress.longitude },
+          pet,
         );
+
+        travelFee = result.fee;
+        matchedZone = result.zone_snapshot;
+        (body as any).matched_zone = matchedZone;
+        (body as any).pick_up_zone = matchedZone; // backward compatibility
+      }
+      // For IN_STORE services: calculate pickup/delivery fees (optional)
+      else if (isInStore) {
+        const needsPickupOrDelivery = body.pick_up || body.delivery;
+
+        if (needsPickupOrDelivery) {
+          const customer = await this.userModel.findById(body.customer_id);
+          if (!customer) {
+            throw new NotFoundException('Customer not found');
+          }
+
+          const addresses = (customer as any).profile?.addresses || [];
+          let mainAddress = addresses.find((a: any) => a.is_main_address);
+          if (!mainAddress && addresses.length > 0) {
+            mainAddress = addresses[0];
+          }
+          if (!mainAddress || !mainAddress.latitude || !mainAddress.longitude) {
+            throw new BadRequestException(
+              'Customer must have a location (latitude/longitude) for pickup/delivery service',
+            );
+          }
+
+          const result = await this.calculatePickupDeliveryFees(
+            store,
+            {
+              latitude: mainAddress.latitude,
+              longitude: mainAddress.longitude,
+            },
+            pet,
+            body.pick_up === true,
+            body.delivery === true,
+          );
+
+          pickupFee = result.pickup_fee;
+          deliveryFee = result.delivery_fee;
+          travelFee = result.total;
+          matchedZone = result.zone_snapshot;
+
+          if (matchedZone) {
+            (body as any).matched_zone = matchedZone;
+            (body as any).pick_up_zone = matchedZone; // backward compatibility
+          }
+        }
+        // No pickup or delivery - fees remain 0
       }
 
-      // 5. attach pick_up_zone to booking if determined
-      if (pickUpZone) {
-        (body as any).pick_up_zone = pickUpZone;
-      }
-
-      // travelFee always from matched zone (or 0 if not pick up)
-      const travelFee = pickUpZone?.travel_fee ?? 0;
+      // Set fee fields in body for booking creation
+      (body as any).pickup_fee = pickupFee;
+      (body as any).delivery_fee = deliveryFee;
+      (body as any).travel_fee = travelFee;
 
       // 6. get service and addons
       // 6.1 handle service price calculation
@@ -865,6 +1233,9 @@ export class BookingService {
           body.service_id,
           body.service_addon_ids,
           originalTotalPrice,
+          undefined, // bookingDate
+          body.pick_up === true,
+          body.delivery === true,
         );
       }
 
@@ -1321,6 +1692,9 @@ export class BookingService {
             body.service_id,
             body.service_addon_ids,
             originalTotalPriceGuest,
+            undefined, // bookingDate
+            body.pick_up === true,
+            body.delivery === true,
           );
         } catch (error) {
           // Guest might not have membership, proceed without benefits
@@ -1595,6 +1969,8 @@ export class BookingService {
     addOnIds?: string[],
     originalTotalPrice?: number,
     bookingDate?: Date,
+    pickUp?: boolean,
+    delivery?: boolean,
   ): Promise<{
     applied_benefits: any[];
     total_discount: number;
@@ -1633,6 +2009,8 @@ export class BookingService {
       addOnIds,
       originalTotalPrice,
       bookingDate,
+      pickUp,
+      delivery,
     );
   }
 
@@ -1645,8 +2023,12 @@ export class BookingService {
     dto: {
       service_price?: number;
       service_discount?: number;
-      travel_fee?: number;
-      travel_fee_discount?: number;
+      travel_fee?: number; // backward compatibility - will be split into pickup + delivery
+      travel_fee_discount?: number; // backward compatibility
+      pickup_fee?: number;
+      pickup_fee_discount?: number;
+      delivery_fee?: number;
+      delivery_fee_discount?: number;
       addon_prices?: { addon_id: string; price?: number; discount?: number }[];
       selected_benefit_ids?: string[];
     },
@@ -1661,11 +2043,63 @@ export class BookingService {
     const svcDisc = dto.service_discount ?? 0;
     const svcEffective = Math.max(0, svcBase - svcDisc);
 
-    const tFeeBase = existing.pick_up
-      ? (dto.travel_fee ?? existing.travel_fee ?? 0)
-      : 0;
-    const tFeeDisc = existing.pick_up ? (dto.travel_fee_discount ?? 0) : 0;
-    const tFeeEffective = Math.max(0, tFeeBase - tFeeDisc);
+    // Handle pickup/delivery fees
+    let pickupFeeBase = 0;
+    let pickupFeeDisc = 0;
+    let deliveryFeeBase = 0;
+    let deliveryFeeDisc = 0;
+    let tFeeBase = 0;
+    let tFeeDisc = 0;
+
+    // Use new separate fees if provided
+    if (dto.pickup_fee !== undefined || dto.delivery_fee !== undefined) {
+      pickupFeeBase = existing.pick_up
+        ? (dto.pickup_fee ?? existing.pickup_fee ?? 0)
+        : 0;
+      pickupFeeDisc = existing.pick_up ? (dto.pickup_fee_discount ?? 0) : 0;
+      deliveryFeeBase = existing.delivery
+        ? (dto.delivery_fee ?? existing.delivery_fee ?? 0)
+        : 0;
+      deliveryFeeDisc = existing.delivery
+        ? (dto.delivery_fee_discount ?? 0)
+        : 0;
+      tFeeBase = pickupFeeBase + deliveryFeeBase;
+      tFeeDisc = pickupFeeDisc + deliveryFeeDisc;
+    }
+    // Fallback to old travel_fee for backward compatibility
+    else if (dto.travel_fee !== undefined) {
+      tFeeBase =
+        existing.pick_up || existing.delivery
+          ? (dto.travel_fee ?? existing.travel_fee ?? 0)
+          : 0;
+      tFeeDisc =
+        existing.pick_up || existing.delivery
+          ? (dto.travel_fee_discount ?? 0)
+          : 0;
+      // If using old travel_fee, split it between pickup and delivery if both are set
+      if (existing.pick_up && existing.delivery) {
+        pickupFeeBase = tFeeBase / 2;
+        deliveryFeeBase = tFeeBase / 2;
+        pickupFeeDisc = tFeeDisc / 2;
+        deliveryFeeDisc = tFeeDisc / 2;
+      } else if (existing.pick_up) {
+        pickupFeeBase = tFeeBase;
+        pickupFeeDisc = tFeeDisc;
+      } else if (existing.delivery) {
+        deliveryFeeBase = tFeeBase;
+        deliveryFeeDisc = tFeeDisc;
+      }
+    }
+    // No fees provided, use existing
+    else {
+      pickupFeeBase = existing.pickup_fee ?? 0;
+      deliveryFeeBase = existing.delivery_fee ?? 0;
+      tFeeBase = existing.travel_fee ?? pickupFeeBase + deliveryFeeBase;
+    }
+
+    const pickupFeeEffective = Math.max(0, pickupFeeBase - pickupFeeDisc);
+    const deliveryFeeEffective = Math.max(0, deliveryFeeBase - deliveryFeeDisc);
+    const tFeeEffective = pickupFeeEffective + deliveryFeeEffective;
 
     const addonItems = (existing.service_snapshot.addons ?? []).map((addon) => {
       const entry = dto.addon_prices?.find(
@@ -1718,6 +2152,8 @@ export class BookingService {
           addonIds,
           effectiveSubtotal,
           bookingDate,
+          existing.pick_up === true,
+          existing.delivery === true,
         );
       } catch {
         benefitResult = {
@@ -1748,6 +2184,9 @@ export class BookingService {
       id,
       {
         $set: {
+          pickup_fee: pickupFeeBase,
+          delivery_fee: deliveryFeeBase,
+          travel_fee: tFeeBase, // backward compatibility
           original_total_price: newOriginalTotal,
           selected_benefit_ids: selectedBenefitIds.map(
             (sid) => new Types.ObjectId(sid),
@@ -1757,9 +2196,14 @@ export class BookingService {
           final_total_price: finalTotalPrice,
           edited_service_price: dto.service_price ?? null,
           edited_service_discount: svcDisc > 0 ? svcDisc : null,
-          edited_travel_fee: existing.pick_up ? (dto.travel_fee ?? null) : null,
+          edited_travel_fee:
+            existing.pick_up || existing.delivery
+              ? (dto.travel_fee ?? null)
+              : null,
           edited_travel_fee_discount:
-            existing.pick_up && tFeeDisc > 0 ? tFeeDisc : null,
+            (existing.pick_up || existing.delivery) && tFeeDisc > 0
+              ? tFeeDisc
+              : null,
           edited_addon_prices: addonItems.map((a) => ({
             addon_id: a.addon_id,
             price: a.base,

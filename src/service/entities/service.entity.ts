@@ -164,7 +164,7 @@ export class Service {
   service_location_type: string[];
 
   @Prop({ default: false })
-  is_pick_up_available: boolean;
+  is_pickup_delivery_available: boolean;
 
   @Prop({ type: [String], default: [] })
   sessions: string[];

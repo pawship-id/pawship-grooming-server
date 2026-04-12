@@ -1,4 +1,13 @@
-import { IsMongoId, IsArray, IsNotEmpty, IsOptional, IsNumber, Min, IsDateString } from 'class-validator';
+import {
+  IsMongoId,
+  IsArray,
+  IsNotEmpty,
+  IsOptional,
+  IsNumber,
+  Min,
+  IsDateString,
+  IsBoolean,
+} from 'class-validator';
 
 export class ApplyBenefitPreviewDto {
   @IsMongoId({ message: 'pet_id is required and must be a valid MongoId' })
@@ -30,4 +39,12 @@ export class ApplyBenefitPreviewDto {
   @IsOptional()
   @IsDateString({}, { message: 'booking_date must be a valid ISO date string' })
   booking_date?: string;
+
+  @IsOptional()
+  @IsBoolean({ message: 'pick_up must be a boolean' })
+  pick_up?: boolean;
+
+  @IsOptional()
+  @IsBoolean({ message: 'delivery must be a boolean' })
+  delivery?: boolean;
 }

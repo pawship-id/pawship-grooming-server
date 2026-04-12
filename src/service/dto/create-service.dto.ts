@@ -139,8 +139,8 @@ export class CreateServiceDto {
   service_location_type: string[];
 
   @IsOptional()
-  @IsBoolean({ message: 'is_pick_up_available must be a boolean' })
-  is_pick_up_available?: boolean = false;
+  @IsBoolean({ message: 'is_pickup_delivery_available must be a boolean' })
+  is_pickup_delivery_available?: boolean = false;
 
   @IsOptional()
   @IsBoolean()
