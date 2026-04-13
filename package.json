@@ -20,7 +20,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "seed:option": "ts-node -r tsconfig-paths/register src/seeding/scripts/seed-option.ts",
     "seed:store": "ts-node -r tsconfig-paths/register src/seeding/scripts/seed-store.ts",
-    "seed:service-type": "ts-node -r tsconfig-paths/register src/seeding/scripts/seed-service-type.ts"
+    "seed:service-type": "ts-node -r tsconfig-paths/register src/seeding/scripts/seed-service-type.ts",
+    "seed:membership": "ts-node -r tsconfig-paths/register src/seeding/scripts/seed-membership.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
