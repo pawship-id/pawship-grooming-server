@@ -12,7 +12,8 @@ import {
   ContactDto,
   LocationDto,
   OperationalDto,
-  ZoneItemDto,
+  HomeServiceZoneDto,
+  PickupDeliveryZoneDto,
 } from './store.dto';
 
 export class CreateStoreDto {
@@ -46,7 +47,7 @@ export class CreateStoreDto {
   capacity?: CapacityDto;
 
   @IsOptional()
-  @IsArray()
+  @IsArray({ message: 'sessions must be an array' })
   @IsString({ each: true })
   sessions?: string[] = [];
 
@@ -55,16 +56,22 @@ export class CreateStoreDto {
   is_default_store?: boolean = false;
 
   @IsOptional()
-  @IsBoolean({ message: 'is_pick_up_available must be a boolean' })
-  is_pick_up_available?: boolean = false;
-
-  @IsOptional()
   @IsBoolean()
   is_active?: boolean = true;
 
   @IsOptional()
-  @IsArray({ message: 'zones must be an array' })
+  @IsBoolean({ message: 'is_pickup_delivery_available must be a boolean' })
+  is_pickup_delivery_available?: boolean = false;
+
+  @IsOptional()
+  @IsArray({ message: 'home_service_zones must be an array' })
   @ValidateNested({ each: true })
-  @Type(() => ZoneItemDto)
-  zones?: ZoneItemDto[] = [];
+  @Type(() => HomeServiceZoneDto)
+  home_service_zones?: HomeServiceZoneDto[] = [];
+
+  @IsOptional()
+  @IsArray({ message: 'pickup_delivery_zones must be an array' })
+  @ValidateNested({ each: true })
+  @Type(() => PickupDeliveryZoneDto)
+  pickup_delivery_zones?: PickupDeliveryZoneDto[] = [];
 }

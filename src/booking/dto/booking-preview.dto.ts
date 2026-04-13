@@ -5,6 +5,8 @@ import {
   IsOptional,
   IsArray,
   IsBoolean,
+  IsString,
+  IsIn,
 } from 'class-validator';
 
 export class BookingPreviewRequestDto {
@@ -15,6 +17,13 @@ export class BookingPreviewRequestDto {
   @IsNotEmpty({ message: 'service_id is required' })
   @IsMongoId({ message: 'service_id must be a valid MongoDB ID' })
   service_id: string;
+
+  @IsOptional()
+  @IsString({ message: 'service_location_type must be a string' })
+  @IsIn(['in home', 'in store'], {
+    message: 'service_location_type must be either "in home" or "in store"',
+  })
+  service_location_type?: string;
 
   @IsOptional()
   @IsArray({ message: 'addon_ids must be an array' })
@@ -34,6 +43,11 @@ export class BookingPreviewRequestDto {
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean({ message: 'pick_up must be a boolean' })
   pick_up?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean({ message: 'delivery must be a boolean' })
+  delivery?: boolean;
 
   @IsOptional()
   @IsMongoId({ message: 'store_id must be a valid MongoDB ID' })

@@ -210,6 +210,8 @@ export class BookingController {
       dto.add_on_ids,
       dto.original_total_price,
       dto.booking_date ? new Date(dto.booking_date) : undefined,
+      dto.pick_up === true,
+      dto.delivery === true,
     );
     return {
       message: 'Benefit preview calculated successfully',
@@ -221,7 +223,10 @@ export class BookingController {
 
   // get groomer's assigned bookings
   @Get('groomer/my-jobs')
-  async getGroomerMyJobs(@Query() query: ListGroomerMyJobsDto, @Req() request: any) {
+  async getGroomerMyJobs(
+    @Query() query: ListGroomerMyJobsDto,
+    @Req() request: any,
+  ) {
     const groomerId = new ObjectId(request.user._id);
     const result = await this.bookingService.getGroomerMyJobs(groomerId, query);
 
@@ -233,9 +238,15 @@ export class BookingController {
 
   // get bookings with unassigned sessions
   @Get('groomer/open-jobs')
-  async getGroomerOpenJobs(@Query() query: ListGroomerOpenJobsDto, @Req() request: any) {
+  async getGroomerOpenJobs(
+    @Query() query: ListGroomerOpenJobsDto,
+    @Req() request: any,
+  ) {
     const groomerId = new ObjectId(request.user._id);
-    const result = await this.bookingService.getGroomerOpenJobs(groomerId, query);
+    const result = await this.bookingService.getGroomerOpenJobs(
+      groomerId,
+      query,
+    );
 
     return {
       message: 'Fetch open jobs successfully',

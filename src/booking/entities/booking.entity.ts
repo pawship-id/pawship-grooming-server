@@ -10,6 +10,15 @@ import {
 export type BookingDocument = HydratedDocument<Booking>;
 
 @Schema({ _id: false })
+export class ZonePriceItemSnapshot {
+  @Prop({ type: Types.ObjectId })
+  size_category_id?: Types.ObjectId;
+
+  @Prop({ type: Number })
+  price?: number;
+}
+
+@Schema({ _id: false })
 export class ZoneSnapshot {
   @Prop()
   area_name?: string;
@@ -23,6 +32,13 @@ export class ZoneSnapshot {
   @Prop({ type: Number })
   travel_time_minutes?: number;
 
+  @Prop({ type: [ZonePriceItemSnapshot], default: [] })
+  prices?: ZonePriceItemSnapshot[];
+
+  @Prop({ enum: ['home_service', 'pickup_delivery'], default: null })
+  zone_type?: string;
+
+  /** @deprecated Use prices array instead */
   @Prop({ type: Number })
   travel_fee?: number;
 }
@@ -386,6 +402,13 @@ export class Booking {
 
   /* ===== Pricing ===== */
   @Prop({ default: 0 })
+  pickup_fee: number;
+
+  @Prop({ default: 0 })
+  delivery_fee: number;
+
+  /** @deprecated Use pickup_fee + delivery_fee instead. Kept for backward compatibility */
+  @Prop({ default: 0 })
   travel_fee: number;
 
   @Prop({ default: true })
@@ -413,7 +436,13 @@ export class Booking {
   edited_travel_fee_discount: number | null; // admin item-level discount on travel fee
 
   @Prop({
-    type: [{ addon_id: { type: String }, price: { type: Number }, discount: { type: Number, default: 0 } }],
+    type: [
+      {
+        addon_id: { type: String },
+        price: { type: Number },
+        discount: { type: Number, default: 0 },
+      },
+    ],
     default: [],
   })
   edited_addon_prices: { addon_id: string; price: number; discount?: number }[]; // per-addon price overrides
@@ -448,10 +477,17 @@ export class Booking {
   })
   media: SessionMedia[];
 
-  /* ===== Pick-up Service ===== */
+  /* ===== Pick-up & Delivery Service ===== */
   @Prop({ default: false })
   pick_up: boolean;
 
+  @Prop({ default: false })
+  delivery: boolean;
+
+  @Prop({ type: ZoneSnapshot })
+  matched_zone?: ZoneSnapshot;
+
+  /** @deprecated Use matched_zone instead */
   @Prop({ type: ZoneSnapshot })
   pick_up_zone?: ZoneSnapshot;
 

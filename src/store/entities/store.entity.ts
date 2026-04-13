@@ -1,7 +1,60 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 
 export type StoreDocument = HydratedDocument<Store>;
+
+// Zone Price Item Schema - defines price per pet size category
+@Schema({ _id: false })
+export class ZonePriceItem {
+  @Prop({ type: Types.ObjectId, ref: 'Option', required: true })
+  size_category_id: Types.ObjectId;
+
+  @Prop({ required: true })
+  price: number;
+}
+export const ZonePriceItemSchema = SchemaFactory.createForClass(ZonePriceItem);
+
+// Home Service Zone Schema - for in-home grooming services
+@Schema({ _id: false })
+export class HomeServiceZone {
+  @Prop({ required: true })
+  area_name: string;
+
+  @Prop({ required: true })
+  min_radius_km: number;
+
+  @Prop({ required: true })
+  max_radius_km: number;
+
+  @Prop({ required: true })
+  travel_time_minutes: number;
+
+  @Prop({ required: true })
+  price: number;
+}
+export const HomeServiceZoneSchema =
+  SchemaFactory.createForClass(HomeServiceZone);
+
+// Pickup/Delivery Zone Schema - for in-store services with pickup/delivery options
+@Schema({ _id: false })
+export class PickupDeliveryZone {
+  @Prop({ required: true })
+  area_name: string;
+
+  @Prop({ required: true })
+  min_radius_km: number;
+
+  @Prop({ required: true })
+  max_radius_km: number;
+
+  @Prop({ required: true })
+  travel_time_minutes: number;
+
+  @Prop({ type: [ZonePriceItemSchema], required: true })
+  prices: ZonePriceItem[];
+}
+export const PickupDeliveryZoneSchema =
+  SchemaFactory.createForClass(PickupDeliveryZone);
 
 @Schema({
   timestamps: true,
@@ -90,35 +143,20 @@ export class Store {
     overbooking_limit_minutes: number;
   };
 
-  @Prop({
-    type: [
-      {
-        area_name: { type: String, required: true },
-        min_radius_km: { type: Number, required: true },
-        max_radius_km: { type: Number, required: true },
-        travel_time_minutes: { type: Number, required: true },
-        travel_fee: { type: Number, required: true },
-      },
-    ],
-    default: [],
-    _id: false,
-  })
-  zones: {
-    area_name: string;
-    min_radius_km: number;
-    max_radius_km: number;
-    travel_time_minutes: number;
-    travel_fee: number;
-  }[];
+  @Prop({ type: [HomeServiceZoneSchema], default: [] })
+  home_service_zones: HomeServiceZone[];
+
+  @Prop({ type: [PickupDeliveryZoneSchema], default: [] })
+  pickup_delivery_zones: PickupDeliveryZone[];
+
+  @Prop({ default: false })
+  is_pickup_delivery_available: boolean;
 
   @Prop({ type: [String], default: [] })
   sessions: string[];
 
   @Prop({ default: false })
   is_default_store: boolean;
-
-  @Prop({ default: false })
-  is_pick_up_available: boolean;
 
   @Prop({ default: true })
   is_active: boolean;

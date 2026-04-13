@@ -212,6 +212,10 @@ export class CreateBookingDto {
   pick_up?: boolean = false;
 
   @IsOptional()
+  @IsBoolean({ message: 'delivery must be a boolean' })
+  delivery?: boolean = false;
+
+  @IsOptional()
   @IsArray({ message: 'selected_benefit_ids must be an array' })
   @IsMongoId({
     each: true,
