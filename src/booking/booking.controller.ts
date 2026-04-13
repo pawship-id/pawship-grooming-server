@@ -185,6 +185,19 @@ export class BookingController {
     };
   }
 
+  // Booking preview (public, no auth required)
+  @Public()
+  @Post('public/preview')
+  async publicPreview(@Body() dto: BookingPreviewRequestDto) {
+    // For public preview, skip pick_up travel fee calculation (no customer_id)
+    const safeDto = { ...dto, pick_up: false };
+    const preview = await this.bookingService.getBookingPreview(safeDto);
+    return {
+      message: 'Booking preview calculated successfully',
+      ...preview,
+    };
+  }
+
   // Preview benefit application (public, no booking required)
   @Public()
   @Post('public/apply-benefit')
