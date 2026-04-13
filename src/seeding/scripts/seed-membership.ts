@@ -234,7 +234,7 @@ async function parseServiceId(
   }
 
   const service = await ServiceModel.findOne({
-    code: new RegExp(`^${escapeRegex(serviceCode.trim())}$`, 'i'),
+    name: new RegExp(`^${escapeRegex(serviceCode.trim())}$`, 'i'),
     isDeleted: false,
   }).select('_id');
 
