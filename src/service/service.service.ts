@@ -50,7 +50,50 @@ export class ServiceService {
     try {
       body.name = capitalizeWords(body.name);
 
-      const user = new this.serviceModel(body);
+      // Convert service_type_id to ObjectId
+      const serviceData: any = {
+        ...body,
+        service_type_id: new ObjectId(body.service_type_id),
+      };
+
+      // Convert array of IDs to ObjectId arrays if they exist
+      if (body.pet_type_ids && body.pet_type_ids.length > 0) {
+        serviceData.pet_type_ids = body.pet_type_ids.map(
+          (id) => new ObjectId(id),
+        );
+      }
+      if (body.size_category_ids && body.size_category_ids.length > 0) {
+        serviceData.size_category_ids = body.size_category_ids.map(
+          (id) => new ObjectId(id),
+        );
+      }
+      if (body.hair_category_ids && body.hair_category_ids.length > 0) {
+        serviceData.hair_category_ids = body.hair_category_ids.map(
+          (id) => new ObjectId(id),
+        );
+      }
+      if (body.addon_ids && body.addon_ids.length > 0) {
+        serviceData.addon_ids = body.addon_ids.map((id) => new ObjectId(id));
+      }
+      if (body.available_store_ids && body.available_store_ids.length > 0) {
+        serviceData.available_store_ids = body.available_store_ids.map(
+          (id) => new ObjectId(id),
+        );
+      }
+
+      // Convert prices ObjectIds if price_type is multiple
+      if (body.price_type === 'multiple' && body.prices) {
+        serviceData.prices = body.prices.map((price: any) => ({
+          ...price,
+          pet_type_id: price.pet_type_id
+            ? new ObjectId(price.pet_type_id)
+            : undefined,
+          size_id: price.size_id ? new ObjectId(price.size_id) : undefined,
+          hair_id: price.hair_id ? new ObjectId(price.hair_id) : undefined,
+        }));
+      }
+
+      const user = new this.serviceModel(serviceData);
 
       return await user.save();
     } catch (error) {
@@ -211,9 +254,53 @@ export class ServiceService {
         body.name = capitalizeWords(body.name);
       }
 
+      // Convert ObjectId fields
+      const updateData: any = { ...body };
+
+      if (body.service_type_id) {
+        updateData.service_type_id = new ObjectId(body.service_type_id);
+      }
+
+      // Convert array of IDs to ObjectId arrays if they exist
+      if (body.pet_type_ids && body.pet_type_ids.length > 0) {
+        updateData.pet_type_ids = body.pet_type_ids.map(
+          (id) => new ObjectId(id),
+        );
+      }
+      if (body.size_category_ids && body.size_category_ids.length > 0) {
+        updateData.size_category_ids = body.size_category_ids.map(
+          (id) => new ObjectId(id),
+        );
+      }
+      if (body.hair_category_ids && body.hair_category_ids.length > 0) {
+        updateData.hair_category_ids = body.hair_category_ids.map(
+          (id) => new ObjectId(id),
+        );
+      }
+      if (body.addon_ids && body.addon_ids.length > 0) {
+        updateData.addon_ids = body.addon_ids.map((id) => new ObjectId(id));
+      }
+      if (body.available_store_ids && body.available_store_ids.length > 0) {
+        updateData.available_store_ids = body.available_store_ids.map(
+          (id) => new ObjectId(id),
+        );
+      }
+
+      // Convert prices ObjectIds if they exist
+      if (body.prices) {
+        updateData.prices = body.prices.map((price: any) => ({
+          ...price,
+          pet_type_id: price.pet_type_id
+            ? new ObjectId(price.pet_type_id)
+            : undefined,
+          size_id: price.size_id ? new ObjectId(price.size_id) : undefined,
+          hair_id: price.hair_id ? new ObjectId(price.hair_id) : undefined,
+        }));
+      }
+
       const service = await this.serviceModel.findByIdAndUpdate(
         id,
-        { $set: body },
+        { $set: updateData },
         { new: true },
       );
 
