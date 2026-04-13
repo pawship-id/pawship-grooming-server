@@ -11,7 +11,7 @@ import {
   ValidateNested,
   ArrayMinSize,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 export enum DayOfWeek {
   Monday = 'Monday',
@@ -44,10 +44,22 @@ export class OperationalDto {
 
   @IsOptional()
   @IsArray()
+  @Transform(({ value }) => {
+    // Capitalize first letter of each day to handle case-insensitive input
+    if (Array.isArray(value)) {
+      return value.map((day) => {
+        if (typeof day === 'string' && day.length > 0) {
+          return day.charAt(0).toUpperCase() + day.slice(1).toLowerCase();
+        }
+        return day;
+      });
+    }
+    return value;
+  })
   @IsEnum(DayOfWeek, {
     each: true,
     message:
-      'operational day must be monday | tuesday | wednesday | thursday | friday | saturday | sunday',
+      'operational day must be Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday',
   })
   operational_days?: DayOfWeek[];
 
