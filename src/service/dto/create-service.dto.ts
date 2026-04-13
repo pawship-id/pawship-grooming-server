@@ -127,15 +127,20 @@ export class CreateServiceDto {
   @IsNumber({}, { message: 'order must be a number' })
   order?: number = 0;
 
-  @IsOptional()
+  @IsArray({ message: 'service_location_type must be an array' })
   @IsEnum(['in home', 'in store'], {
-    message: 'service location type must be either in home or in store',
+    each: true,
+    message: 'each service location type must be either in home or in store',
   })
-  service_location_type?: string = 'in store';
+  @IsNotEmpty({
+    message:
+      'service_location_type is required and must have at least one value',
+  })
+  service_location_type: string[];
 
   @IsOptional()
-  @IsBoolean({ message: 'is_pick_up_available must be a boolean' })
-  is_pick_up_available?: boolean = false;
+  @IsBoolean({ message: 'is_pickup_delivery_available must be a boolean' })
+  is_pickup_delivery_available?: boolean = false;
 
   @IsOptional()
   @IsBoolean()

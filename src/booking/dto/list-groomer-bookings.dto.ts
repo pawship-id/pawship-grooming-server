@@ -1,7 +1,7 @@
 import { IsOptional, IsString, IsInt, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export class ListBookingsDto {
+export class ListGroomerMyJobsDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -16,7 +16,7 @@ export class ListBookingsDto {
 
   @IsOptional()
   @IsString()
-  status?: string;
+  session_status?: string;
 
   @IsOptional()
   @IsString()
@@ -25,12 +25,18 @@ export class ListBookingsDto {
   @IsOptional()
   @IsString()
   date_to?: string;
+}
+
+export class ListGroomerOpenJobsDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
 
   @IsOptional()
-  @IsString()
-  created_by_role?: string;
-
-  @IsOptional()
-  @IsString()
-  customer_id?: string;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number = 20;
 }

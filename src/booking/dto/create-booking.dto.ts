@@ -23,6 +23,14 @@ export class PetSnapshotDto {
   name: string;
 
   @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  internal_note?: string;
+
+  @IsOptional()
   @ValidateIf((o) => o.member_type !== null)
   @IsObject()
   member_type?: { _id: string; name: string } | null;
@@ -202,6 +210,10 @@ export class CreateBookingDto {
   @IsOptional()
   @IsBoolean({ message: 'pick_up must be a boolean' })
   pick_up?: boolean = false;
+
+  @IsOptional()
+  @IsBoolean({ message: 'delivery must be a boolean' })
+  delivery?: boolean = false;
 
   @IsOptional()
   @IsArray({ message: 'selected_benefit_ids must be an array' })

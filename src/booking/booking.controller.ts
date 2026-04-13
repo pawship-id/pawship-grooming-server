@@ -33,6 +33,11 @@ import { ConfigService } from '@nestjs/config';
 import { UserService } from 'src/user/user.service';
 import { ApplyBenefitPreviewDto } from './dto/apply-benefit-preview.dto';
 import { ListBookingsDto } from './dto/list-bookings.dto';
+import { UpdateBookingPricingDto } from './dto/update-booking-pricing.dto';
+import {
+  ListGroomerMyJobsDto,
+  ListGroomerOpenJobsDto,
+} from './dto/list-groomer-bookings.dto';
 
 @Controller('bookings')
 @UseGuards(AuthGuard)
@@ -180,6 +185,19 @@ export class BookingController {
     };
   }
 
+  // Booking preview (public, no auth required)
+  @Public()
+  @Post('public/preview')
+  async publicPreview(@Body() dto: BookingPreviewRequestDto) {
+    // For public preview, skip pick_up travel fee calculation (no customer_id)
+    const safeDto = { ...dto, pick_up: false };
+    const preview = await this.bookingService.getBookingPreview(safeDto);
+    return {
+      message: 'Booking preview calculated successfully',
+      ...preview,
+    };
+  }
+
   // Preview benefit application (public, no booking required)
   @Public()
   @Post('public/apply-benefit')
@@ -192,9 +210,46 @@ export class BookingController {
       dto.add_on_ids,
       dto.original_total_price,
       dto.booking_date ? new Date(dto.booking_date) : undefined,
+      dto.pick_up === true,
+      dto.delivery === true,
     );
     return {
       message: 'Benefit preview calculated successfully',
+      ...result,
+    };
+  }
+
+  // ─── Groomer Endpoints ──────────────────────────────────────────────────────
+
+  // get groomer's assigned bookings
+  @Get('groomer/my-jobs')
+  async getGroomerMyJobs(
+    @Query() query: ListGroomerMyJobsDto,
+    @Req() request: any,
+  ) {
+    const groomerId = new ObjectId(request.user._id);
+    const result = await this.bookingService.getGroomerMyJobs(groomerId, query);
+
+    return {
+      message: 'Fetch groomer jobs successfully',
+      ...result,
+    };
+  }
+
+  // get bookings with unassigned sessions
+  @Get('groomer/open-jobs')
+  async getGroomerOpenJobs(
+    @Query() query: ListGroomerOpenJobsDto,
+    @Req() request: any,
+  ) {
+    const groomerId = new ObjectId(request.user._id);
+    const result = await this.bookingService.getGroomerOpenJobs(
+      groomerId,
+      query,
+    );
+
+    return {
+      message: 'Fetch open jobs successfully',
       ...result,
     };
   }
@@ -284,6 +339,22 @@ export class BookingController {
 
     return {
       message: 'Delete booking successfully',
+    };
+  }
+
+  // update pricing only (benefits + manual discount)
+  @Patch(':id/pricing')
+  async updatePricing(
+    @Param('id') id: string,
+    @Body() body: UpdateBookingPricingDto,
+  ) {
+    if (!id) throw new BadRequestException('id is required');
+
+    const _id = new ObjectId(id);
+    await this.bookingService.updatePricing(_id, body);
+
+    return {
+      message: 'Booking pricing updated successfully',
     };
   }
 

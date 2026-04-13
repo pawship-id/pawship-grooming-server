@@ -65,6 +65,14 @@ export class ServiceTypeService {
     };
   }
 
+  async findAllForHomepage() {
+    return await this.serviceTypeModel
+      .find({ isDeleted: false, is_active: true, show_in_homepage: true })
+      .select('title description image_url')
+      .sort({ createdAt: -1 })
+      .exec();
+  }
+
   async findOne(id: ObjectId) {
     return await this.serviceTypeModel
       .findById(id)

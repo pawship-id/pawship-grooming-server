@@ -17,6 +17,7 @@ import { UpdateServiceDto } from './dto/update-service.dto';
 import { GetServicesQueryDto } from './dto/get-services-query.dto';
 import { ObjectId } from 'mongodb';
 import { AuthGuard } from 'src/auth/auth.guard';
+import { Public } from 'src/auth/public.decorator';
 
 @Controller('services')
 @UseGuards(AuthGuard)
@@ -39,6 +40,16 @@ export class ServiceController {
     return {
       message: 'Fetch services successfully',
       ...result,
+    };
+  }
+
+  @Public()
+  @Get('public/homepage')
+  async findAllForHomepage() {
+    const services = await this.serviceService.findAllForHomepage();
+    return {
+      message: 'Fetch homepage services successfully',
+      services,
     };
   }
 

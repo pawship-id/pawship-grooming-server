@@ -106,6 +106,26 @@ export class SessionController {
     };
   }
 
+  // Claim an unassigned session (groomer self-assign)
+  @Patch(':bookingId/session/:sessionId/claim')
+  async claimSession(
+    @Param('bookingId') bookingId: string,
+    @Param('sessionId') sessionId: string,
+    @Req() request: any,
+  ) {
+    if (!bookingId) throw new BadRequestException('bookingId is required');
+    if (!sessionId) throw new BadRequestException('sessionId is required');
+
+    const _bookingId = new ObjectId(bookingId);
+    const _sessionId = new ObjectId(sessionId);
+    const _groomerId = new ObjectId(request.user._id);
+    await this.sessionService.claimSession(_bookingId, _sessionId, _groomerId);
+
+    return {
+      message: 'Session claimed successfully',
+    };
+  }
+
   // Finish a session by ID
   @Patch(':bookingId/session/:sessionId/finish')
   async finishSession(

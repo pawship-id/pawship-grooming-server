@@ -31,10 +31,6 @@ export class PetService {
       petData.hair_category_id = new Types.ObjectId(body.hair_category_id);
     }
 
-    if (body.member_category_id) {
-      petData.member_category_id = new Types.ObjectId(body.member_category_id);
-    }
-
     if (body.tags) {
       petData.tags = body.tags.map((tag) => capitalizeWords(tag));
     }
@@ -53,7 +49,6 @@ export class PetService {
       pet_type_id,
       size_category_id,
       breed_category_id,
-      member_category_id,
       customer_id,
     } = query;
 
@@ -73,10 +68,6 @@ export class PetService {
 
     if (breed_category_id) {
       filter.breed_category_id = breed_category_id;
-    }
-
-    if (member_category_id) {
-      filter.member_category_id = member_category_id;
     }
 
     if (customer_id) {
@@ -104,7 +95,6 @@ export class PetService {
       .populate('hair', 'name')
       .populate('size', 'name')
       .populate('breed', 'name')
-      .populate('member_category', 'name')
       .populate('owner', 'username')
       .exec();
 
@@ -126,7 +116,6 @@ export class PetService {
       .populate('hair', 'name')
       .populate('size', 'name')
       .populate('breed', 'name')
-      .populate('member_category', 'name')
       .populate('owner', 'username')
       .exec();
 
@@ -147,7 +136,6 @@ export class PetService {
       'breed_category_id',
       'customer_id',
       'hair_category_id',
-      'member_category_id',
     ];
 
     idFields.forEach((field) => {
@@ -183,9 +171,8 @@ export class PetService {
     const pet = await this.petModel
       .findById(petId)
       .select(
-        'name isDeleted member_category_id size_category_id pet_type_id hair_category_id breed_category_id',
+        'name description internal_note isDeleted size_category_id pet_type_id hair_category_id breed_category_id',
       )
-      .populate('member_category', '_id name')
       .populate('pet_type', '_id name')
       .populate('size', '_id name')
       .populate('hair', '_id name')
@@ -196,7 +183,6 @@ export class PetService {
       throw new NotFoundException('pet not found');
     }
 
-    const memberCategory = (pet as any).member_category;
     const petType = (pet as any).pet_type;
     const size = (pet as any).size;
     const hair = (pet as any).hair;
@@ -205,9 +191,9 @@ export class PetService {
     return {
       _id: pet._id,
       name: pet.name,
-      member_type: memberCategory
-        ? { _id: memberCategory._id, name: memberCategory.name }
-        : null,
+      description: pet.description,
+      internal_note: pet.internal_note,
+      member_type: null,
       pet_type: { _id: petType._id, name: petType.name },
       size: { _id: size._id, name: size.name },
       hair: { _id: hair._id, name: hair.name },

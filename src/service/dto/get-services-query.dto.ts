@@ -1,5 +1,6 @@
 import {
   IsBoolean,
+  IsEnum,
   IsInt,
   IsMongoId,
   IsOptional,
@@ -58,4 +59,10 @@ export class GetServicesQueryDto {
   @IsOptional()
   @IsMongoId()
   store_id?: string;
+
+  @IsOptional()
+  @IsEnum(['in home', 'in store'], {
+    message: 'service_location_type must be either in home or in store',
+  })
+  service_location_type?: string;
 }

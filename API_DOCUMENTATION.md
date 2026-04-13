@@ -339,10 +339,6 @@ For customer users:
         "breed": {
             "_id": "698da2bb19b8a1bbac7aabb6",
             "name": "Pom"
-        },
-        "member_category": {
-            "_id": "699456cf429638a275fb0456",
-            "name": "Vip - In Store"
         }
     }
   ]
@@ -380,7 +376,7 @@ For customer users:
 - Fields like `groomer_skills` and `groomer_rating` are only meaningful for users with `role: groomer`
 - `customer_category_id` is only meaningful for users with `role: customer`
 - If user role is `customer`, the response includes a `pets` array with all their pets (non-deleted only)
-- Pets are populated with their relationships: pet_type, hair_category, size_category, breed_category, and member_category
+- Pets are populated with their relationships: pet_type, hair_category, size_category, and breed_category
 - Useful for profile pages or checking current user permissions
 
 ---
@@ -528,7 +524,6 @@ Authorization: Bearer <jwt_token>
   "size_category_id": "MongoDB ObjectId (required)",
   "breed_category_id": "MongoDB ObjectId (required)",
   "weight": "number (optional)",
-  "member_category_id": "MongoDB ObjectId (optional)",
   "tags": ["string"],
   "last_grooming_at": "ISO date (optional)",
   "last_visit_at": "ISO date (optional)",
@@ -598,7 +593,6 @@ Authorization: Bearer <jwt_token>
 - `pet_type_id` (optional, MongoDB ObjectId): Filter by pet type
 - `size_category_id` (optional, MongoDB ObjectId): Filter by size
 - `breed_category_id` (optional, MongoDB ObjectId): Filter by breed
-- `member_category_id` (optional, MongoDB ObjectId): Filter by membership category
 
 **Success Response (200):**
 
@@ -719,7 +713,6 @@ Authorization: Bearer <jwt_token>
   "size_category_id": "MongoDB ObjectId",
   "breed_category_id": "MongoDB ObjectId",
   "weight": "number",
-  "member_category_id": "MongoDB ObjectId",
   "tags": ["string"],
   "last_grooming_at": "ISO date",
   "last_visit_at": "ISO date",
@@ -861,10 +854,6 @@ For customer users:
           "name": "Golden Retriever"
         },
         "weight": 15,
-        "member_category": {
-          "_id": "507f1f77bcf86cd799439016",
-          "name": "Gold"
-        },
         "tags": ["friendly", "energetic"],
         "last_grooming_at": "2026-01-15T00:00:00.000Z",
         "last_visit_at": "2026-02-01T00:00:00.000Z",
@@ -913,7 +902,7 @@ For customer users:
 
 - Sensitive fields (`password`, `refresh_token`, `refresh_token_expires_at`) are automatically excluded from response
 - If user role is `customer`, the response includes a `pets` array with all their pets (non-deleted only)
-- Pets are populated with their relationships: pet_type, hair, size, breed, and member_category
+- Pets are populated with their relationships: pet_type, hair, size, and breed
 
 ---
 
@@ -3025,7 +3014,6 @@ Key: folder | Type: text
 - `pet_type_id` (MongoDB ObjectId)
 - `size_category_id` (MongoDB ObjectId)
 - `breed_category_id` (MongoDB ObjectId)
-- `member_category_id` (MongoDB ObjectId)
 - `customer_id` (MongoDB ObjectId)
 
 **Success Response (200):**
@@ -3061,10 +3049,6 @@ Key: folder | Type: text
         "name": "Golden Retriever"
       },
       "weight": 15,
-      "member_category": {
-        "_id": "507f1f77bcf86cd799439016",
-        "name": "Gold"
-      },
       "tags": ["friendly", "energetic"],
       "last_grooming_at": "2026-01-15T00:00:00.000Z",
       "last_visit_at": "2026-02-01T00:00:00.000Z",
@@ -3148,10 +3132,6 @@ Key: folder | Type: text
       "name": "Golden Retriever"
     },
     "weight": 15,
-    "member_category": {
-      "_id": "507f1f77bcf86cd799439016",
-      "name": "Gold"
-    },
     "tags": ["friendly", "energetic"],
     "last_grooming_at": "2026-01-15T00:00:00.000Z",
     "last_visit_at": "2026-02-01T00:00:00.000Z",
@@ -3207,7 +3187,6 @@ Key: folder | Type: text
   "size_category_id": "MongoDB ObjectId (required)",
   "breed_category_id": "MongoDB ObjectId (required)",
   "weight": "number (optional)",
-  "member_category_id": "MongoDB ObjectId (optional)",
   "tags": ["string"] (optional array),
   "last_grooming_at": "Date (optional)",
   "last_visit_at": "Date (optional)",
@@ -4166,7 +4145,8 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 ```json
 {
   "pet_id": "MongoDB ObjectId (required)",
-  "membership_plan_id": "MongoDB ObjectId (required)"
+  "membership_plan_id": "MongoDB ObjectId (required)",
+  "start_date": "ISO date string (optional, defaults to current date/time)"
 }
 ```
 
@@ -4175,7 +4155,8 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 ```json
 {
   "pet_id": "507f1f77bcf86cd799439020",
-  "membership_plan_id": "507f1f77bcf86cd799439011"
+  "membership_plan_id": "507f1f77bcf86cd799439011",
+  "start_date": "2026-04-15T00:00:00.000Z"
 }
 ```
 
@@ -4261,8 +4242,8 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 - When a pet membership is created, `benefits_snapshot` is populated from the membership plan's benefits
 - `used` counter starts at 0 for each benefit
 - `period_reset_date` is calculated based on the benefit's period type (weekly, monthly, or null for unlimited)
-- `start_date` is the current date/time
-- `end_date` is calculated by adding `membership_plan.duration_months` to the start_date
+- `start_date` defaults to the current date/time if not provided; admin can pass a custom ISO date to schedule membership activation in the future
+- `end_date` is calculated by adding `membership_plan.duration_months` to the `start_date`
 
 ---
 
@@ -4715,16 +4696,21 @@ Pet Memberships represent the purchased membership plans for individual pets. Ea
 ```json
 {
   "start_date": "ISO date string (required)",
-  "end_date": "ISO date string (required)"
+  "end_date": "ISO date string (required)",
+  "note": "string (optional)"
 }
 ```
+
+**Notes:**
+- `note`: Optional. If not provided, defaults to `"-"` in the membership log.
 
 **Example:**
 
 ```json
 {
   "start_date": "2026-03-20T00:00:00.000Z",
-  "end_date": "2026-09-20T00:00:00.000Z"
+  "end_date": "2026-09-20T00:00:00.000Z",
+  "note": "Penyesuaian tanggal oleh admin"
 }
 ```
 
@@ -7703,6 +7689,33 @@ Key: note          | Type: Text | Value: Pet condition before grooming
 
 ## Promotions
 
+### Schema
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `code` | string (unique) | Yes | — | Unique promotion code |
+| `name` | string | Yes | — | Promotion name (auto-capitalized) |
+| `description` | string | No | — | Optional description |
+| `applies_to` | `AppliesTo` enum | Yes | — | Scope of the discount |
+| `service_id` | ObjectId (ref Service) | No | `null` | Service/addon target; `null` = all. Forced `null` for `pickup`/`booking` |
+| `discount_type` | `DiscountType` enum | Yes | — | `percent` or `fixed` |
+| `value` | number (≥ 0) | Yes | — | Discount amount |
+| `start_date` | ISO date string | Yes | — | When promotion becomes active |
+| `end_date` | ISO date string | No | `null` | Expiry date; `null` = no expiry |
+| `is_available_to_membership` | boolean | No | `false` | `true` = also valid for pet members |
+| `is_stackable` | boolean | No | `false` | Whether this promo can stack with others |
+| `is_active` | boolean | No | `true` | Active status |
+
+**Enums:**
+- `AppliesTo`: `service` · `addon` · `pickup` · `booking`
+  - `service` — discount on a specific service price (use `service_id` for specific, `null` for all)
+  - `addon` — discount on a specific add-on price
+  - `pickup` — discount on travel fee when booking uses pickup
+  - `booking` — discount on total payment (subtotal + travel fee)
+- `DiscountType`: `percent` · `fixed`
+
+---
+
 ### 1. Create Promotion
 
 **Endpoint:** `POST /promotions`
@@ -7719,45 +7732,28 @@ Key: note          | Type: Text | Value: Pet condition before grooming
 
 ```json
 {
-  "code": "PROMO2026",
-  "name": "New Member Discount",
-  "description": "10% off for new members",
-  "promo_type": "membership_benefit",
-  "claim_type": "once_per_booking",
-  "benefit": {
-    "type": "discount",
-    "discount_type": "percent",
-    "value": 10
-  },
-  "eligibility": {
-    "is_only_for_membership": true,
-    "membership_ids": ["60d21b4667d0d8992e610c85"],
-    "first_time_user": false
-  },
-  "validity": {
-    "start_at": "2026-03-01T00:00:00.000Z",
-    "end_at": "2026-12-31T23:59:59.000Z"
-  },
-  "stackable": false,
-  "priority": 1,
+  "code": "DISC10",
+  "name": "10% Off All Services",
+  "description": "10% discount on any grooming service",
+  "applies_to": "service",
+  "service_id": null,
+  "discount_type": "percent",
+  "value": 10,
+  "start_date": "2026-01-01T00:00:00.000Z",
+  "end_date": "2026-12-31T23:59:59.000Z",
+  "is_available_to_membership": false,
+  "is_stackable": false,
   "is_active": true
 }
 ```
 
 **Field Notes:**
 
-- `benefit.type`: `"discount"` or `"free_service"`
-- If `benefit.type` is `"discount"`: `discount_type` (`"percent"` or `"fixed"`) and `value` are **required**
-- If `benefit.type` is `"free_service"`: `service_id` (MongoDB ObjectId) is **required**
-- `promo_type`: `"membership_benefit"` or `"general_promo"`
-- `claim_type`: `"once_per_membership"`, `"every_add_on"`, or `"once_per_booking"`
-- `validity.end_at`: optional — if `null`, promotion has no expiry
-- `eligibility`: **required**
-- `eligibility.is_only_for_membership`: **required** — `true` = hanya untuk member, `false` = bisa dipakai semua user
-- `eligibility.membership_ids`: optional — membatasi promo ke membership tertentu
-- `eligibility.first_time_user`: optional — default `false`
-- `stackable`: default `false`
-- `priority`: default `0` — lower number = higher priority
+- `applies_to`: required — determines what the discount is applied to
+- `service_id`: relevant only when `applies_to` is `service` or `addon`; set to `null` for all services/addons; automatically forced to `null` when `applies_to` is `pickup` or `booking`
+- `end_date`: optional — omit or set to `null` for no expiry
+- `is_available_to_membership`: default `false` — `true` means the promo is also valid for pets enrolled in a membership
+- `is_stackable`: default `false`
 
 **Success Response (201):**
 
@@ -7792,8 +7788,10 @@ Key: note          | Type: Text | Value: Pet condition before grooming
 | limit | number | No | Items per page (default: 10) |
 | search | string | No | Search by name or code (case-insensitive) |
 | is_active | boolean | No | Filter by active status |
-| promo_type | string | No | `membership_benefit` or `general_promo` |
-| claim_type | string | No | `once_per_membership`, `every_add_on`, or `once_per_booking` |
+| applies_to | string | No | `service`, `addon`, `pickup`, or `booking` |
+| discount_type | string | No | `percent` or `fixed` |
+| is_available_to_membership | boolean | No | Filter by membership availability |
+| is_stackable | boolean | No | Filter by stackable flag |
 
 **Success Response (200):**
 
@@ -7803,31 +7801,37 @@ Key: note          | Type: Text | Value: Pet condition before grooming
   "promotions": [
     {
       "_id": "60d21b4667d0d8992e610c85",
-      "code": "PROMO2026",
-      "name": "New Member Discount",
-      "description": "10% off for new members",
-      "promo_type": "membership_benefit",
-      "claim_type": "once_per_booking",
-      "benefit": {
-        "type": "discount",
-        "discount_type": "percent",
-        "value": 10,
-        "service_id": null
-      },
-      "eligibility": {
-        "is_only_for_membership": true,
-        "membership_ids": ["60d21b4667d0d8992e610c85"],
-        "memberships": [
-          { "_id": "60d21b4667d0d8992e610c85", "name": "Gold Member" }
-        ],
-        "first_time_user": false
-      },
-      "validity": {
-        "start_at": "2026-03-01T00:00:00.000Z",
-        "end_at": "2026-12-31T23:59:59.000Z"
-      },
-      "stackable": false,
-      "priority": 1,
+      "code": "DISC10",
+      "name": "10% Off All Services",
+      "description": "10% discount on any grooming service",
+      "applies_to": "service",
+      "service_id": null,
+      "service": null,
+      "discount_type": "percent",
+      "value": 10,
+      "start_date": "2026-01-01T00:00:00.000Z",
+      "end_date": "2026-12-31T23:59:59.000Z",
+      "is_available_to_membership": false,
+      "is_stackable": false,
+      "is_active": true,
+      "isDeleted": false,
+      "createdAt": "2026-03-09T10:00:00.000Z",
+      "updatedAt": "2026-03-09T10:00:00.000Z"
+    },
+    {
+      "_id": "60d21b4667d0d8992e610c86",
+      "code": "BATH20K",
+      "name": "Bath Discount 20K",
+      "description": null,
+      "applies_to": "service",
+      "service_id": "60d21b4667d0d8992e610c99",
+      "service": { "_id": "60d21b4667d0d8992e610c99", "name": "Basic Bath", "code": "BATH" },
+      "discount_type": "fixed",
+      "value": 20000,
+      "start_date": "2026-01-01T00:00:00.000Z",
+      "end_date": null,
+      "is_available_to_membership": true,
+      "is_stackable": false,
       "is_active": true,
       "isDeleted": false,
       "createdAt": "2026-03-09T10:00:00.000Z",
@@ -7835,13 +7839,16 @@ Key: note          | Type: Text | Value: Pet condition before grooming
     }
   ],
   "pagination": {
-    "total": 1,
+    "total": 2,
     "page": 1,
     "limit": 10,
     "totalPages": 1
   }
 }
 ```
+
+**Notes:**
+- `service` field is the populated `service_id` object. Present when `applies_to` is `service` or `addon` and a specific service is targeted; otherwise `null`.
 
 **Error Responses:**
 
@@ -7869,32 +7876,18 @@ Key: note          | Type: Text | Value: Pet condition before grooming
   "message": "Fetch promotion successfully",
   "promotion": {
     "_id": "60d21b4667d0d8992e610c85",
-    "code": "FREE2026",
-    "name": "Free Bath Service",
-    "description": "Free bath for premium members",
-    "promo_type": "membership_benefit",
-    "claim_type": "once_per_membership",
-    "benefit": {
-      "type": "free_service",
-      "discount_type": null,
-      "value": null,
-      "service_id": "60d21b4667d0d8992e610c86",
-      "service": { "_id": "60d21b4667d0d8992e610c86", "name": "Bath Service" }
-    },
-    "eligibility": {
-      "is_only_for_membership": true,
-      "membership_ids": ["60d21b4667d0d8992e610c85"],
-      "memberships": [
-        { "_id": "60d21b4667d0d8992e610c85", "name": "Platinum Member" }
-      ],
-      "first_time_user": false
-    },
-    "validity": {
-      "start_at": "2026-03-01T00:00:00.000Z",
-      "end_at": null
-    },
-    "stackable": false,
-    "priority": 0,
+    "code": "PICKUP15",
+    "name": "Pickup Discount 15%",
+    "description": "15% off travel fee when using pickup service",
+    "applies_to": "pickup",
+    "service_id": null,
+    "service": null,
+    "discount_type": "percent",
+    "value": 15,
+    "start_date": "2026-01-01T00:00:00.000Z",
+    "end_date": null,
+    "is_available_to_membership": false,
+    "is_stackable": true,
     "is_active": true,
     "isDeleted": false,
     "createdAt": "2026-03-09T10:00:00.000Z",
@@ -7930,11 +7923,7 @@ Key: note          | Type: Text | Value: Pet condition before grooming
 {
   "name": "Updated Name",
   "is_active": false,
-  "priority": 2,
-  "validity": {
-    "start_at": "2026-04-01T00:00:00.000Z",
-    "end_at": "2026-12-31T23:59:59.000Z"
-  }
+  "end_date": "2026-12-31T23:59:59.000Z"
 }
 ```
 

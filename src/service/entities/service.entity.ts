@@ -160,11 +160,11 @@ export class Service {
   @Prop({ default: 0 })
   order: number;
 
-  @Prop({ enum: ['in home', 'in store'], default: 'in store' })
-  service_location_type: string;
+  @Prop({ type: [String], enum: ['in home', 'in store'], required: true })
+  service_location_type: string[];
 
   @Prop({ default: false })
-  is_pick_up_available: boolean;
+  is_pickup_delivery_available: boolean;
 
   @Prop({ type: [String], default: [] })
   sessions: string[];

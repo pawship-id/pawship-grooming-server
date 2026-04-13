@@ -69,8 +69,10 @@ export class PetMembershipService {
     }
 
     // Calculate dates
-    const startDate = new Date();
-    const endDate = new Date();
+    const startDate = createPetMembershipDto.start_date
+      ? new Date(createPetMembershipDto.start_date)
+      : new Date();
+    const endDate = new Date(startDate);
     endDate.setMonth(endDate.getMonth() + membership.duration_months);
 
     // Create benefits snapshot dari membership dengan period reset date
@@ -116,8 +118,42 @@ export class PetMembershipService {
     return saved;
   }
 
+  async getCounts(petId: string): Promise<Record<string, number>> {
+    if (!Types.ObjectId.isValid(petId)) {
+      throw new BadRequestException('invalid pet ID');
+    }
+    const id = new Types.ObjectId(petId);
+    const now = new Date();
+    const base = { pet_id: id, isDeleted: false };
+    const [active, pending, expired, cancelled] = await Promise.all([
+      this.petMembershipModel.countDocuments({ ...base, is_active: true, start_date: { $lte: now }, end_date: { $gte: now } }),
+      this.petMembershipModel.countDocuments({ ...base, is_active: true, start_date: { $gt: now } }),
+      this.petMembershipModel.countDocuments({ ...base, is_active: true, end_date: { $lt: now } }),
+      this.petMembershipModel.countDocuments({ ...base, is_active: false }),
+    ]);
+    return { active, pending, expired, cancelled };
+  }
+
   async findAll(query: GetPetMembershipQueryDto): Promise<any[]> {
-    const conditions: any = { isDeleted: false, is_active: true };
+    const now = new Date();
+    const conditions: any = { isDeleted: false };
+
+    if (query.status === 'cancelled') {
+      conditions.is_active = false;
+    } else if (query.status === 'active') {
+      conditions.is_active = true;
+      conditions.start_date = { $lte: now };
+      conditions.end_date = { $gte: now };
+    } else if (query.status === 'pending') {
+      conditions.is_active = true;
+      conditions.start_date = { $gt: now };
+    } else if (query.status === 'expired') {
+      conditions.is_active = true;
+      conditions.end_date = { $lt: now };
+    } else {
+      // default: only non-cancelled records (backward compat for other callers)
+      conditions.is_active = true;
+    }
 
     if (query.pet_id) {
       conditions.pet_id = new Types.ObjectId(query.pet_id);
@@ -129,7 +165,7 @@ export class PetMembershipService {
       );
     }
 
-    let petMemberships = await this.petMembershipModel
+    const petMemberships = await this.petMembershipModel
       .find(conditions)
       .populate({
         path: 'pet',
@@ -149,7 +185,12 @@ export class PetMembershipService {
       .exec();
 
     // Populate services in benefits_snapshot
-    return this.populateBenefitsWithServices(petMemberships);
+    const result = await this.populateBenefitsWithServices(petMemberships);
+    const docs = Array.isArray(result) ? result : [result];
+    return docs.map((pm: any) => ({
+      ...pm,
+      status: this.computeStatus(pm.is_active, pm.start_date, pm.end_date),
+    }));
   }
 
   async findById(id: string): Promise<any> {
@@ -507,7 +548,7 @@ export class PetMembershipService {
       start_date: petMembership!.start_date,
       end_date: petMembership!.end_date,
       benefits_snapshot_before: [],
-      note: `Updated dates: start=${petMembership!.start_date.toISOString()}, end=${petMembership!.end_date.toISOString()}`,
+      note: updatePetMembershipDto.note ?? `-`,
     });
 
     return petMembership!;

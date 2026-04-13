@@ -13,7 +13,10 @@ import { ObjectId } from 'mongodb';
 import { capitalizeWords } from 'src/helpers/string.helper';
 import { Option, OptionDocument } from 'src/option/entities/option.entity';
 import { Store, StoreDocument } from 'src/store/entities/store.entity';
-import { ServiceType, ServiceTypeDocument } from 'src/service-type/entities/service-type.entity';
+import {
+  ServiceType,
+  ServiceTypeDocument,
+} from 'src/service-type/entities/service-type.entity';
 
 @Injectable()
 export class ServiceService {
@@ -70,6 +73,7 @@ export class ServiceService {
       pet_type_id,
       size_category_id,
       store_id,
+      service_location_type,
     } = query;
 
     const filter: any = { isDeleted: false };
@@ -83,19 +87,23 @@ export class ServiceService {
     }
 
     if (service_type_id) {
-      filter.service_type_id = service_type_id;
+      filter.service_type_id = new ObjectId(service_type_id);
     }
 
     if (pet_type_id) {
-      filter.pet_type_ids = pet_type_id;
+      filter.pet_type_ids = new ObjectId(pet_type_id);
     }
 
     if (size_category_id) {
-      filter.size_category_ids = size_category_id;
+      filter.size_category_ids = new ObjectId(size_category_id);
     }
 
     if (store_id) {
-      filter.available_store_ids = store_id;
+      filter.available_store_ids = new ObjectId(store_id);
+    }
+
+    if (service_location_type) {
+      filter.service_location_type = service_location_type;
     }
 
     if (search) {
@@ -181,8 +189,12 @@ export class ServiceService {
     if (body.sessions !== undefined) {
       const serviceTypeId =
         body.service_type_id ??
-        ((await this.serviceModel.findById(id).select('service_type_id').lean()) as any)
-          ?.service_type_id?.toString();
+        (
+          (await this.serviceModel
+            .findById(id)
+            .select('service_type_id')
+            .lean()) as any
+        )?.service_type_id?.toString();
 
       if (serviceTypeId) {
         const isAddon = await this.isAddonServiceType(serviceTypeId);
@@ -398,6 +410,30 @@ export class ServiceService {
     };
   }
 
+  async findAllForHomepage() {
+    return await this.serviceModel
+      .find({ isDeleted: false, is_active: true, show_in_homepage: true })
+      .populate('service_type', 'title')
+      .populate('pet_types', 'name')
+      .populate({
+        path: 'prices.pet_type_id',
+        model: 'Option',
+        select: 'name',
+      })
+      .populate({
+        path: 'prices.size_id',
+        model: 'Option',
+        select: 'name',
+      })
+      .populate({
+        path: 'prices.hair_id',
+        model: 'Option',
+        select: 'name',
+      })
+      .sort({ order: 1, createdAt: -1 })
+      .exec();
+  }
+
   // method to retrieve service based on service type and store
   async findAllForGuest(storeId?: string, service_type_id?: string) {
     const filter: any = { isDeleted: false };
@@ -407,7 +443,7 @@ export class ServiceService {
       // Assuming 'grooming' or 'addon' is stored in service_type or a separate field
       // You may need to adjust this based on your actual schema
       // For now, we'll filter by a field called 'type' or you can populate service_type
-      filter.service_type_id = service_type_id;
+      filter.service_type_id = new ObjectId(service_type_id);
     }
 
     let services = await this.serviceModel

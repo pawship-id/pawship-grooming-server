@@ -14,4 +14,8 @@ export class CreatePetMembershipDto {
   @IsNotEmpty({ message: 'membership_plan_id is required' })
   @IsMongoId({ message: 'membership_plan_id must be a valid MongoDB ID' })
   membership_plan_id: string;
+
+  @IsOptional()
+  @IsDateString()
+  start_date?: string;
 }
