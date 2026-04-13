@@ -87,19 +87,19 @@ export class ServiceService {
     }
 
     if (service_type_id) {
-      filter.service_type_id = service_type_id;
+      filter.service_type_id = new ObjectId(service_type_id);
     }
 
     if (pet_type_id) {
-      filter.pet_type_ids = pet_type_id;
+      filter.pet_type_ids = new ObjectId(pet_type_id);
     }
 
     if (size_category_id) {
-      filter.size_category_ids = size_category_id;
+      filter.size_category_ids = new ObjectId(size_category_id);
     }
 
     if (store_id) {
-      filter.available_store_ids = store_id;
+      filter.available_store_ids = new ObjectId(store_id);
     }
 
     if (service_location_type) {
@@ -443,7 +443,7 @@ export class ServiceService {
       // Assuming 'grooming' or 'addon' is stored in service_type or a separate field
       // You may need to adjust this based on your actual schema
       // For now, we'll filter by a field called 'type' or you can populate service_type
-      filter.service_type_id = service_type_id;
+      filter.service_type_id = new ObjectId(service_type_id);
     }
 
     let services = await this.serviceModel

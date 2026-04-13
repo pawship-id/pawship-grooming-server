@@ -143,11 +143,12 @@ interface ExcelRow {
   description?: string;
   image_url?: string;
   service_type?: string;
-  pet_type?: string;
-  size_category?: string;
-  hair_category?: string;
+  // Service-level fields (col 10-12 in Excel)
+  pet_type?: string; // comma-separated, e.g. "Dog,Cat"
+  size_category?: string; // comma-separated, e.g. "Small,Medium,Large"
+  hair_category?: string; // comma-separated, e.g. "Short Hair,Long Hair"
   price_type?: string;
-  price?: string | number;
+  price?: string | number; // used for single price type
   duration?: string | number;
   available_for_unlimited?: string | boolean;
   available_store?: string;
@@ -159,6 +160,12 @@ interface ExcelRow {
   is_pick_up_available?: string | boolean;
   sessions?: string;
   is_active?: string | boolean;
+  // Price combination sub-columns under "prices" merged header (col 15-18)
+  'prices.pet_type'?: string;
+  'prices.size_category'?: string;
+  'prices.hair_category'?: string;
+  'prices.price'?: string | number;
+  [key: string]: any;
 }
 
 interface SeedResult {
@@ -196,6 +203,8 @@ function readExcelFileWithCustomHeaders(filePath: string): any[] {
     const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
 
     // Read both row 1 and row 2 to combine headers
+    // When row1 is a merged parent header and row2 has sub-headers,
+    // use "parent.sub" format to avoid collision with same-named top-level columns
     const headers: string[] = [];
     let currentMainHeader = '';
 
@@ -207,14 +216,15 @@ function readExcelFileWithCustomHeaders(filePath: string): any[] {
       if (row1Cell && row1Cell.v && String(row1Cell.v).trim()) {
         currentMainHeader = String(row1Cell.v).trim();
         if (row2Cell && row2Cell.v && String(row2Cell.v).trim()) {
-          headers.push(String(row2Cell.v).trim());
+          // Both row1 and row2 have values: use "parent.sub" to avoid name collision
+          headers.push(`${currentMainHeader}.${String(row2Cell.v).trim()}`);
         } else {
           headers.push(currentMainHeader);
         }
       }
-      // If row1 is empty but row2 has value, use row2
+      // If row1 is empty but row2 has value, it's a sub-column under the current merged header
       else if (row2Cell && row2Cell.v && String(row2Cell.v).trim()) {
-        headers.push(String(row2Cell.v).trim());
+        headers.push(`${currentMainHeader}.${String(row2Cell.v).trim()}`);
       }
       // If both are empty, use placeholder
       else {
@@ -474,17 +484,31 @@ async function processImageField(
 
 /**
  * Group rows by code
+ * Rows without a code belong to the previous service (additional price combinations from merged cells)
  */
 function groupRowsByCode(rows: ExcelRow[]): Map<string, ExcelRow[]> {
   const grouped = new Map<string, ExcelRow[]>();
+  let currentCode = '';
 
   for (const row of rows) {
+    // If row has a code, it's a new service
     if (row.code && row.code.trim()) {
-      const code = row.code.trim();
-      if (!grouped.has(code)) {
-        grouped.set(code, []);
+      currentCode = row.code.trim();
+      if (!grouped.has(currentCode)) {
+        grouped.set(currentCode, []);
       }
-      grouped.get(code)!.push(row);
+      grouped.get(currentCode)!.push(row);
+    }
+    // If no code but has price combination data, belongs to current service (merged cell for multiple prices)
+    else if (currentCode) {
+      const hasPriceData =
+        row['prices.pet_type'] ||
+        row['prices.size_category'] ||
+        row['prices.hair_category'] ||
+        row['prices.price'];
+      if (hasPriceData) {
+        grouped.get(currentCode)!.push(row);
+      }
     }
   }
 
@@ -709,10 +733,14 @@ async function seedServices(): Promise<void> {
           // Lookup Option IDs
           const { ids: petTypeIds, notFound: petTypesNotFound } =
             await findOptionIds(petTypeNames, 'pet type');
-          const { ids: sizeIds, notFound: sizesNotFound } =
-            await findOptionIds(sizeCategoryNames, 'size category');
-          const { ids: hairIds, notFound: hairsNotFound } =
-            await findOptionIds(hairCategoryNames, 'hair category');
+          const { ids: sizeIds, notFound: sizesNotFound } = await findOptionIds(
+            sizeCategoryNames,
+            'size category',
+          );
+          const { ids: hairIds, notFound: hairsNotFound } = await findOptionIds(
+            hairCategoryNames,
+            'hair category',
+          );
 
           // Log warnings for not found options
           if (petTypesNotFound.length > 0) {
@@ -754,15 +782,18 @@ async function seedServices(): Promise<void> {
             const row = rows[i];
             const currentRowNum = data.indexOf(row) + 3;
 
-            console.log(`    → Processing price combination ${i + 1}/${rows.length}`);
+            console.log(
+              `    → Processing price combination ${i + 1}/${rows.length}`,
+            );
 
-            // Each row must have pet_type, size_category, hair_category, price
-            if (
-              !row.pet_type ||
-              !row.size_category ||
-              !row.hair_category ||
-              !row.price
-            ) {
+            // Price combination fields are under the "prices" merged header
+            const comboPetType = row['prices.pet_type'];
+            const comboSize = row['prices.size_category'];
+            const comboHair = row['prices.hair_category'];
+            const comboPrice = row['prices.price'];
+
+            // Each row must have prices.pet_type, prices.size_category, prices.hair_category, prices.price
+            if (!comboPetType || !comboSize || !comboHair || !comboPrice) {
               console.warn(
                 `    ⚠ Row ${currentRowNum}: Missing price combination fields - skipping this combination`,
               );
@@ -771,33 +802,33 @@ async function seedServices(): Promise<void> {
 
             // Find individual option IDs
             const { ids: petTypeIds } = await findOptionIds(
-              [row.pet_type.trim()],
+              [comboPetType.trim()],
               'pet type',
             );
             const { ids: sizeIds } = await findOptionIds(
-              [row.size_category.trim()],
+              [comboSize.trim()],
               'size category',
             );
             const { ids: hairIds } = await findOptionIds(
-              [row.hair_category.trim()],
+              [comboHair.trim()],
               'hair category',
             );
 
             if (petTypeIds.length === 0) {
               console.warn(
-                `    ⚠ Pet type not found: "${row.pet_type.trim()}" - skipping this combination`,
+                `    ⚠ Pet type not found: "${comboPetType.trim()}" - skipping this combination`,
               );
               continue;
             }
             if (sizeIds.length === 0) {
               console.warn(
-                `    ⚠ Size category not found: "${row.size_category.trim()}" - skipping this combination`,
+                `    ⚠ Size category not found: "${comboSize.trim()}" - skipping this combination`,
               );
               continue;
             }
             if (hairIds.length === 0) {
               console.warn(
-                `    ⚠ Hair category not found: "${row.hair_category.trim()}" - skipping this combination`,
+                `    ⚠ Hair category not found: "${comboHair.trim()}" - skipping this combination`,
               );
               continue;
             }
@@ -807,7 +838,7 @@ async function seedServices(): Promise<void> {
               pet_type_id: petTypeIds[0],
               size_id: sizeIds[0],
               hair_id: hairIds[0],
-              price: parseNumber(row.price, 0),
+              price: parseNumber(comboPrice, 0),
             });
 
             // Collect unique IDs for the service-level arrays
@@ -816,7 +847,7 @@ async function seedServices(): Promise<void> {
             allHairIds.add(hairIds[0].toString());
 
             console.log(
-              `    ✓ Added: ${row.pet_type.trim()} / ${row.size_category.trim()} / ${row.hair_category.trim()} = ${parseNumber(row.price, 0)}`,
+              `    ✓ Added: ${comboPetType.trim()} / ${comboSize.trim()} / ${comboHair.trim()} = ${parseNumber(comboPrice, 0)}`,
             );
           }
 
