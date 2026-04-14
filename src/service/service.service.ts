@@ -7,7 +7,7 @@ import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { GetServicesQueryDto } from './dto/get-services-query.dto';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Service, ServiceDocument } from './entities/service.entity';
 import { ObjectId } from 'mongodb';
 import { capitalizeWords } from 'src/helpers/string.helper';
@@ -53,31 +53,31 @@ export class ServiceService {
       // Convert service_type_id to ObjectId
       const serviceData: any = {
         ...body,
-        service_type_id: new ObjectId(body.service_type_id),
+        service_type_id: new Types.ObjectId(body.service_type_id),
       };
 
       // Convert array of IDs to ObjectId arrays if they exist
       if (body.pet_type_ids && body.pet_type_ids.length > 0) {
         serviceData.pet_type_ids = body.pet_type_ids.map(
-          (id) => new ObjectId(id),
+          (id) => new Types.ObjectId(id),
         );
       }
       if (body.size_category_ids && body.size_category_ids.length > 0) {
         serviceData.size_category_ids = body.size_category_ids.map(
-          (id) => new ObjectId(id),
+          (id) => new Types.ObjectId(id),
         );
       }
       if (body.hair_category_ids && body.hair_category_ids.length > 0) {
         serviceData.hair_category_ids = body.hair_category_ids.map(
-          (id) => new ObjectId(id),
+          (id) => new Types.ObjectId(id),
         );
       }
       if (body.addon_ids && body.addon_ids.length > 0) {
-        serviceData.addon_ids = body.addon_ids.map((id) => new ObjectId(id));
+        serviceData.addon_ids = body.addon_ids.map((id) => new Types.ObjectId(id));
       }
       if (body.available_store_ids && body.available_store_ids.length > 0) {
         serviceData.available_store_ids = body.available_store_ids.map(
-          (id) => new ObjectId(id),
+          (id) => new Types.ObjectId(id),
         );
       }
 
@@ -86,17 +86,17 @@ export class ServiceService {
         serviceData.prices = body.prices.map((price: any) => ({
           ...price,
           pet_type_id: price.pet_type_id
-            ? new ObjectId(price.pet_type_id)
+            ? new Types.ObjectId(price.pet_type_id)
             : undefined,
-          size_id: price.size_id ? new ObjectId(price.size_id) : undefined,
-          hair_id: price.hair_id ? new ObjectId(price.hair_id) : undefined,
+          size_id: price.size_id ? new Types.ObjectId(price.size_id) : undefined,
+          hair_id: price.hair_id ? new Types.ObjectId(price.hair_id) : undefined,
         }));
       }
 
       const user = new this.serviceModel(serviceData);
 
       return await user.save();
-    } catch (error) {
+    } catch (error: any) {
       if (error.code === 11000) {
         const duplicatedField = Object.keys(error.keyPattern)[0];
         throw new BadRequestException(`${duplicatedField} already exists`);
@@ -130,19 +130,19 @@ export class ServiceService {
     }
 
     if (service_type_id) {
-      filter.service_type_id = new ObjectId(service_type_id);
+      filter.service_type_id = new Types.ObjectId(service_type_id);
     }
 
     if (pet_type_id) {
-      filter.pet_type_ids = new ObjectId(pet_type_id);
+      filter.pet_type_ids = new Types.ObjectId(pet_type_id);
     }
 
     if (size_category_id) {
-      filter.size_category_ids = new ObjectId(size_category_id);
+      filter.size_category_ids = new Types.ObjectId(size_category_id);
     }
 
     if (store_id) {
-      filter.available_store_ids = new ObjectId(store_id);
+      filter.available_store_ids = new Types.ObjectId(store_id);
     }
 
     if (service_location_type) {
@@ -254,35 +254,36 @@ export class ServiceService {
         body.name = capitalizeWords(body.name);
       }
 
-      // Convert ObjectId fields
+      // Convert ObjectId fields using Mongoose Types.ObjectId
+      // (mongodb@7 ObjectId is incompatible with Mongoose 9's internal mongodb@6 ObjectId)
       const updateData: any = { ...body };
 
       if (body.service_type_id) {
-        updateData.service_type_id = new ObjectId(body.service_type_id);
+        updateData.service_type_id = new Types.ObjectId(body.service_type_id);
       }
 
       // Convert array of IDs to ObjectId arrays if they exist
       if (body.pet_type_ids && body.pet_type_ids.length > 0) {
         updateData.pet_type_ids = body.pet_type_ids.map(
-          (id) => new ObjectId(id),
+          (id) => new Types.ObjectId(id),
         );
       }
       if (body.size_category_ids && body.size_category_ids.length > 0) {
         updateData.size_category_ids = body.size_category_ids.map(
-          (id) => new ObjectId(id),
+          (id) => new Types.ObjectId(id),
         );
       }
       if (body.hair_category_ids && body.hair_category_ids.length > 0) {
         updateData.hair_category_ids = body.hair_category_ids.map(
-          (id) => new ObjectId(id),
+          (id) => new Types.ObjectId(id),
         );
       }
       if (body.addon_ids && body.addon_ids.length > 0) {
-        updateData.addon_ids = body.addon_ids.map((id) => new ObjectId(id));
+        updateData.addon_ids = body.addon_ids.map((id) => new Types.ObjectId(id));
       }
       if (body.available_store_ids && body.available_store_ids.length > 0) {
         updateData.available_store_ids = body.available_store_ids.map(
-          (id) => new ObjectId(id),
+          (id) => new Types.ObjectId(id),
         );
       }
 
@@ -291,10 +292,10 @@ export class ServiceService {
         updateData.prices = body.prices.map((price: any) => ({
           ...price,
           pet_type_id: price.pet_type_id
-            ? new ObjectId(price.pet_type_id)
+            ? new Types.ObjectId(price.pet_type_id)
             : undefined,
-          size_id: price.size_id ? new ObjectId(price.size_id) : undefined,
-          hair_id: price.hair_id ? new ObjectId(price.hair_id) : undefined,
+          size_id: price.size_id ? new Types.ObjectId(price.size_id) : undefined,
+          hair_id: price.hair_id ? new Types.ObjectId(price.hair_id) : undefined,
         }));
       }
 
@@ -305,7 +306,7 @@ export class ServiceService {
       );
 
       return service;
-    } catch (error) {
+    } catch (error: any) {
       if (error.code === 11000) {
         const duplicatedField = Object.keys(error.keyPattern)[0];
         throw new BadRequestException(`${duplicatedField} already exists`);
@@ -530,7 +531,7 @@ export class ServiceService {
       // Assuming 'grooming' or 'addon' is stored in service_type or a separate field
       // You may need to adjust this based on your actual schema
       // For now, we'll filter by a field called 'type' or you can populate service_type
-      filter.service_type_id = new ObjectId(service_type_id);
+      filter.service_type_id = new Types.ObjectId(service_type_id);
     }
 
     let services = await this.serviceModel
