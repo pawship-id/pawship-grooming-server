@@ -2597,11 +2597,13 @@ export class BookingService {
 
     if (selectedPromotionIds.length > 0) {
       try {
-        const snapshotAddons = existing.service_snapshot?.addons ?? [];
-        const promoAddonPrices = snapshotAddons.map((a: any) => ({
-          _id: a._id?.toString() ?? '',
-          name: a.name ?? '',
-          price: a.price ?? 0,
+        const promoAddonPrices = addonItems.map((a) => ({
+          _id: a.addon_id,
+          name:
+            existing.service_snapshot?.addons?.find(
+              (sn: any) => sn._id?.toString() === a.addon_id,
+            )?.name ?? '',
+          price: a.base, // use edited base price, not the post-discount effective
         }));
 
         promotionResult = await this.applyPromotionsToBooking(
@@ -2612,10 +2614,10 @@ export class BookingService {
             pickUp: existing.pick_up === true,
             delivery: existing.delivery === true,
             hasActiveMembership: selectedBenefitIds.length > 0,
-            originalServicePrice: svcEffective,
+            originalServicePrice: svcBase,   // before admin service discount
             addonPrices: promoAddonPrices,
-            travelFee: tFeeEffective,
-            grandTotal: effectiveSubtotal,
+            travelFee: tFeeBase,             // before admin travel-fee discount
+            grandTotal: newOriginalTotal,    // sum of all base prices before discounts
           },
         );
       } catch (err) {
