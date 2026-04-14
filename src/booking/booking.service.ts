@@ -697,9 +697,7 @@ export class BookingService {
             amount_deducted: addonDiscount,
             description: benefit.description ?? null,
             pet_membership_id: benefit.pet_membership_id ?? null,
-            service_id: benefit.service_id
-              ? new Types.ObjectId(benefit.service_id)
-              : null,
+            service_id: new Types.ObjectId(addonId),
             applied_at: new Date(),
           });
           if (addonDiscount > 0) {
@@ -793,6 +791,11 @@ export class BookingService {
       }
       discountAmount = Math.max(0, discountAmount);
 
+      // Resolve the actual service_id used in this breakdown entry
+      const resolvedBreakdownServiceId = appliesTo === 'service'
+        ? (benefit.service_id || serviceId)
+        : benefit.service_id;
+
       breakdown.push({
         benefit: {
           _id: benefit._id,
@@ -807,8 +810,8 @@ export class BookingService {
         amount_deducted: discountAmount,
         description: benefit.description ?? null,
         pet_membership_id: benefit.pet_membership_id ?? null,
-        service_id: benefit.service_id
-          ? new Types.ObjectId(benefit.service_id)
+        service_id: resolvedBreakdownServiceId
+          ? new Types.ObjectId(resolvedBreakdownServiceId)
           : null,
         applied_at: new Date(),
       });
