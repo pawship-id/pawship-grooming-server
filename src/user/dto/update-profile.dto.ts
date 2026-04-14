@@ -9,9 +9,12 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { Gender } from '../entities/user.entity';
+import { AddressCreatedBy, Gender } from '../entities/user.entity';
 
 export class UpdateAddressDto {
+  @IsOptional()
+  @IsString({ message: '_id must be a string' })
+  _id?: string;
   @IsOptional()
   @IsString({ message: 'label must be a string' })
   label?: string;
@@ -54,6 +57,10 @@ export class UpdateAddressDto {
 
   @IsOptional()
   is_main_address?: boolean;
+
+  @IsOptional()
+  @IsEnum(AddressCreatedBy, { message: 'created_by must be admin or customer' })
+  created_by?: string;
 }
 
 /**

@@ -69,6 +69,7 @@ export class UserController {
     const user = await this.userService.updateProfile(
       new ObjectId(userId),
       body,
+      'customer',
     );
     return { message: 'Update profile successfully', user };
   }
@@ -152,13 +153,15 @@ export class UserController {
   @Put(':id/profile')
   @HttpCode(HttpStatus.OK)
   async updateUserProfile(
+    @Req() request: any,
     @Param('id') id: string,
     @Body() body: UpdateProfileDto,
   ) {
     if (!id) throw new BadRequestException('id is required');
     const user = await this.userService.findById(new ObjectId(id));
     if (!user || user.isDeleted) throw new NotFoundException('data not found');
-    await this.userService.updateProfile(new ObjectId(id), body);
+    const callerRole = request.user?.role ?? 'admin';
+    await this.userService.updateProfile(new ObjectId(id), body, callerRole);
     return { message: 'Update user profile successfully' };
   }
 

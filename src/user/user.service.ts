@@ -148,7 +148,11 @@ export class UserService {
     return user;
   }
 
-  async updateProfile(userId: ObjectId, body: UpdateProfileDto) {
+  async updateProfile(
+    userId: ObjectId,
+    body: UpdateProfileDto,
+    callerRole: string = 'customer',
+  ) {
     const setData: Record<string, unknown> = {};
 
     const scalarFields = [
@@ -176,35 +180,94 @@ export class UserService {
     }
 
     if (body.addresses) {
-      // If no addresses exist in DB, set first one as main
       const user = await this.userModel
         .findById(userId)
         .select('profile.addresses');
-      let existingAddresses = user?.profile?.addresses || [];
-      let addressesToSave = body.addresses.map((addr, idx) => {
-        // If any address explicitly sets is_main_address true, keep it
-        // Otherwise, if no addresses exist, first one is main; else default false
-        let isMain = addr.is_main_address;
-        if (isMain === undefined) {
-          if (existingAddresses.length === 0 && idx === 0) {
-            isMain = true;
-          } else {
-            isMain = false;
-          }
+      const existingAddresses: any[] = (
+        user?.profile?.addresses || []
+      ).map((a: any) => (a.toObject ? a.toObject() : a));
+
+      // Determine caller created_by value: admin/ops roles → 'admin', customer → 'customer'
+      const callerCreatedBy =
+        callerRole === 'customer' ? 'customer' : 'admin';
+
+      // Build a map of existing addresses by _id for quick lookup
+      const existingMap = new Map<string, any>();
+      for (const addr of existingAddresses) {
+        if (addr._id) {
+          existingMap.set(addr._id.toString(), addr);
         }
-        return { ...addr, is_main_address: isMain };
-      });
-      // Ensure only one is_main_address true
-      if (addressesToSave.filter((a) => a.is_main_address).length > 1) {
-        addressesToSave = addressesToSave.map((a, i) => ({
-          ...a,
-          is_main_address: i === 0,
-        }));
       }
+
+      // Build incoming address IDs set
+      const incomingIds = new Set<string>();
+      for (const addr of body.addresses) {
+        if (addr._id) {
+          incomingIds.add(addr._id);
+        }
+      }
+
+      // Find addresses being removed (exist in DB but not in incoming)
+      const removedAddresses = existingAddresses.filter(
+        (a) => a._id && !incomingIds.has(a._id.toString()),
+      );
+
+      // Protect addresses created by the other role from deletion
+      const protectedAddresses: any[] = [];
+      for (const removed of removedAddresses) {
+        const owner = removed.created_by;
+        // If created_by is undefined (legacy data), allow deletion by anyone
+        if (owner && owner !== callerCreatedBy) {
+          protectedAddresses.push(removed);
+        }
+      }
+
+      // Merge: incoming addresses + protected addresses that caller tried to remove
+      let addressesToSave = body.addresses.map((addr) => {
+        if (addr._id) {
+          // Update existing: preserve created_by from DB
+          const existing = existingMap.get(addr._id);
+          return {
+            ...addr,
+            _id: new Types.ObjectId(addr._id),
+            created_by: existing?.created_by || callerCreatedBy,
+          };
+        } else {
+          // New address: set created_by to caller's role
+          return { ...addr, created_by: callerCreatedBy };
+        }
+      });
+
+      // Re-add protected addresses that caller is not allowed to delete
+      for (const protAddr of protectedAddresses) {
+        addressesToSave.push({
+          ...protAddr,
+          _id: protAddr._id,
+        });
+      }
+
+      // Handle is_main_address: default first address as main if none exist
+      if (existingAddresses.length === 0 && addressesToSave.length > 0) {
+        const hasMain = addressesToSave.some((a) => a.is_main_address);
+        if (!hasMain) {
+          addressesToSave[0].is_main_address = true;
+        }
+      }
+
+      // Ensure only one is_main_address = true
+      if (addressesToSave.filter((a) => a.is_main_address).length > 1) {
+        let foundMain = false;
+        addressesToSave = addressesToSave.map((a) => {
+          if (a.is_main_address && !foundMain) {
+            foundMain = true;
+            return a;
+          }
+          return { ...a, is_main_address: false };
+        });
+      }
+
       setData['profile.addresses'] = addressesToSave;
     }
-
-    console.log(setData, '>>>>>');
 
     return this.userModel
       .findByIdAndUpdate(userId, { $set: setData }, { new: true })

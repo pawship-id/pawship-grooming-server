@@ -11,7 +11,12 @@ export enum Gender {
 
 // ── Address ──────────────────────────────────────────────────────────────────
 
-@Schema({ _id: false, minimize: true })
+export enum AddressCreatedBy {
+  ADMIN = 'admin',
+  CUSTOMER = 'customer',
+}
+
+@Schema({ _id: true, minimize: true })
 export class UserAddress {
   /** e.g. 'Home', 'Office' */
   @Prop()
@@ -54,6 +59,10 @@ export class UserAddress {
   /** Is this the main address? */
   @Prop({ default: false })
   is_main_address?: boolean;
+
+  /** Who created this address */
+  @Prop({ enum: Object.values(AddressCreatedBy), default: AddressCreatedBy.CUSTOMER })
+  created_by?: string;
 }
 
 export const UserAddressSchema = SchemaFactory.createForClass(UserAddress);
