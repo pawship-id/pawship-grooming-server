@@ -212,6 +212,7 @@ export class BookingController {
       dto.booking_date ? new Date(dto.booking_date) : undefined,
       dto.pick_up === true,
       dto.delivery === true,
+      dto.exclude_booking_id,
     );
     return {
       message: 'Benefit preview calculated successfully',
@@ -274,10 +275,11 @@ export class BookingController {
       throw new BadRequestException('customer_id is required');
     }
 
-    await this.bookingService.create(body, request.user);
+    const booking = await this.bookingService.create(body, request.user);
 
     return {
       message: 'Create booking successfully',
+      _id: (booking as any)._id?.toString(),
     };
   }
 

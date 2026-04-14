@@ -47,4 +47,8 @@ export class ApplyBenefitPreviewDto {
   @IsOptional()
   @IsBoolean({ message: 'delivery must be a boolean' })
   delivery?: boolean;
+
+  @IsOptional()
+  @IsMongoId({ message: 'exclude_booking_id must be a valid MongoId' })
+  exclude_booking_id?: string;
 }

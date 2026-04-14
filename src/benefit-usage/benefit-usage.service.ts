@@ -64,6 +64,7 @@ export class BenefitUsageService {
     petMembershipId: string,
     benefitId: string,
     periodKey: string | null,
+    excludeBookingId?: string,
   ): Promise<number> {
     const query: any = {
       pet_membership_id: new Types.ObjectId(petMembershipId),
@@ -73,6 +74,10 @@ export class BenefitUsageService {
 
     if (periodKey !== null) {
       query.period_key = periodKey;
+    }
+
+    if (excludeBookingId && Types.ObjectId.isValid(excludeBookingId)) {
+      query.booking_id = { $ne: new Types.ObjectId(excludeBookingId) };
     }
 
     return this.benefitUsageModel.countDocuments(query).exec();

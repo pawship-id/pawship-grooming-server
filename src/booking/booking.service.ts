@@ -1,8 +1,8 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
-  HttpException,
 } from '@nestjs/common';
 import {
   BookingStatusLogDto,
@@ -38,6 +38,8 @@ import {
 
 @Injectable()
 export class BookingService {
+  private readonly logger = new Logger(BookingService.name);
+
   constructor(
     @InjectModel(Booking.name)
     private readonly bookingModel: Model<BookingDocument>,
@@ -297,6 +299,7 @@ export class BookingService {
         await this.petMembershipService.getAvailableBenefits(
           dto.pet_id,
           dto.date ? new Date(dto.date) : undefined,
+          dto.exclude_booking_id,
         );
 
       const hasActiveMembership = membershipData.has_active_membership;
@@ -441,7 +444,7 @@ export class BookingService {
     const valueStr =
       benefit.type === 'discount'
         ? `${benefit.value}%`
-        : `${benefit.service.name}`;
+        : `${benefit.service?.name ?? benefit.label ?? 'Free'}`;
 
     const periodLabel =
       {
@@ -492,6 +495,7 @@ export class BookingService {
     bookingDate?: Date,
     pickUp?: boolean,
     delivery?: boolean,
+    excludeBookingId?: string,
   ): Promise<{
     applied_benefits: any[];
     total_discount: number;
@@ -537,10 +541,31 @@ export class BookingService {
     const membershipData = await this.petMembershipService.getAvailableBenefits(
       petId,
       bookingDate,
+      excludeBookingId,
     );
     if (!membershipData.has_active_membership) {
+      this.logger.warn(
+        `[applyBenefits] No active membership for pet=${petId}, excludeBooking=${excludeBookingId}`,
+      );
       return emptyResult(originalTotalPrice ?? 0);
     }
+
+    // Log available benefits for debugging
+    this.logger.log(
+      `[applyBenefits] pet=${petId}, selectedIds=[${selectedBenefitIds}], ` +
+        `bookingDate=${bookingDate}, excludeBooking=${excludeBookingId}, ` +
+        `availableBenefits=${JSON.stringify(
+          membershipData.benefits.map((b: any) => ({
+            _id: b._id,
+            type: b.type,
+            applies_to: b.applies_to,
+            can_apply: b.can_apply,
+            remaining: b.remaining,
+            used: b.used,
+            limit: b.limit,
+          })),
+        )}`,
+    );
 
     const appliedBenefits: any[] = [];
     let totalDiscount = 0;
@@ -568,8 +593,18 @@ export class BookingService {
       const benefit = membershipData.benefits.find(
         (b: any) => b._id === benefitId,
       );
-      if (!benefit) continue;
-      if (!benefit.can_apply) continue;
+      if (!benefit) {
+        this.logger.warn(
+          `[applyBenefits] benefit ${benefitId} NOT FOUND in available benefits`,
+        );
+        continue;
+      }
+      if (!benefit.can_apply) {
+        this.logger.warn(
+          `[applyBenefits] benefit ${benefitId} can_apply=false (used=${benefit.used}, limit=${benefit.limit}, remaining=${benefit.remaining})`,
+        );
+        continue;
+      }
       const appliesTo: string = benefit.applies_to;
       let basePrice = 0;
 
@@ -610,8 +645,10 @@ export class BookingService {
           );
           basePrice = svc.price;
         } catch (err) {
-          if (err instanceof HttpException) throw err;
-          continue;
+          this.logger.warn(
+            `[applyBenefits] SERVICE price lookup failed for benefit ${benefitId}, serviceId=${benefit.service_id || serviceId}: ${err}`,
+          );
+          continue; // skip benefit if service price lookup fails
         }
       } else if (appliesTo === 'addon') {
         let add_ons = benefit.service_id ? [benefit.service_id] : addOnIds;
@@ -634,7 +671,9 @@ export class BookingService {
             );
             addonBasePrice = addon.price;
           } catch (err) {
-            if (err instanceof HttpException) throw err;
+            this.logger.warn(
+              `[applyBenefits] ADDON price lookup failed for benefit ${benefitId}, addonId=${addonId}: ${err}`,
+            );
             continue; // skip this addon if price lookup fails
           }
           let addonDiscount = 0;
@@ -679,9 +718,7 @@ export class BookingService {
         continue; // addon entries already pushed inside the loop above
       } else if (appliesTo === 'pickup') {
         if (!storeId) {
-          throw new BadRequestException(
-            'store_id is required when benefit type is pickup',
-          );
+          continue; // skip pickup benefit if store_id is not provided
         }
         // Skip if neither pickup nor delivery is selected
         if (!pickUp && !delivery) {
@@ -740,8 +777,10 @@ export class BookingService {
             basePrice = result.fee;
           }
         } catch (err) {
-          if (err instanceof HttpException) throw err;
-          continue;
+          this.logger.warn(
+            `[applyBenefits] PICKUP/DELIVERY fee calculation failed for benefit ${benefitId}: ${err}`,
+          );
+          continue; // skip benefit if fee calculation fails
         }
       }
 
@@ -798,6 +837,11 @@ export class BookingService {
               sum + Math.max(0, item.base_price - item.amount_deducted),
             0,
           );
+
+    this.logger.log(
+      `[applyBenefits] RESULT: applied=${appliedBenefits.length}, totalDiscount=${totalDiscount}, ` +
+        `finalPrice=${finalPrice}, originalTotal=${originalTotalPrice}, breakdownItems=${breakdown.length}`,
+    );
 
     return {
       applied_benefits: appliedBenefits,
@@ -1233,7 +1277,7 @@ export class BookingService {
           body.service_id,
           body.service_addon_ids,
           originalTotalPrice,
-          undefined, // bookingDate
+          body.date ? new Date(body.date) : undefined, // pass bookingDate for accurate period-based usage check
           body.pick_up === true,
           body.delivery === true,
         );
@@ -1971,6 +2015,7 @@ export class BookingService {
     bookingDate?: Date,
     pickUp?: boolean,
     delivery?: boolean,
+    excludeBookingId?: string,
   ): Promise<{
     applied_benefits: any[];
     total_discount: number;
@@ -2011,6 +2056,7 @@ export class BookingService {
       bookingDate,
       pickUp,
       delivery,
+      excludeBookingId,
     );
   }
 
@@ -2128,12 +2174,22 @@ export class BookingService {
     // ── 2. Apply membership benefits on the effective subtotal ────────────────
     const selectedBenefitIds = dto.selected_benefit_ids ?? [];
     const petId = existing.pet_id.toString();
-    const storeId = existing.store_id.toString();
-    const serviceId = existing.service_id.toString();
+    const storeId = existing.store_id?.toString();
+    const serviceId = existing.service_id?.toString();
     const addonIds = (existing.service_addon_ids ?? []).map((i) =>
       i.toString(),
     );
     const bookingDate = existing.date;
+
+    this.logger.log(
+      `[updatePricing] booking=${id}, petId=${petId}, serviceId=${serviceId}, ` +
+        `storeId=${storeId}, addonIds=[${addonIds}], bookingDate=${bookingDate}, ` +
+        `selectedBenefitIds=[${selectedBenefitIds}], effectiveSubtotal=${effectiveSubtotal}`,
+    );
+
+    // ── 2a. Release old benefit usages BEFORE re-applying ─────────────────────
+    // This ensures the usage count is fresh so can_apply is accurate
+    await this.benefitUsageService.softDeleteByBookingId(id.toString());
 
     let benefitResult: {
       applied_benefits: any[];
@@ -2154,8 +2210,13 @@ export class BookingService {
           bookingDate,
           existing.pick_up === true,
           existing.delivery === true,
+          id.toString(), // excludeBookingId: belt-and-suspenders safety
         );
-      } catch {
+      } catch (err) {
+        this.logger.error(
+          `[updatePricing] applyBenefitsToBooking THREW for booking ${id}:`,
+          err instanceof Error ? err.stack : err,
+        );
         benefitResult = {
           applied_benefits: [],
           total_discount: 0,
@@ -2176,10 +2237,14 @@ export class BookingService {
     const totalDiscount = itemDiscountTotal + benefitResult.total_discount;
     const finalTotalPrice = Math.max(0, newOriginalTotal - totalDiscount);
 
-    // ── 3. Restore old benefit usages ─────────────────────────────────────────
-    await this.benefitUsageService.softDeleteByBookingId(id.toString());
+    this.logger.log(
+      `[updatePricing] booking=${id}: itemDiscount=${itemDiscountTotal}, ` +
+        `benefitDiscount=${benefitResult.total_discount}, totalDiscount=${totalDiscount}, ` +
+        `originalTotal=${newOriginalTotal}, finalTotal=${finalTotalPrice}, ` +
+        `appliedBenefits=${benefitResult.applied_benefits.length}`,
+    );
 
-    // ── 4. Persist update ─────────────────────────────────────────────────────
+    // ── 3. Persist update ─────────────────────────────────────────────────────
     await this.bookingModel.findByIdAndUpdate(
       id,
       {
@@ -2234,11 +2299,20 @@ export class BookingService {
               ),
               benefit_period: applied.benefit_period,
             });
-          } catch {
-            // Non-fatal
+          } catch (err) {
+            this.logger.error(
+              `[updatePricing] recordUsage failed for benefit ${applied.benefit_id}, booking=${id}: ${err}`,
+            );
           }
         }
       }
     }
+
+    return {
+      message: 'Pricing updated successfully',
+      total_discount: totalDiscount,
+      final_total_price: finalTotalPrice,
+      applied_benefits_count: benefitResult.applied_benefits.length,
+    };
   }
 }

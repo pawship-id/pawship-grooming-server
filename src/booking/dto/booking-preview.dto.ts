@@ -56,6 +56,10 @@ export class BookingPreviewRequestDto {
   @IsOptional()
   @IsMongoId({ message: 'customer_id must be a valid MongoDB ID' })
   customer_id?: string;
+
+  @IsOptional()
+  @IsMongoId({ message: 'exclude_booking_id must be a valid MongoDB ID' })
+  exclude_booking_id?: string;
 }
 
 export class PreviewBenefitDto {
