@@ -27,6 +27,11 @@ import { OptionModule } from 'src/option/option.module';
 import { UserService } from 'src/user/user.service';
 import { PetMembershipModule } from 'src/pet-membership/pet-membership.module';
 import { BenefitUsageModule } from 'src/benefit-usage/benefit-usage.module';
+import { PromotionModule } from 'src/promotion/promotion.module';
+import {
+  Promotion,
+  PromotionSchema,
+} from 'src/promotion/entities/promotion.entity';
 
 @Module({
   imports: [
@@ -38,6 +43,7 @@ import { BenefitUsageModule } from 'src/benefit-usage/benefit-usage.module';
       { name: Store.name, schema: StoreSchema },
       { name: StoreDailyUsage.name, schema: StoreDailyUsageSchema },
       { name: StoreDailyCapacity.name, schema: StoreDailyCapacitySchema },
+      { name: Promotion.name, schema: PromotionSchema },
     ]),
     PetModule,
     ServiceModule,
@@ -47,6 +53,7 @@ import { BenefitUsageModule } from 'src/benefit-usage/benefit-usage.module';
     OptionModule,
     PetMembershipModule,
     BenefitUsageModule,
+    PromotionModule,
   ],
   controllers: [BookingController, SessionController],
   providers: [BookingService, SessionService, GuestService, UserService],

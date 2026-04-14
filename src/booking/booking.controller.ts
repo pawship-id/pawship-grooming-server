@@ -32,6 +32,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UserService } from 'src/user/user.service';
 import { ApplyBenefitPreviewDto } from './dto/apply-benefit-preview.dto';
+import { ApplyPromotionPreviewDto } from './dto/apply-promotion-preview.dto';
 import { ListBookingsDto } from './dto/list-bookings.dto';
 import { UpdateBookingPricingDto } from './dto/update-booking-pricing.dto';
 import {
@@ -216,6 +217,28 @@ export class BookingController {
     );
     return {
       message: 'Benefit preview calculated successfully',
+      ...result,
+    };
+  }
+
+  // Preview promotion application (public, no booking required)
+  @Public()
+  @Post('public/apply-promotion')
+  async previewApplyPromotion(@Body() dto: ApplyPromotionPreviewDto) {
+    const result = await this.bookingService.previewApplyPromotions({
+      selected_promotion_ids: dto.selected_promotion_ids,
+      service_id: dto.service_id,
+      addon_ids: dto.addon_ids,
+      original_service_price: dto.original_service_price,
+      travel_fee: dto.travel_fee,
+      grand_total: dto.grand_total,
+      pick_up: dto.pick_up,
+      delivery: dto.delivery,
+      has_active_membership: dto.has_active_membership,
+      addon_prices: dto.addon_prices,
+    });
+    return {
+      message: 'Promotion preview calculated successfully',
       ...result,
     };
   }

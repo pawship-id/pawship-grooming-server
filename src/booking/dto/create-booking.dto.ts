@@ -222,4 +222,12 @@ export class CreateBookingDto {
     message: 'each benefit ID must be a valid MongoDB ID',
   })
   selected_benefit_ids?: string[];
+
+  @IsOptional()
+  @IsArray({ message: 'selected_promotion_ids must be an array' })
+  @IsMongoId({
+    each: true,
+    message: 'each promotion ID must be a valid MongoDB ID',
+  })
+  selected_promotion_ids?: string[];
 }

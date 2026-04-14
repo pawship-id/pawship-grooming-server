@@ -30,6 +30,10 @@ import {
   StoreDailyCapacity,
   StoreDailyCapacityDocument,
 } from 'src/store-daily-capacity/entities/store-daily-capacity.entity';
+import {
+  Promotion,
+  PromotionDocument,
+} from 'src/promotion/entities/promotion.entity';
 import { ListBookingsDto } from './dto/list-bookings.dto';
 import {
   ListGroomerMyJobsDto,
@@ -53,6 +57,8 @@ export class BookingService {
     private readonly storeDailyUsageModel: Model<StoreDailyUsageDocument>,
     @InjectModel(StoreDailyCapacity.name)
     private readonly storeDailyCapacityModel: Model<StoreDailyCapacityDocument>,
+    @InjectModel(Promotion.name)
+    private readonly promotionModel: Model<PromotionDocument>,
     @InjectConnection()
     private readonly connection: Connection,
     private readonly petService: PetService,
@@ -386,6 +392,19 @@ export class BookingService {
         grandTotal - estimatedTotalDiscount,
       );
 
+      // 6b. Get available promotions
+      const availablePromotions = await this.getAvailablePromotions({
+        serviceId: dto.service_id,
+        addonIds: dto.addon_ids,
+        pickUp: dto.pick_up,
+        delivery: dto.delivery,
+        hasActiveMembership,
+        originalServicePrice: originalPrice,
+        addonPrices,
+        travelFee,
+        grandTotal,
+      });
+
       // 7. Build response
       const response: any = {
         pet_id: dto.pet_id,
@@ -402,6 +421,7 @@ export class BookingService {
           travel_fee: travelFee, // backward compatibility (sum of pickup + delivery or home service fee)
           has_active_membership: hasActiveMembership,
           available_benefits: availableBenefits,
+          available_promotions: availablePromotions,
           estimated_total_discount: estimatedTotalDiscount,
           estimated_final_price: estimatedFinalPrice,
         },
@@ -855,6 +875,252 @@ export class BookingService {
   }
 
   /**
+   * Get available promotions for a booking context.
+   * Filters by active, not deleted, within date range, applies_to match.
+   */
+  private async getAvailablePromotions(opts: {
+    serviceId: string;
+    addonIds?: string[];
+    pickUp?: boolean;
+    delivery?: boolean;
+    hasActiveMembership: boolean;
+    originalServicePrice: number;
+    addonPrices: { _id: string; name: string; price: number }[];
+    travelFee: number;
+    grandTotal: number;
+  }) {
+    const now = new Date();
+
+    const promotions = await this.promotionModel
+      .find({
+        is_active: true,
+        isDeleted: false,
+        start_date: { $lte: now },
+        $or: [{ end_date: null }, { end_date: { $gte: now } }],
+      })
+      .populate('service_id', 'name code')
+      .lean();
+
+    const addonIdSet = new Set(
+      (opts.addonIds || []).map((id) => id.toString()),
+    );
+    const hasAddons = addonIdSet.size > 0;
+    const addonsTotal = opts.addonPrices.reduce((s, a) => s + a.price, 0);
+
+    return promotions
+      .filter((promo: any) => {
+        // Filter by membership availability
+        if (opts.hasActiveMembership && !promo.is_available_to_membership) {
+          return false;
+        }
+
+        const promoServiceId = promo.service_id?._id?.toString() ?? promo.service_id?.toString() ?? null;
+
+        if (promo.applies_to === 'service') {
+          return !promoServiceId || promoServiceId === opts.serviceId;
+        }
+        if (promo.applies_to === 'addon') {
+          return hasAddons && (!promoServiceId || addonIdSet.has(promoServiceId));
+        }
+        if (promo.applies_to === 'pickup') {
+          return opts.travelFee > 0 || opts.pickUp === true || opts.delivery === true;
+        }
+        if (promo.applies_to === 'booking') {
+          return true;
+        }
+        return false;
+      })
+      .map((promo: any) => {
+        let discountBase = 0;
+        const promoServiceId = promo.service_id?._id?.toString() ?? promo.service_id?.toString() ?? null;
+
+        if (promo.applies_to === 'service') {
+          discountBase = opts.originalServicePrice;
+        } else if (promo.applies_to === 'addon') {
+          if (promoServiceId) {
+            const matchingAddon = opts.addonPrices.find(
+              (a) => a._id.toString() === promoServiceId,
+            );
+            discountBase = matchingAddon?.price ?? 0;
+          } else {
+            discountBase = addonsTotal;
+          }
+        } else if (promo.applies_to === 'pickup') {
+          discountBase = opts.travelFee;
+        } else if (promo.applies_to === 'booking') {
+          discountBase = opts.grandTotal;
+        }
+
+        const amountDiscount =
+          promo.discount_type === 'percent'
+            ? (promo.value / 100) * discountBase
+            : Math.min(promo.value, discountBase);
+
+        const serviceName = typeof promo.service_id === 'object' && promo.service_id?.name
+          ? promo.service_id.name
+          : null;
+
+        return {
+          _id: promo._id.toString(),
+          code: promo.code,
+          name: promo.name,
+          description: promo.description || null,
+          applies_to: promo.applies_to,
+          service_id: promoServiceId,
+          service_name: serviceName,
+          discount_type: promo.discount_type,
+          value: promo.value,
+          is_stackable: promo.is_stackable,
+          is_available_to_membership: promo.is_available_to_membership,
+          amount_discount: amountDiscount,
+        };
+      });
+  }
+
+  /**
+   * Apply selected promotions and return breakdown.
+   * Validates stacking rules.
+   */
+  private async applyPromotionsToBooking(
+    selectedPromotionIds: string[],
+    opts: {
+      serviceId: string;
+      addonIds?: string[];
+      pickUp?: boolean;
+      delivery?: boolean;
+      hasActiveMembership: boolean;
+      originalServicePrice: number;
+      addonPrices: { _id: string; name: string; price: number }[];
+      travelFee: number;
+      grandTotal: number;
+    },
+  ): Promise<{
+    applied_promotions: any[];
+    total_discount: number;
+    breakdown: any[];
+  }> {
+    const emptyResult = {
+      applied_promotions: [],
+      total_discount: 0,
+      breakdown: [],
+    };
+
+    if (!selectedPromotionIds || selectedPromotionIds.length === 0) {
+      return emptyResult;
+    }
+
+    const promotions = await this.promotionModel
+      .find({
+        _id: { $in: selectedPromotionIds.map((id) => new Types.ObjectId(id)) },
+        is_active: true,
+        isDeleted: false,
+      })
+      .populate('service_id', 'name code')
+      .lean();
+
+    if (promotions.length === 0) {
+      return emptyResult;
+    }
+
+    // Validate stacking: if any promo is non-stackable, only 1 is allowed
+    if (promotions.length > 1) {
+      const hasNonStackable = promotions.some((p: any) => !p.is_stackable);
+      if (hasNonStackable) {
+        throw new BadRequestException(
+          'Non-stackable promotion cannot be combined with other promotions',
+        );
+      }
+    }
+
+    const addonIdSet = new Set(
+      (opts.addonIds || []).map((id) => id.toString()),
+    );
+    const addonsTotal = opts.addonPrices.reduce((s, a) => s + a.price, 0);
+
+    const appliedPromotions: any[] = [];
+    const breakdown: any[] = [];
+    let totalDiscount = 0;
+
+    for (const promo of promotions) {
+      const promoServiceId = (promo as any).service_id?._id?.toString() ?? (promo as any).service_id?.toString() ?? null;
+
+      // Verify the promo still applies to the booking context
+      let discountBase = 0;
+      let applicable = true;
+
+      if (promo.applies_to === 'service') {
+        if (promoServiceId && promoServiceId !== opts.serviceId) {
+          applicable = false;
+        }
+        discountBase = opts.originalServicePrice;
+      } else if (promo.applies_to === 'addon') {
+        if (promoServiceId) {
+          const matchingAddon = opts.addonPrices.find(
+            (a) => a._id.toString() === promoServiceId,
+          );
+          if (!matchingAddon) {
+            applicable = false;
+          }
+          discountBase = matchingAddon?.price ?? 0;
+        } else {
+          if (!opts.addonIds || opts.addonIds.length === 0) {
+            applicable = false;
+          }
+          discountBase = addonsTotal;
+        }
+      } else if (promo.applies_to === 'pickup') {
+        if (opts.travelFee <= 0 && !opts.pickUp && !opts.delivery) {
+          applicable = false;
+        }
+        discountBase = opts.travelFee;
+      } else if (promo.applies_to === 'booking') {
+        discountBase = opts.grandTotal;
+      }
+
+      if (!applicable) continue;
+
+      const amountDeducted =
+        promo.discount_type === 'percent'
+          ? (promo.value / 100) * discountBase
+          : Math.min(promo.value, discountBase);
+
+      totalDiscount += amountDeducted;
+
+      const entry = {
+        promotion_id: promo._id,
+        code: promo.code,
+        name: promo.name,
+        applies_to: promo.applies_to,
+        discount_type: promo.discount_type,
+        value: promo.value,
+        base_price: discountBase,
+        amount_deducted: amountDeducted,
+        service_id: promoServiceId ? new Types.ObjectId(promoServiceId) : null,
+        applied_at: new Date(),
+      };
+
+      appliedPromotions.push({
+        promotion_id: promo._id.toString(),
+        code: promo.code,
+        name: promo.name,
+        applies_to: promo.applies_to,
+        discount_type: promo.discount_type,
+        value: promo.value,
+        amount_deducted: amountDeducted,
+        applied_at: new Date(),
+      });
+
+      breakdown.push(entry);
+    }
+
+    return {
+      applied_promotions: appliedPromotions,
+      total_discount: totalDiscount,
+      breakdown,
+    };
+  }
+
+  /**
    * Extract price for specific pet size from zone's price array
    */
   private extractPriceFromZone(zone: any, petSizeCategoryId: string): number {
@@ -1289,6 +1555,53 @@ export class BookingService {
       body.total_discount = appliedBenefitsData.total_discount;
       body.final_total_price = appliedBenefitsData.final_price;
       (body as any).applied_benefits = appliedBenefitsData.breakdown;
+
+      // 9b. apply promotions if selected
+      let appliedPromotionsData: any = {
+        applied_promotions: [],
+        total_discount: 0,
+        breakdown: [],
+      };
+
+      if (
+        body.selected_promotion_ids &&
+        body.selected_promotion_ids.length > 0
+      ) {
+        // Build addon prices for promotion calculation
+        const snapshotAddons =
+          (body.service_snapshot as any)?.addons ?? [];
+        const promoAddonPrices = snapshotAddons.map((a: any) => ({
+          _id: a._id?.toString() ?? '',
+          name: a.name ?? '',
+          price: a.price ?? 0,
+        }));
+
+        appliedPromotionsData = await this.applyPromotionsToBooking(
+          body.selected_promotion_ids,
+          {
+            serviceId: body.service_id,
+            addonIds: body.service_addon_ids,
+            pickUp: body.pick_up === true,
+            delivery: body.delivery === true,
+            hasActiveMembership: appliedBenefitsData.applied_benefits.length > 0,
+            originalServicePrice: service.price,
+            addonPrices: promoAddonPrices,
+            travelFee: travelFee,
+            grandTotal: originalTotalPrice,
+          },
+        );
+      }
+
+      // Combine discounts: benefit + promotion
+      const combinedDiscount =
+        appliedBenefitsData.total_discount +
+        appliedPromotionsData.total_discount;
+      body.total_discount = combinedDiscount;
+      body.final_total_price = Math.max(0, originalTotalPrice - combinedDiscount);
+      (body as any).applied_promotions = appliedPromotionsData.breakdown;
+      (body as any).selected_promotion_ids = (
+        body.selected_promotion_ids ?? []
+      ).map((id: string) => new Types.ObjectId(id));
 
       // 10. auto-generate sessions from service.sessions array for all booking types
       if (service.sessions && service.sessions.length > 0) {
@@ -2064,6 +2377,41 @@ export class BookingService {
   }
 
   /**
+   * Public: Preview promotion application.
+   */
+  async previewApplyPromotions(dto: {
+    selected_promotion_ids: string[];
+    service_id: string;
+    addon_ids?: string[];
+    original_service_price?: number;
+    travel_fee?: number;
+    grand_total?: number;
+    pick_up?: boolean;
+    delivery?: boolean;
+    has_active_membership?: boolean;
+    addon_prices?: { _id: string; name: string; price: number }[];
+  }) {
+    if (
+      !dto.selected_promotion_ids ||
+      dto.selected_promotion_ids.length === 0
+    ) {
+      return { applied_promotions: [], total_discount: 0, breakdown: [] };
+    }
+
+    return await this.applyPromotionsToBooking(dto.selected_promotion_ids, {
+      serviceId: dto.service_id,
+      addonIds: dto.addon_ids,
+      pickUp: dto.pick_up,
+      delivery: dto.delivery,
+      hasActiveMembership: dto.has_active_membership ?? false,
+      originalServicePrice: dto.original_service_price ?? 0,
+      addonPrices: dto.addon_prices ?? [],
+      travelFee: dto.travel_fee ?? 0,
+      grandTotal: dto.grand_total ?? 0,
+    });
+  }
+
+  /**
    * Update the pricing of a booking: override per-item prices and/or apply membership benefits.
    * Does NOT touch: schedule, capacity, snapshots, or booking status.
    */
@@ -2080,6 +2428,7 @@ export class BookingService {
       delivery_fee_discount?: number;
       addon_prices?: { addon_id: string; price?: number; discount?: number }[];
       selected_benefit_ids?: string[];
+      selected_promotion_ids?: string[];
     },
   ) {
     const existing = await this.bookingModel.findById(id);
@@ -2236,15 +2585,60 @@ export class BookingService {
       };
     }
 
-    // total_discount = item discounts + membership benefit discounts
-    const totalDiscount = itemDiscountTotal + benefitResult.total_discount;
+    // total_discount = item discounts + membership benefit discounts + promotion discounts
+    // ── 2b. Apply promotions ──────────────────────────────────────────────────
+    const selectedPromotionIds = dto.selected_promotion_ids ?? [];
+
+    let promotionResult: {
+      applied_promotions: any[];
+      total_discount: number;
+      breakdown: any[];
+    } = { applied_promotions: [], total_discount: 0, breakdown: [] };
+
+    if (selectedPromotionIds.length > 0) {
+      try {
+        const snapshotAddons = existing.service_snapshot?.addons ?? [];
+        const promoAddonPrices = snapshotAddons.map((a: any) => ({
+          _id: a._id?.toString() ?? '',
+          name: a.name ?? '',
+          price: a.price ?? 0,
+        }));
+
+        promotionResult = await this.applyPromotionsToBooking(
+          selectedPromotionIds,
+          {
+            serviceId,
+            addonIds,
+            pickUp: existing.pick_up === true,
+            delivery: existing.delivery === true,
+            hasActiveMembership: selectedBenefitIds.length > 0,
+            originalServicePrice: svcEffective,
+            addonPrices: promoAddonPrices,
+            travelFee: tFeeEffective,
+            grandTotal: effectiveSubtotal,
+          },
+        );
+      } catch (err) {
+        this.logger.error(
+          `[updatePricing] applyPromotionsToBooking THREW for booking ${id}:`,
+          err instanceof Error ? err.stack : err,
+        );
+      }
+    }
+
+    const totalDiscount =
+      itemDiscountTotal +
+      benefitResult.total_discount +
+      promotionResult.total_discount;
     const finalTotalPrice = Math.max(0, newOriginalTotal - totalDiscount);
 
     this.logger.log(
       `[updatePricing] booking=${id}: itemDiscount=${itemDiscountTotal}, ` +
-        `benefitDiscount=${benefitResult.total_discount}, totalDiscount=${totalDiscount}, ` +
+        `benefitDiscount=${benefitResult.total_discount}, ` +
+        `promotionDiscount=${promotionResult.total_discount}, totalDiscount=${totalDiscount}, ` +
         `originalTotal=${newOriginalTotal}, finalTotal=${finalTotalPrice}, ` +
-        `appliedBenefits=${benefitResult.applied_benefits.length}`,
+        `appliedBenefits=${benefitResult.applied_benefits.length}, ` +
+        `appliedPromotions=${promotionResult.applied_promotions.length}`,
     );
 
     // ── 3. Persist update ─────────────────────────────────────────────────────
@@ -2260,6 +2654,10 @@ export class BookingService {
             (sid) => new Types.ObjectId(sid),
           ),
           applied_benefits: benefitResult.breakdown,
+          selected_promotion_ids: selectedPromotionIds.map(
+            (sid) => new Types.ObjectId(sid),
+          ),
+          applied_promotions: promotionResult.breakdown,
           total_discount: totalDiscount,
           final_total_price: finalTotalPrice,
           edited_service_price: dto.service_price ?? null,
@@ -2316,6 +2714,7 @@ export class BookingService {
       total_discount: totalDiscount,
       final_total_price: finalTotalPrice,
       applied_benefits_count: benefitResult.applied_benefits.length,
+      applied_promotions_count: promotionResult.applied_promotions.length,
     };
   }
 }

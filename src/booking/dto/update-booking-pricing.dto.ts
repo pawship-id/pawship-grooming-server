@@ -54,4 +54,12 @@ export class UpdateBookingPricingDto {
   @IsArray({ message: 'selected_benefit_ids must be an array' })
   @IsMongoId({ each: true, message: 'Each benefit id must be a valid MongoId' })
   selected_benefit_ids?: string[];
+
+  @IsOptional()
+  @IsArray({ message: 'selected_promotion_ids must be an array' })
+  @IsMongoId({
+    each: true,
+    message: 'Each promotion id must be a valid MongoId',
+  })
+  selected_promotion_ids?: string[];
 }
