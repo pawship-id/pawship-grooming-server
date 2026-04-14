@@ -22,7 +22,8 @@
     "seed:store": "ts-node -r tsconfig-paths/register src/seeding/scripts/seed-store.ts",
     "seed:service-type": "ts-node -r tsconfig-paths/register src/seeding/scripts/seed-service-type.ts",
     "seed:membership": "ts-node -r tsconfig-paths/register src/seeding/scripts/seed-membership.ts",
-    "seed:service": "ts-node -r tsconfig-paths/register src/seeding/scripts/seed-service.ts"
+    "seed:service": "ts-node -r tsconfig-paths/register src/seeding/scripts/seed-service.ts",
+    "seed:user-pet": "ts-node -r tsconfig-paths/register src/seeding/scripts/seed-user-pet.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

@@ -94,6 +94,39 @@ export class AppliedBenefit {
   service_id?: Types.ObjectId; // for matching service/addon in display
 }
 
+@Schema({ _id: false })
+export class AppliedPromotion {
+  @Prop({ type: Types.ObjectId, required: true })
+  promotion_id: Types.ObjectId;
+
+  @Prop({ required: true })
+  code: string;
+
+  @Prop({ required: true })
+  name: string;
+
+  @Prop({ required: true })
+  applies_to: string; // 'service' | 'addon' | 'pickup' | 'booking'
+
+  @Prop({ required: true })
+  discount_type: string; // 'percent' | 'fixed'
+
+  @Prop({ required: true })
+  value: number;
+
+  @Prop({ required: true })
+  base_price: number;
+
+  @Prop({ required: true })
+  amount_deducted: number;
+
+  @Prop({ type: Types.ObjectId, default: null })
+  service_id?: Types.ObjectId;
+
+  @Prop({ required: true })
+  applied_at: Date;
+}
+
 @Schema({
   toJSON: {
     virtuals: true,
@@ -497,6 +530,13 @@ export class Booking {
 
   @Prop({ type: [AppliedBenefit], default: [] })
   applied_benefits: AppliedBenefit[];
+
+  /* ===== Promotions ===== */
+  @Prop({ type: [Types.ObjectId], default: [] })
+  selected_promotion_ids: Types.ObjectId[];
+
+  @Prop({ type: [AppliedPromotion], default: [] })
+  applied_promotions: AppliedPromotion[];
 
   /* ===== Soft Delete ===== */
   @Prop({ default: false })

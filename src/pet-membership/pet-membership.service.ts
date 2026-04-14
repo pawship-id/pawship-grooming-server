@@ -276,7 +276,7 @@ export class PetMembershipService {
     return this.populateBenefitsWithServices(petMembership);
   }
 
-  async getAvailableBenefits(petId: string, bookingDate?: Date): Promise<any> {
+  async getAvailableBenefits(petId: string, bookingDate?: Date, excludeBookingId?: string): Promise<any> {
     const activeMemberships = await this.getActiveMembership(petId);
 
     if (!activeMemberships) {
@@ -300,6 +300,7 @@ export class PetMembershipService {
         pmId,
         now,
         bookingDate,
+        excludeBookingId,
       );
 
       allBenefits.push(...benefits);
@@ -783,6 +784,7 @@ export class PetMembershipService {
     petMembershipId: string,
     now: Date,
     bookingDate?: Date,
+    excludeBookingId?: string,
   ): Promise<any[]> {
     return Promise.all(
       benefitsSnapshot.map(async (b: any) => {
@@ -799,6 +801,7 @@ export class PetMembershipService {
             petMembershipId,
             b._id.toString(),
             periodKey,
+            excludeBookingId,
           );
           remaining = b.limit == null ? null : b.limit - currentUsed;
         } else {
