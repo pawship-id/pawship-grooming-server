@@ -1812,7 +1812,9 @@ export class BookingService {
 
   /**
    * Get bookings with at least one unassigned session (groomer_id is null)
-   * Only returns confirmed/arrived bookings
+   * Only returns confirmed/arrived bookings.
+   * Filters by groomer's store placement and matches sessions by skill name
+   * (case-insensitive, name-based — IDs are not compared).
    */
   async getGroomerOpenJobs(
     groomerId: ObjectId,
@@ -1820,12 +1822,13 @@ export class BookingService {
   ) {
     const { page = 1, limit = 20 } = query;
 
-    // Look up groomer's placement (store)
+    // Look up groomer's placement (store) and skills
     const groomer = await this.userModel
       .findById(groomerId)
-      .select('profile.placement')
+      .select('profile.placement profile.groomer_skills')
       .lean();
     const groomerStoreId = groomer?.profile?.placement;
+    const groomerSkills: string[] = groomer?.profile?.groomer_skills || [];
 
     const filter: any = {
       isDeleted: false,
@@ -1836,17 +1839,30 @@ export class BookingService {
           BookingStatus.IN_PROGRESS,
         ],
       },
-      sessions: {
-        $elemMatch: {
-          groomer_id: null,
-        },
-      },
     };
 
-    // Filter by groomer's store if they have a placement
+    // Filter by groomer's store if they have a placement.
+    // store_id in some bookings may be stored as a string (not ObjectId),
+    // so we match against both the ObjectId and its string representation.
     if (groomerStoreId) {
-      filter.store_id = groomerStoreId;
+      filter.store_id = {
+        $in: [groomerStoreId, groomerStoreId.toString()],
+      };
     }
+
+    // Build session $elemMatch: unclaimed + matching groomer's skills (by name, case-insensitive)
+    const elemMatchFilter: any = { groomer_id: null };
+    if (groomerSkills.length > 0) {
+      const skillsRegex = groomerSkills.map(
+        (skill) =>
+          new RegExp(
+            `^${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
+            'i',
+          ),
+      );
+      elemMatchFilter.type = { $in: skillsRegex };
+    }
+    filter.sessions = { $elemMatch: elemMatchFilter };
 
     const skip = (page - 1) * limit;
 
