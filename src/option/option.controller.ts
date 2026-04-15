@@ -24,10 +24,11 @@ export class OptionController {
 
   @Post()
   async create(@Body() body: CreateOptionDto) {
-    await this.optionService.create(body);
+    const option = await this.optionService.create(body);
 
     return {
       message: 'Create option successfully',
+      option,
     };
   }
 
