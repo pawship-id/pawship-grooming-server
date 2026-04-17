@@ -31,6 +31,8 @@ export class AuthService {
         password: hash,
         role: body.role,
         is_active: body.is_active,
+        // Self-registration: user is actively logging in, so not idle
+        is_idle: body.role === 'customer' ? false : undefined,
       });
 
       return await user.save();
@@ -72,6 +74,14 @@ export class AuthService {
 
     const tokens = await this.generateTokens(payload);
     await this.updateRefreshToken(findUser._id, tokens.refresh_token);
+
+    // Mark idle customer as no longer idle on first login
+    if (findUser.role === 'customer' && findUser.is_idle !== false) {
+      await this.userModel.updateOne(
+        { _id: findUser._id },
+        { $set: { is_idle: false } },
+      );
+    }
 
     return tokens;
   }

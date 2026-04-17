@@ -26,7 +26,7 @@ export class GuestService {
         phone_number,
         isDeleted: false,
       })
-      .select('_id username email phone_number role')
+      .select('_id username email phone_number role is_idle profile.addresses')
       .exec();
 
     if (!user) {
@@ -51,9 +51,16 @@ export class GuestService {
       .populate('pet_type', 'name')
       .exec();
 
+    const userObj = user.toObject();
+
     return {
       exists: true,
-      user,
+      user: {
+        ...userObj,
+        // Normalize: null/undefined → true (backward compat for accounts created before is_idle existed)
+        is_idle: userObj.is_idle !== false,
+        addresses: userObj.profile?.addresses ?? [],
+      },
       pets,
     };
   }
@@ -84,6 +91,7 @@ export class GuestService {
       password: hashedPassword,
       role: UserRole.CUSTOMER,
       is_active: true,
+      is_idle: true,
     });
 
     const savedUser = await newUser.save();
@@ -180,5 +188,91 @@ export class GuestService {
         phone_number: user.phone_number,
       },
     };
+  }
+
+  /**
+   * Update or add address for an idle user (never logged in).
+   * Only allowed when is_idle !== false to prevent editing active user data without auth.
+   * - If address_id is provided: update that specific address
+   * - If address_id is omitted: add a new address
+   * - If is_main_address is true: unset is_main_address on all other addresses first
+   */
+  async updateAddressForIdleUser(
+    phone_number: string,
+    address: {
+      label?: string;
+      street?: string;
+      subdistrict?: string;
+      district?: string;
+      city?: string;
+      province?: string;
+      postal_code?: string;
+      note?: string;
+      latitude?: number;
+      longitude?: number;
+      is_main_address?: boolean;
+    },
+    address_id?: string,
+  ) {
+    const user = await this.userModel
+      .findOne({ phone_number, isDeleted: false })
+      .select('_id is_idle profile')
+      .exec();
+
+    if (!user) {
+      throw new NotFoundException('User not found with this phone number');
+    }
+
+    // Security: only allow address updates for idle users
+    if (user.is_idle === false) {
+      throw new BadRequestException(
+        'Cannot update address for active user. Please login first.',
+      );
+    }
+
+    const addresses: any[] = ((user.profile?.addresses ?? []) as any[]).map(
+      (a) => ({ ...a }),
+    );
+
+    if (address_id) {
+      // Update existing address by _id
+      const idx = addresses.findIndex(
+        (a: any) => a._id?.toString() === address_id,
+      );
+      if (idx === -1) {
+        throw new NotFoundException('Address not found');
+      }
+      // If setting as main, unset all others
+      if (address.is_main_address) {
+        addresses.forEach((a: any) => (a.is_main_address = false));
+      }
+      addresses[idx] = {
+        ...addresses[idx],
+        ...address,
+        created_by: addresses[idx].created_by ?? 'customer',
+      };
+    } else {
+      // Add new address
+      // If setting as main (or first address), unset all others
+      const willBeMain =
+        address.is_main_address !== undefined
+          ? address.is_main_address
+          : addresses.length === 0;
+      if (willBeMain) {
+        addresses.forEach((a: any) => (a.is_main_address = false));
+      }
+      addresses.push({
+        ...address,
+        is_main_address: willBeMain,
+        created_by: 'customer',
+      });
+    }
+
+    await this.userModel.updateOne(
+      { _id: user._id },
+      { $set: { 'profile.addresses': addresses } },
+    );
+
+    return { message: 'Address updated successfully' };
   }
 }
