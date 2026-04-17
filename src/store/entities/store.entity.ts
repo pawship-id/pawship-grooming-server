@@ -50,8 +50,8 @@ export class PickupDeliveryZone {
   @Prop({ required: true })
   travel_time_minutes: number;
 
-  @Prop({ type: [ZonePriceItemSchema], required: true })
-  prices: ZonePriceItem[];
+  @Prop({ required: true })
+  price: number;
 }
 export const PickupDeliveryZoneSchema =
   SchemaFactory.createForClass(PickupDeliveryZone);

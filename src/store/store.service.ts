@@ -38,6 +38,16 @@ export class StoreService {
         }
       }
 
+      // Validate: if pickup/delivery is enabled, require at least 1 zone
+      if (
+        body.is_pickup_delivery_available &&
+        (!body.pickup_delivery_zones || body.pickup_delivery_zones.length === 0)
+      ) {
+        throw new BadRequestException(
+          'At least 1 pickup/delivery zone is required when pickup & delivery is enabled',
+        );
+      }
+
       const store = new this.storeModel(body);
 
       return await store.save();
@@ -211,6 +221,21 @@ export class StoreService {
           throw new BadRequestException(
             'A default store already exists. Only one store can be set as default.',
           );
+        }
+      }
+
+      // Validate: if pickup/delivery is enabled, require at least 1 zone
+      if (body.is_pickup_delivery_available !== undefined) {
+        const zones = body.pickup_delivery_zones;
+        if (body.is_pickup_delivery_available && (!zones || zones.length === 0)) {
+          // Check existing store zones if not provided in update
+          const existing = await this.storeModel.findById(id).lean();
+          const existingZones = (existing as any)?.pickup_delivery_zones ?? [];
+          if (existingZones.length === 0) {
+            throw new BadRequestException(
+              'At least 1 pickup/delivery zone is required when pickup & delivery is enabled',
+            );
+          }
         }
       }
 

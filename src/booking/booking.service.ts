@@ -273,7 +273,6 @@ export class BookingService {
               latitude: mainAddress.latitude,
               longitude: mainAddress.longitude,
             },
-            pet,
             dto.pick_up === true,
             dto.delivery === true,
           );
@@ -774,7 +773,6 @@ export class BookingService {
                 latitude: mainAddress.latitude,
                 longitude: mainAddress.longitude,
               },
-              pet,
               pickUp === true,
               delivery === true,
             );
@@ -1153,7 +1151,6 @@ export class BookingService {
     customerLongitude: number,
     storeLatitude: number,
     storeLongitude: number,
-    petSizeCategoryId: string | null,
     zoneType: 'home_service' | 'pickup_delivery',
   ): Promise<{ zone: any; price: number; distance: number }> {
     if (!storeLatitude || !storeLongitude) {
@@ -1196,13 +1193,13 @@ export class BookingService {
         );
       }
     } else {
-      // Pickup/delivery has size-based pricing
-      if (!petSizeCategoryId) {
+      // Pickup/delivery now also uses flat price
+      price = matchingZone.price;
+      if (price == null || price < 0) {
         throw new BadRequestException(
-          'Pet size category is required for pickup/delivery service',
+          `Zone "${matchingZone.area_name}" has invalid pricing configured`,
         );
       }
-      price = this.extractPriceFromZone(matchingZone, petSizeCategoryId);
     }
 
     return { zone: matchingZone, price, distance };
@@ -1226,7 +1223,6 @@ export class BookingService {
       customerLocation.longitude,
       store.location.latitude,
       store.location.longitude,
-      null, // Home service doesn't use size-based pricing
       'home_service',
     );
 
@@ -1250,7 +1246,6 @@ export class BookingService {
   private async calculatePickupDeliveryFees(
     store: StoreDocument,
     customerLocation: { latitude: number; longitude: number },
-    pet: any,
     pick_up: boolean,
     delivery: boolean,
   ): Promise<{
@@ -1273,22 +1268,12 @@ export class BookingService {
       throw new BadRequestException('Store location not properly configured');
     }
 
-    const petSizeCategoryId =
-      pet.size_category_id?.toString() || pet.size?._id?.toString();
-
-    if (!petSizeCategoryId) {
-      throw new BadRequestException(
-        'Pet size category is required for pickup/delivery service',
-      );
-    }
-
     const { zone, price, distance } = await this.findZoneForCustomer(
       store.pickup_delivery_zones,
       customerLocation.latitude,
       customerLocation.longitude,
       store.location.latitude,
       store.location.longitude,
-      petSizeCategoryId,
       'pickup_delivery',
     );
 
@@ -1310,7 +1295,7 @@ export class BookingService {
       min_radius_km: zone.min_radius_km,
       max_radius_km: zone.max_radius_km,
       travel_time_minutes: zone.travel_time_minutes,
-      prices: zone.prices,
+      price: zone.price,
       zone_type: 'pickup_delivery',
       travel_fee: total, // backward compatibility
     };
@@ -1459,7 +1444,6 @@ export class BookingService {
               latitude: mainAddress.latitude,
               longitude: mainAddress.longitude,
             },
-            pet,
             body.pick_up === true,
             body.delivery === true,
           );

@@ -190,8 +190,10 @@ export class BookingController {
   @Public()
   @Post('public/preview')
   async publicPreview(@Body() dto: BookingPreviewRequestDto) {
-    // For public preview, skip pick_up travel fee calculation (no customer_id)
-    const safeDto = { ...dto, pick_up: false };
+    // Only calculate pickup/delivery fees when customer_id is present (required for zone lookup)
+    const safeDto = dto.customer_id
+      ? dto
+      : { ...dto, pick_up: false, delivery: false };
     const preview = await this.bookingService.getBookingPreview(safeDto);
     return {
       message: 'Booking preview calculated successfully',
