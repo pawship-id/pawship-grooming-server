@@ -9,10 +9,12 @@ import {
   BadRequestException,
   UseGuards,
   Req,
+  Query,
 } from '@nestjs/common';
 import { StoreDailyCapacityService } from './store-daily-capacity.service';
 import { CreateStoreDailyCapacityDto } from './dto/create-store-daily-capacity.dto';
 import { UpdateStoreDailyCapacityDto } from './dto/update-store-daily-capacity.dto';
+import { GetStoreDailyCapacitiesDto } from './dto/get-store-daily-capacities.dto';
 import { ObjectId } from 'mongodb';
 import { AuthGuard } from 'src/auth/auth.guard';
 
@@ -38,8 +40,8 @@ export class StoreDailyCapacityController {
   }
 
   @Get()
-  async findAll() {
-    const capacities = await this.storeDailyCapacityService.findAll();
+  async findAll(@Query() query: GetStoreDailyCapacitiesDto) {
+    const capacities = await this.storeDailyCapacityService.findAll(query);
 
     return {
       message: 'Fetch store daily capacities successfully',

@@ -39,6 +39,7 @@ import {
   ListGroomerMyJobsDto,
   ListGroomerOpenJobsDto,
 } from './dto/list-groomer-bookings.dto';
+import { GetDailyUsagesDto } from './dto/get-daily-usages.dto';
 
 @Injectable()
 export class BookingService {
@@ -812,9 +813,10 @@ export class BookingService {
       discountAmount = Math.max(0, discountAmount);
 
       // Resolve the actual service_id used in this breakdown entry
-      const resolvedBreakdownServiceId = appliesTo === 'service'
-        ? (benefit.service_id || serviceId)
-        : benefit.service_id;
+      const resolvedBreakdownServiceId =
+        appliesTo === 'service'
+          ? benefit.service_id || serviceId
+          : benefit.service_id;
 
       breakdown.push({
         benefit: {
@@ -914,16 +916,23 @@ export class BookingService {
           return false;
         }
 
-        const promoServiceId = promo.service_id?._id?.toString() ?? promo.service_id?.toString() ?? null;
+        const promoServiceId =
+          promo.service_id?._id?.toString() ??
+          promo.service_id?.toString() ??
+          null;
 
         if (promo.applies_to === 'service') {
           return !promoServiceId || promoServiceId === opts.serviceId;
         }
         if (promo.applies_to === 'addon') {
-          return hasAddons && (!promoServiceId || addonIdSet.has(promoServiceId));
+          return (
+            hasAddons && (!promoServiceId || addonIdSet.has(promoServiceId))
+          );
         }
         if (promo.applies_to === 'pickup') {
-          return opts.travelFee > 0 || opts.pickUp === true || opts.delivery === true;
+          return (
+            opts.travelFee > 0 || opts.pickUp === true || opts.delivery === true
+          );
         }
         if (promo.applies_to === 'booking') {
           return true;
@@ -932,7 +941,10 @@ export class BookingService {
       })
       .map((promo: any) => {
         let discountBase = 0;
-        const promoServiceId = promo.service_id?._id?.toString() ?? promo.service_id?.toString() ?? null;
+        const promoServiceId =
+          promo.service_id?._id?.toString() ??
+          promo.service_id?.toString() ??
+          null;
 
         if (promo.applies_to === 'service') {
           discountBase = opts.originalServicePrice;
@@ -956,9 +968,10 @@ export class BookingService {
             ? (promo.value / 100) * discountBase
             : Math.min(promo.value, discountBase);
 
-        const serviceName = typeof promo.service_id === 'object' && promo.service_id?.name
-          ? promo.service_id.name
-          : null;
+        const serviceName =
+          typeof promo.service_id === 'object' && promo.service_id?.name
+            ? promo.service_id.name
+            : null;
 
         return {
           _id: promo._id.toString(),
@@ -1042,7 +1055,10 @@ export class BookingService {
     let totalDiscount = 0;
 
     for (const promo of promotions) {
-      const promoServiceId = (promo as any).service_id?._id?.toString() ?? (promo as any).service_id?.toString() ?? null;
+      const promoServiceId =
+        (promo as any).service_id?._id?.toString() ??
+        (promo as any).service_id?.toString() ??
+        null;
 
       // Verify the promo still applies to the booking context
       let discountBase = 0;
@@ -1568,8 +1584,7 @@ export class BookingService {
         body.selected_promotion_ids.length > 0
       ) {
         // Build addon prices for promotion calculation
-        const snapshotAddons =
-          (body.service_snapshot as any)?.addons ?? [];
+        const snapshotAddons = (body.service_snapshot as any)?.addons ?? [];
         const promoAddonPrices = snapshotAddons.map((a: any) => ({
           _id: a._id?.toString() ?? '',
           name: a.name ?? '',
@@ -1583,7 +1598,8 @@ export class BookingService {
             addonIds: body.service_addon_ids,
             pickUp: body.pick_up === true,
             delivery: body.delivery === true,
-            hasActiveMembership: appliedBenefitsData.applied_benefits.length > 0,
+            hasActiveMembership:
+              appliedBenefitsData.applied_benefits.length > 0,
             originalServicePrice: service.price,
             addonPrices: promoAddonPrices,
             travelFee: travelFee,
@@ -1597,7 +1613,10 @@ export class BookingService {
         appliedBenefitsData.total_discount +
         appliedPromotionsData.total_discount;
       body.total_discount = combinedDiscount;
-      body.final_total_price = Math.max(0, originalTotalPrice - combinedDiscount);
+      body.final_total_price = Math.max(
+        0,
+        originalTotalPrice - combinedDiscount,
+      );
       (body as any).applied_promotions = appliedPromotionsData.breakdown;
       (body as any).selected_promotion_ids = (
         body.selected_promotion_ids ?? []
@@ -1620,10 +1639,15 @@ export class BookingService {
       }
 
       // 12. get capacity by store_id and date (override or default)
+      const targetDate = new Date(body.date);
+      targetDate.setHours(0, 0, 0, 0);
+      const nextDay = new Date(targetDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+
       const dailyOverride = await this.storeDailyCapacityModel
         .findOne({
           store_id: new ObjectId(body.store_id),
-          date: new Date(body.date),
+          date: { $gte: targetDate, $lt: nextDay },
         })
         .session(session);
 
@@ -2125,10 +2149,15 @@ export class BookingService {
 
         if (!store) throw new NotFoundException('Store not found');
 
+        const targetDate = new Date(newDate);
+        targetDate.setHours(0, 0, 0, 0);
+        const nextDay = new Date(targetDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+
         const dailyOverride = await this.storeDailyCapacityModel
           .findOne({
             store_id: new ObjectId(body.store_id),
-            date: newDate,
+            date: { $gte: targetDate, $lt: nextDay },
           })
           .session(session);
 
@@ -2614,10 +2643,10 @@ export class BookingService {
             pickUp: existing.pick_up === true,
             delivery: existing.delivery === true,
             hasActiveMembership: selectedBenefitIds.length > 0,
-            originalServicePrice: svcBase,   // before admin service discount
+            originalServicePrice: svcBase, // before admin service discount
             addonPrices: promoAddonPrices,
-            travelFee: tFeeBase,             // before admin travel-fee discount
-            grandTotal: newOriginalTotal,    // sum of all base prices before discounts
+            travelFee: tFeeBase, // before admin travel-fee discount
+            grandTotal: newOriginalTotal, // sum of all base prices before discounts
           },
         );
       } catch (err) {
@@ -2718,5 +2747,131 @@ export class BookingService {
       applied_benefits_count: benefitResult.applied_benefits.length,
       applied_promotions_count: promotionResult.applied_promotions.length,
     };
+  }
+
+  /**
+   * Get daily usage statistics for admin dashboard
+   * Returns usage data per store per day with capacity information
+   */
+  async getDailyUsages(query: GetDailyUsagesDto): Promise<any> {
+    try {
+      // Build query filter
+      const filter: any = {};
+
+      if (query.store_id) {
+        filter.store_id = new Types.ObjectId(query.store_id);
+      }
+
+      if (query.date) {
+        // Single date filter
+        const targetDate = new Date(query.date);
+        targetDate.setHours(0, 0, 0, 0);
+        const nextDay = new Date(targetDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+        filter.date = { $gte: targetDate, $lt: nextDay };
+      } else if (query.start_date || query.end_date) {
+        // Date range filter
+        filter.date = {};
+        if (query.start_date) {
+          const startDate = new Date(query.start_date);
+          startDate.setHours(0, 0, 0, 0);
+          filter.date.$gte = startDate;
+        }
+        if (query.end_date) {
+          const endDate = new Date(query.end_date);
+          endDate.setHours(23, 59, 59, 999);
+          filter.date.$lte = endDate;
+        }
+      }
+
+      // Fetch usage records
+      const usageRecords = await this.storeDailyUsageModel
+        .find(filter)
+        .sort({ date: -1, store_id: 1 })
+        .exec();
+
+      // Process each usage record to calculate capacity and percentages
+      const results = await Promise.all(
+        usageRecords.map(async (usage) => {
+          // Fetch store manually
+          const store = await this.storeModel.findById(usage.store_id).exec();
+          if (!store) {
+            return null;
+          }
+
+          // Store the store_id
+          const storeId = usage.store_id.toString();
+
+          // Get capacity override for this date, if any
+          const usageDate = new Date(usage.date);
+          usageDate.setHours(0, 0, 0, 0);
+          const nextDay = new Date(usageDate);
+          nextDay.setDate(nextDay.getDate() + 1);
+
+          const capacityOverride = await this.storeDailyCapacityModel
+            .findOne({
+              store_id: new Types.ObjectId(storeId),
+              date: { $gte: usageDate, $lt: nextDay },
+            })
+            .exec();
+
+          // Determine total capacity (override or default)
+          let totalCapacityMinutes =
+            store.capacity?.default_daily_capacity_minutes || 960;
+
+          if (capacityOverride) {
+            totalCapacityMinutes = capacityOverride.total_capacity_minutes;
+          }
+
+          const overbookingLimit =
+            store.capacity?.overbooking_limit_minutes || 120;
+          const maxCapacity = totalCapacityMinutes + overbookingLimit;
+
+          // Calculate metrics
+          const usedMinutes = usage.used_minutes || 0;
+          const remainingMinutes = Math.max(
+            0,
+            totalCapacityMinutes - usedMinutes,
+          );
+          // Calculate percentage with exactly 2 decimals without rounding
+          const rawPercentage =
+            totalCapacityMinutes > 0
+              ? (usedMinutes / totalCapacityMinutes) * 100
+              : 0;
+          const usagePercentage = Math.floor(rawPercentage * 100) / 100;
+          const isOverbooked = usedMinutes > totalCapacityMinutes;
+          const isAtCapacity = usedMinutes >= maxCapacity;
+
+          return {
+            _id: usage._id,
+            store_id: storeId,
+            store_name: store.name,
+            store_code: store.code,
+            date: usage.date,
+            used_minutes: usedMinutes,
+            total_capacity_minutes: totalCapacityMinutes,
+            remaining_minutes: remainingMinutes,
+            overbooking_limit_minutes: overbookingLimit,
+            max_capacity_minutes: maxCapacity,
+            usage_percentage: usagePercentage,
+            is_overbooked: isOverbooked,
+            is_at_capacity: isAtCapacity,
+            has_capacity_override: !!capacityOverride,
+            capacity_notes: capacityOverride?.notes || null,
+          };
+        }),
+      );
+
+      // Filter out null results (stores not found)
+      const validResults = results.filter((r) => r !== null);
+
+      return {
+        count: validResults.length,
+        data: validResults,
+      };
+    } catch (error) {
+      this.logger.error(`Error fetching daily usages: ${error.message}`);
+      throw error;
+    }
   }
 }
