@@ -40,6 +40,7 @@ import {
   ListGroomerMyJobsDto,
   ListGroomerOpenJobsDto,
 } from './dto/list-groomer-bookings.dto';
+import { GetDailyUsagesDto } from './dto/get-daily-usages.dto';
 
 @Controller('bookings')
 @UseGuards(AuthGuard)
@@ -324,6 +325,17 @@ export class BookingController {
 
     return {
       message: 'Fetch bookings successfully',
+      ...result,
+    };
+  }
+
+  // Get daily usage statistics (admin)
+  @Get('daily-usages')
+  async getDailyUsages(@Query() query: GetDailyUsagesDto) {
+    const result = await this.bookingService.getDailyUsages(query);
+
+    return {
+      message: 'Fetch daily usages successfully',
       ...result,
     };
   }
