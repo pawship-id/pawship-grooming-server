@@ -24,6 +24,7 @@ import { Public } from 'src/auth/public.decorator';
 import { GuestService } from './guest.service';
 import { RegisterGuestDto } from './dto/register-guest.dto';
 import { CreateGuestPetDto } from './dto/create-guest-pet.dto';
+import { UpdateGuestAddressDto } from './dto/update-guest-address.dto';
 import { StoreService } from 'src/store/store.service';
 import { ServiceService } from 'src/service/service.service';
 import { OptionService } from 'src/option/option.service';
@@ -101,12 +102,8 @@ export class BookingController {
 
     const result = await this.guestService.checkUserByPhone(phone_number);
 
-    if (!result.exists) {
-      throw new NotFoundException('data not found');
-    }
-
     return {
-      message: 'User found',
+      message: result.exists ? 'User found' : 'User not found',
       ...result,
     };
   }
@@ -132,6 +129,18 @@ export class BookingController {
       message: 'Pet created successfully',
       ...result,
     };
+  }
+
+  // Update address for idle guest user (public)
+  @Public()
+  @Patch('public/user/address')
+  async updateGuestAddress(@Body() dto: UpdateGuestAddressDto) {
+    const result = await this.guestService.updateAddressForIdleUser(
+      dto.phone_number,
+      dto.address,
+      dto.address_id,
+    );
+    return result;
   }
 
   // Create booking only customer (public)

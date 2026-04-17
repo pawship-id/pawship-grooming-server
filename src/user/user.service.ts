@@ -131,6 +131,13 @@ export class UserService {
         password: hash,
         role: body.role,
         is_active: body.is_active,
+        // Customer accounts created by admin default to idle (never logged in)
+        is_idle:
+          body.is_idle !== undefined
+            ? body.is_idle
+            : body.role === 'customer'
+              ? true
+              : undefined,
       });
 
       return await user.save();
