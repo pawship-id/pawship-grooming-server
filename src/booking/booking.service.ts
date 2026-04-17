@@ -274,7 +274,6 @@ export class BookingService {
               latitude: mainAddress.latitude,
               longitude: mainAddress.longitude,
             },
-            pet,
             dto.pick_up === true,
             dto.delivery === true,
           );
@@ -775,7 +774,6 @@ export class BookingService {
                 latitude: mainAddress.latitude,
                 longitude: mainAddress.longitude,
               },
-              pet,
               pickUp === true,
               delivery === true,
             );
@@ -1169,7 +1167,6 @@ export class BookingService {
     customerLongitude: number,
     storeLatitude: number,
     storeLongitude: number,
-    petSizeCategoryId: string | null,
     zoneType: 'home_service' | 'pickup_delivery',
   ): Promise<{ zone: any; price: number; distance: number }> {
     if (!storeLatitude || !storeLongitude) {
@@ -1212,13 +1209,13 @@ export class BookingService {
         );
       }
     } else {
-      // Pickup/delivery has size-based pricing
-      if (!petSizeCategoryId) {
+      // Pickup/delivery now also uses flat price
+      price = matchingZone.price;
+      if (price == null || price < 0) {
         throw new BadRequestException(
-          'Pet size category is required for pickup/delivery service',
+          `Zone "${matchingZone.area_name}" has invalid pricing configured`,
         );
       }
-      price = this.extractPriceFromZone(matchingZone, petSizeCategoryId);
     }
 
     return { zone: matchingZone, price, distance };
@@ -1242,7 +1239,6 @@ export class BookingService {
       customerLocation.longitude,
       store.location.latitude,
       store.location.longitude,
-      null, // Home service doesn't use size-based pricing
       'home_service',
     );
 
@@ -1266,7 +1262,6 @@ export class BookingService {
   private async calculatePickupDeliveryFees(
     store: StoreDocument,
     customerLocation: { latitude: number; longitude: number },
-    pet: any,
     pick_up: boolean,
     delivery: boolean,
   ): Promise<{
@@ -1289,22 +1284,12 @@ export class BookingService {
       throw new BadRequestException('Store location not properly configured');
     }
 
-    const petSizeCategoryId =
-      pet.size_category_id?.toString() || pet.size?._id?.toString();
-
-    if (!petSizeCategoryId) {
-      throw new BadRequestException(
-        'Pet size category is required for pickup/delivery service',
-      );
-    }
-
     const { zone, price, distance } = await this.findZoneForCustomer(
       store.pickup_delivery_zones,
       customerLocation.latitude,
       customerLocation.longitude,
       store.location.latitude,
       store.location.longitude,
-      petSizeCategoryId,
       'pickup_delivery',
     );
 
@@ -1326,7 +1311,7 @@ export class BookingService {
       min_radius_km: zone.min_radius_km,
       max_radius_km: zone.max_radius_km,
       travel_time_minutes: zone.travel_time_minutes,
-      prices: zone.prices,
+      price: zone.price,
       zone_type: 'pickup_delivery',
       travel_fee: total, // backward compatibility
     };
@@ -1475,7 +1460,6 @@ export class BookingService {
               latitude: mainAddress.latitude,
               longitude: mainAddress.longitude,
             },
-            pet,
             body.pick_up === true,
             body.delivery === true,
           );
@@ -1836,7 +1820,9 @@ export class BookingService {
 
   /**
    * Get bookings with at least one unassigned session (groomer_id is null)
-   * Only returns confirmed/arrived bookings
+   * Only returns confirmed/arrived bookings.
+   * Filters by groomer's store placement and matches sessions by skill name
+   * (case-insensitive, name-based — IDs are not compared).
    */
   async getGroomerOpenJobs(
     groomerId: ObjectId,
@@ -1844,12 +1830,13 @@ export class BookingService {
   ) {
     const { page = 1, limit = 20 } = query;
 
-    // Look up groomer's placement (store)
+    // Look up groomer's placement (store) and skills
     const groomer = await this.userModel
       .findById(groomerId)
-      .select('profile.placement')
+      .select('profile.placement profile.groomer_skills')
       .lean();
     const groomerStoreId = groomer?.profile?.placement;
+    const groomerSkills: string[] = groomer?.profile?.groomer_skills || [];
 
     const filter: any = {
       isDeleted: false,
@@ -1860,17 +1847,30 @@ export class BookingService {
           BookingStatus.IN_PROGRESS,
         ],
       },
-      sessions: {
-        $elemMatch: {
-          groomer_id: null,
-        },
-      },
     };
 
-    // Filter by groomer's store if they have a placement
+    // Filter by groomer's store if they have a placement.
+    // store_id in some bookings may be stored as a string (not ObjectId),
+    // so we match against both the ObjectId and its string representation.
     if (groomerStoreId) {
-      filter.store_id = groomerStoreId;
+      filter.store_id = {
+        $in: [groomerStoreId, groomerStoreId.toString()],
+      };
     }
+
+    // Build session $elemMatch: unclaimed + matching groomer's skills (by name, case-insensitive)
+    const elemMatchFilter: any = { groomer_id: null };
+    if (groomerSkills.length > 0) {
+      const skillsRegex = groomerSkills.map(
+        (skill) =>
+          new RegExp(
+            `^${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
+            'i',
+          ),
+      );
+      elemMatchFilter.type = { $in: skillsRegex };
+    }
+    filter.sessions = { $elemMatch: elemMatchFilter };
 
     const skip = (page - 1) * limit;
 

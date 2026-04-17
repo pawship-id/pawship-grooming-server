@@ -3,11 +3,13 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { ObjectId } from 'mongodb';
 import { Booking, BookingDocument } from './entities/booking.entity';
+import { User, UserDocument } from 'src/user/entities/user.entity';
 import { BookingStatus, SessionStatus, MediaType } from './dto/booking.dto';
 import {
   generateGroomingSessionFolder,
@@ -22,6 +24,8 @@ export class SessionService {
   constructor(
     @InjectModel(Booking.name)
     private readonly bookingModel: Model<BookingDocument>,
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
   ) {}
 
   // ==================== SESSION MANAGEMENT ====================
@@ -162,6 +166,24 @@ export class SessionService {
 
     if (session.groomer_id) {
       throw new ConflictException('Session is already claimed by another groomer');
+    }
+
+    // Validate groomer's skills against session type (case-insensitive, name-based)
+    const groomer = await this.userModel
+      .findById(groomerId)
+      .select('profile.groomer_skills')
+      .lean();
+    const groomerSkills: string[] = groomer?.profile?.groomer_skills || [];
+    if (groomerSkills.length > 0) {
+      const sessionTypeLower = session.type.toLowerCase();
+      const hasSkill = groomerSkills.some(
+        (skill) => skill.toLowerCase() === sessionTypeLower,
+      );
+      if (!hasSkill) {
+        throw new ForbiddenException(
+          `You do not have the skill "${session.type}" required to claim this session`,
+        );
+      }
     }
 
     const basePath = `sessions.${sessionIndex}`;

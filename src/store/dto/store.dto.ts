@@ -131,12 +131,10 @@ export class PickupDeliveryZoneDto {
   @Min(0, { message: 'travel_time_minutes must be at least 0' })
   travel_time_minutes: number;
 
-  @IsNotEmpty({ message: 'prices is required' })
-  @IsArray({ message: 'prices must be an array' })
-  @ArrayMinSize(1, { message: 'prices must contain at least 1 item' })
-  @ValidateNested({ each: true })
-  @Type(() => ZonePriceItemDto)
-  prices: ZonePriceItemDto[];
+  @IsNotEmpty({ message: 'price is required' })
+  @IsNumber({}, { message: 'price must be a number' })
+  @Min(0, { message: 'price must be at least 0' })
+  price: number;
 }
 
 /** @deprecated Use HomeServiceZoneDto instead */
