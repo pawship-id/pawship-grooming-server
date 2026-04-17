@@ -32,6 +32,7 @@ import {
   Promotion,
   PromotionSchema,
 } from 'src/promotion/entities/promotion.entity';
+import { PromotionUsageModule } from 'src/promotion-usage/promotion-usage.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import {
     PetMembershipModule,
     BenefitUsageModule,
     PromotionModule,
+    PromotionUsageModule,
   ],
   controllers: [BookingController, SessionController],
   providers: [BookingService, SessionService, GuestService, UserService],

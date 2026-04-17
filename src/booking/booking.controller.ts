@@ -239,6 +239,10 @@ export class BookingController {
       delivery: dto.delivery,
       has_active_membership: dto.has_active_membership,
       addon_prices: dto.addon_prices,
+      customer_id: dto.customer_id,
+      pet_id: dto.pet_id,
+      booking_date: dto.booking_date,
+      exclude_booking_id: dto.exclude_booking_id,
     });
     return {
       message: 'Promotion preview calculated successfully',

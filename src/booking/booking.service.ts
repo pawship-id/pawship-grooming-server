@@ -34,6 +34,11 @@ import {
   Promotion,
   PromotionDocument,
 } from 'src/promotion/entities/promotion.entity';
+import {
+  PromotionLimitType,
+  PromotionUsagePeriod,
+} from 'src/promotion/dto/create-promotion.dto';
+import { PromotionUsageService } from 'src/promotion-usage/promotion-usage.service';
 import { ListBookingsDto } from './dto/list-bookings.dto';
 import {
   ListGroomerMyJobsDto,
@@ -66,6 +71,7 @@ export class BookingService {
     private readonly serviceService: ServiceService,
     private readonly petMembershipService: PetMembershipService,
     private readonly benefitUsageService: BenefitUsageService,
+    private readonly promotionUsageService: PromotionUsageService,
   ) {}
 
   /**
@@ -403,6 +409,10 @@ export class BookingService {
         addonPrices,
         travelFee,
         grandTotal,
+        customerId: dto.customer_id,
+        petId: dto.pet_id,
+        bookingDate: dto.date ? new Date(dto.date) : new Date(),
+        excludeBookingId: dto.exclude_booking_id,
       });
 
       // 7. Build response
@@ -888,6 +898,10 @@ export class BookingService {
     addonPrices: { _id: string; name: string; price: number }[];
     travelFee: number;
     grandTotal: number;
+    customerId?: string;
+    petId?: string;
+    bookingDate?: Date;
+    excludeBookingId?: string;
   }) {
     const now = new Date();
 
@@ -907,85 +921,135 @@ export class BookingService {
     const hasAddons = addonIdSet.size > 0;
     const addonsTotal = opts.addonPrices.reduce((s, a) => s + a.price, 0);
 
-    return promotions
-      .filter((promo: any) => {
-        // Filter by membership availability
-        if (opts.hasActiveMembership && !promo.is_available_to_membership) {
-          return false;
-        }
-
-        const promoServiceId =
-          promo.service_id?._id?.toString() ??
-          promo.service_id?.toString() ??
-          null;
-
-        if (promo.applies_to === 'service') {
-          return !promoServiceId || promoServiceId === opts.serviceId;
-        }
-        if (promo.applies_to === 'addon') {
-          return (
-            hasAddons && (!promoServiceId || addonIdSet.has(promoServiceId))
-          );
-        }
-        if (promo.applies_to === 'pickup') {
-          return (
-            opts.travelFee > 0 || opts.pickUp === true || opts.delivery === true
-          );
-        }
-        if (promo.applies_to === 'booking') {
-          return true;
-        }
+    const filteredPromotions = promotions.filter((promo: any) => {
+      // Filter by membership availability
+      if (opts.hasActiveMembership && !promo.is_available_to_membership) {
         return false;
-      })
-      .map((promo: any) => {
-        let discountBase = 0;
-        const promoServiceId =
-          promo.service_id?._id?.toString() ??
-          promo.service_id?.toString() ??
-          null;
+      }
 
-        if (promo.applies_to === 'service') {
-          discountBase = opts.originalServicePrice;
-        } else if (promo.applies_to === 'addon') {
-          if (promoServiceId) {
-            const matchingAddon = opts.addonPrices.find(
-              (a) => a._id.toString() === promoServiceId,
-            );
-            discountBase = matchingAddon?.price ?? 0;
-          } else {
-            discountBase = addonsTotal;
-          }
-        } else if (promo.applies_to === 'pickup') {
-          discountBase = opts.travelFee;
-        } else if (promo.applies_to === 'booking') {
-          discountBase = opts.grandTotal;
+      const promoServiceId =
+        promo.service_id?._id?.toString() ??
+        promo.service_id?.toString() ??
+        null;
+
+      if (promo.applies_to === 'service') {
+        return !promoServiceId || promoServiceId === opts.serviceId;
+      }
+      if (promo.applies_to === 'addon') {
+        return hasAddons && (!promoServiceId || addonIdSet.has(promoServiceId));
+      }
+      if (promo.applies_to === 'pickup') {
+        return (
+          opts.travelFee > 0 || opts.pickUp === true || opts.delivery === true
+        );
+      }
+      if (promo.applies_to === 'booking') {
+        return true;
+      }
+      return false;
+    });
+
+    const mappedPromotions = filteredPromotions.map(async (promo: any) => {
+      let discountBase = 0;
+      const promoServiceId =
+        promo.service_id?._id?.toString() ??
+        promo.service_id?.toString() ??
+        null;
+
+      if (promo.applies_to === 'service') {
+        discountBase = opts.originalServicePrice;
+      } else if (promo.applies_to === 'addon') {
+        if (promoServiceId) {
+          const matchingAddon = opts.addonPrices.find(
+            (a) => a._id.toString() === promoServiceId,
+          );
+          discountBase = matchingAddon?.price ?? 0;
+        } else {
+          discountBase = addonsTotal;
         }
+      } else if (promo.applies_to === 'pickup') {
+        discountBase = opts.travelFee;
+      } else if (promo.applies_to === 'booking') {
+        discountBase = opts.grandTotal;
+      }
 
-        const amountDiscount =
-          promo.discount_type === 'percent'
-            ? (promo.value / 100) * discountBase
-            : Math.min(promo.value, discountBase);
+      const amountDiscount =
+        promo.discount_type === 'percent'
+          ? (promo.value / 100) * discountBase
+          : Math.min(promo.value, discountBase);
 
-        const serviceName =
-          typeof promo.service_id === 'object' && promo.service_id?.name
-            ? promo.service_id.name
-            : null;
+      const serviceName =
+        typeof promo.service_id === 'object' && promo.service_id?.name
+          ? promo.service_id.name
+          : null;
 
-        return {
-          _id: promo._id.toString(),
-          code: promo.code,
-          name: promo.name,
-          description: promo.description || null,
-          applies_to: promo.applies_to,
-          service_id: promoServiceId,
-          service_name: serviceName,
-          discount_type: promo.discount_type,
-          value: promo.value,
-          is_stackable: promo.is_stackable,
-          is_available_to_membership: promo.is_available_to_membership,
-          amount_discount: amountDiscount,
-        };
-      });
+      const limitType = promo.limit_type ?? PromotionLimitType.NONE;
+      const maxUsage = promo.max_usage ?? null;
+      const usagePeriod = promo.usage_period ?? PromotionUsagePeriod.LIFETIME;
+
+      // Check if promotion can be used (limit enforcement)
+      let canUse = true;
+      let usageCount = 0;
+      let limitMessage: string | null = null;
+
+      if (
+        limitType !== PromotionLimitType.NONE &&
+        maxUsage !== null &&
+        maxUsage > 0
+      ) {
+        try {
+          await this.promotionUsageService.assertCanUse({
+            promotionId: promo._id.toString(),
+            maxUsage,
+            limitType,
+            usagePeriod,
+            bookingDate: opts.bookingDate ?? new Date(),
+            userId: opts.customerId,
+            petId: opts.petId,
+            excludeBookingId: opts.excludeBookingId,
+          });
+          // If assertCanUse doesn't throw, promotion can be used
+          canUse = true;
+
+          // Get current usage count for display
+          const count = await this.promotionUsageService.countUsage({
+            promotionId: promo._id.toString(),
+            limitType,
+            usagePeriod,
+            bookingDate: opts.bookingDate ?? new Date(),
+            userId: opts.customerId,
+            petId: opts.petId,
+          });
+          usageCount = count;
+        } catch (err) {
+          canUse = false;
+          limitMessage = err instanceof Error ? err.message : 'Limit tercapai';
+        }
+      }
+
+      return {
+        _id: promo._id.toString(),
+        code: promo.code,
+        name: promo.name,
+        description: promo.description || null,
+        applies_to: promo.applies_to,
+        service_id: promoServiceId,
+        service_name: serviceName,
+        discount_type: promo.discount_type,
+        value: promo.value,
+        is_stackable: promo.is_stackable,
+        is_available_to_membership: promo.is_available_to_membership,
+        amount_discount: amountDiscount,
+        limit_type: limitType,
+        max_usage: maxUsage,
+        usage_period: usagePeriod,
+        can_use: canUse,
+        usage_count: usageCount,
+        limit_message: limitMessage,
+      };
+    });
+
+    return Promise.all(mappedPromotions);
   }
 
   /**
@@ -1004,6 +1068,10 @@ export class BookingService {
       addonPrices: { _id: string; name: string; price: number }[];
       travelFee: number;
       grandTotal: number;
+      customerId?: string;
+      petId?: string;
+      bookingDate?: Date;
+      excludeBookingId?: string;
     },
   ): Promise<{
     applied_promotions: any[];
@@ -1032,6 +1100,15 @@ export class BookingService {
     if (promotions.length === 0) {
       return emptyResult;
     }
+
+    this.logger.log(
+      `[applyPromotionsToBooking] Fetched ${promotions.length} promotions from DB`,
+    );
+    promotions.forEach((p: any) => {
+      this.logger.log(
+        `[applyPromotionsToBooking] Promo ${p.code}: limit_type=${p.limit_type}, max_usage=${p.max_usage}, usage_period=${p.usage_period}`,
+      );
+    });
 
     // Validate stacking: if any promo is non-stackable, only 1 is allowed
     if (promotions.length > 1) {
@@ -1098,6 +1175,31 @@ export class BookingService {
           ? (promo.value / 100) * discountBase
           : Math.min(promo.value, discountBase);
 
+      const limitType = (promo as any).limit_type ?? PromotionLimitType.NONE;
+      const maxUsage =
+        typeof (promo as any).max_usage === 'number'
+          ? (promo as any).max_usage
+          : null;
+      const usagePeriod =
+        (promo as any).usage_period ?? PromotionUsagePeriod.LIFETIME;
+
+      this.logger.log(
+        `[applyPromotionsToBooking] Processing promo ${promo.code}: limitType=${limitType}, maxUsage=${maxUsage}, usagePeriod=${usagePeriod}, willValidate=${limitType !== PromotionLimitType.NONE && maxUsage && maxUsage > 0}`,
+      );
+
+      if (limitType !== PromotionLimitType.NONE && maxUsage && maxUsage > 0) {
+        await this.promotionUsageService.assertCanUse({
+          promotionId: promo._id.toString(),
+          maxUsage,
+          limitType,
+          usagePeriod,
+          bookingDate: opts.bookingDate ?? new Date(),
+          userId: opts.customerId,
+          petId: opts.petId,
+          excludeBookingId: opts.excludeBookingId,
+        });
+      }
+
       totalDiscount += amountDeducted;
 
       const entry = {
@@ -1111,6 +1213,9 @@ export class BookingService {
         amount_deducted: amountDeducted,
         service_id: promoServiceId ? new Types.ObjectId(promoServiceId) : null,
         applied_at: new Date(),
+        limit_type: limitType,
+        max_usage: maxUsage,
+        usage_period: usagePeriod,
       };
 
       appliedPromotions.push({
@@ -1122,6 +1227,9 @@ export class BookingService {
         value: promo.value,
         amount_deducted: amountDeducted,
         applied_at: new Date(),
+        limit_type: limitType,
+        max_usage: maxUsage,
+        usage_period: usagePeriod,
       });
 
       breakdown.push(entry);
@@ -1575,6 +1683,10 @@ export class BookingService {
           price: a.price ?? 0,
         }));
 
+        this.logger.log(
+          `[applyPromotions] Applying promotions for customer=${body.customer_id}, pet=${body.pet_id}, date=${body.date}`,
+        );
+
         appliedPromotionsData = await this.applyPromotionsToBooking(
           body.selected_promotion_ids,
           {
@@ -1588,8 +1700,20 @@ export class BookingService {
             addonPrices: promoAddonPrices,
             travelFee: travelFee,
             grandTotal: originalTotalPrice,
+            customerId: body.customer_id,
+            petId: body.pet_id,
+            bookingDate: body.date ? new Date(body.date) : new Date(),
           },
         );
+
+        this.logger.log(
+          `[applyPromotions] Result: ${appliedPromotionsData.applied_promotions?.length || 0} promotions applied`,
+        );
+        if (appliedPromotionsData.applied_promotions?.length > 0) {
+          this.logger.log(
+            `[applyPromotions] First promo details: ${JSON.stringify(appliedPromotionsData.applied_promotions[0])}`,
+          );
+        }
       }
 
       // Combine discounts: benefit + promotion
@@ -1754,6 +1878,69 @@ export class BookingService {
         }
       }
 
+      if (appliedPromotionsData.applied_promotions?.length > 0) {
+        const bookingDate = body.date ? new Date(body.date) : new Date();
+        const bookingId = (booking[0] as any)._id.toString();
+
+        this.logger.log(
+          `[recordPromotionUsage] Processing ${appliedPromotionsData.applied_promotions.length} promotions for booking ${bookingId}`,
+        );
+
+        for (const applied of appliedPromotionsData.applied_promotions) {
+          const limitType = applied.limit_type ?? PromotionLimitType.NONE;
+          const maxUsage = applied.max_usage;
+          const usagePeriod =
+            applied.usage_period ?? PromotionUsagePeriod.LIFETIME;
+
+          this.logger.log(
+            `[recordPromotionUsage] Promo ${applied.code}: limitType=${limitType}, maxUsage=${maxUsage}, usagePeriod=${usagePeriod}, promotionId=${applied.promotion_id}`,
+          );
+
+          if (
+            limitType !== PromotionLimitType.NONE &&
+            typeof maxUsage === 'number' &&
+            maxUsage > 0
+          ) {
+            try {
+              this.logger.log(
+                `[recordPromotionUsage] Recording usage with params: promotionId=${applied.promotion_id}, bookingId=${bookingId}, customerId=${body.customer_id}, petId=${body.pet_id}, limitType=${limitType}, usagePeriod=${usagePeriod}`,
+              );
+
+              const usageRecord = await this.promotionUsageService.recordUsage({
+                promotionId: applied.promotion_id?.toString() || '',
+                bookingId,
+                bookingDate,
+                limitType,
+                usagePeriod,
+                userId: body.customer_id?.toString(),
+                petId: body.pet_id?.toString(),
+              });
+
+              this.logger.log(
+                `[recordPromotionUsage] ✓ Successfully recorded usage for promo ${applied.code}, usage record ID: ${(usageRecord as any)._id}`,
+              );
+            } catch (err) {
+              // Non-fatal: usage recording failure should not roll back a committed booking
+              this.logger.error(
+                `[recordPromotionUsage] ✗ Failed to record usage for promo ${applied.code}`,
+              );
+              this.logger.error(
+                `[recordPromotionUsage] Error details: ${err instanceof Error ? err.message : String(err)}`,
+              );
+              if (err instanceof Error && err.stack) {
+                this.logger.error(
+                  `[recordPromotionUsage] Stack trace: ${err.stack}`,
+                );
+              }
+            }
+          } else {
+            this.logger.log(
+              `[recordPromotionUsage] Skipping promo ${applied.code} - no limit configured (limitType=${limitType}, maxUsage=${maxUsage})`,
+            );
+          }
+        }
+      }
+
       return booking[0];
     } catch (error) {
       await session.abortTransaction();
@@ -1863,10 +2050,7 @@ export class BookingService {
     if (groomerSkills.length > 0) {
       const skillsRegex = groomerSkills.map(
         (skill) =>
-          new RegExp(
-            `^${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
-            'i',
-          ),
+          new RegExp(`^${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
       );
       elemMatchFilter.type = { $in: skillsRegex };
     }
@@ -2340,6 +2524,17 @@ export class BookingService {
         }
       }
 
+      if (
+        status === BookingStatus.CANCELLED &&
+        updatedBooking?.applied_promotions?.length
+      ) {
+        try {
+          await this.promotionUsageService.softDeleteByBookingId(id.toString());
+        } catch {
+          // Non-fatal: restoration failure should not block status update
+        }
+      }
+
       return updatedBooking;
     } catch (error) {
       throw error;
@@ -2419,6 +2614,10 @@ export class BookingService {
     delivery?: boolean;
     has_active_membership?: boolean;
     addon_prices?: { _id: string; name: string; price: number }[];
+    customer_id?: string;
+    pet_id?: string;
+    booking_date?: string;
+    exclude_booking_id?: string;
   }) {
     if (
       !dto.selected_promotion_ids ||
@@ -2437,6 +2636,10 @@ export class BookingService {
       addonPrices: dto.addon_prices ?? [],
       travelFee: dto.travel_fee ?? 0,
       grandTotal: dto.grand_total ?? 0,
+      customerId: dto.customer_id,
+      petId: dto.pet_id,
+      bookingDate: dto.booking_date ? new Date(dto.booking_date) : new Date(),
+      excludeBookingId: dto.exclude_booking_id,
     });
   }
 

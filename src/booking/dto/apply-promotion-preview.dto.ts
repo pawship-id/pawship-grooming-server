@@ -55,4 +55,19 @@ export class ApplyPromotionPreviewDto {
 
   @IsOptional()
   addon_prices?: { _id: string; name: string; price: number }[];
+
+  @IsOptional()
+  @IsMongoId({ message: 'customer_id must be a valid MongoId' })
+  customer_id?: string;
+
+  @IsOptional()
+  @IsMongoId({ message: 'pet_id must be a valid MongoId' })
+  pet_id?: string;
+
+  @IsOptional()
+  booking_date?: string;
+
+  @IsOptional()
+  @IsMongoId({ message: 'exclude_booking_id must be a valid MongoId' })
+  exclude_booking_id?: string;
 }
