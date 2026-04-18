@@ -95,11 +95,19 @@ export class PetMembershipService {
       };
     });
 
+    // Use override price if provided, otherwise use plan price
+    const purchasePrice =
+      createPetMembershipDto.purchase_price != null
+        ? createPetMembershipDto.purchase_price
+        : membership.price;
+
     const petMembership = new this.petMembershipModel({
       pet_id: new Types.ObjectId(pet_id),
       membership_plan_id: new Types.ObjectId(membership_plan_id),
       start_date: startDate,
       end_date: endDate,
+      purchase_price: purchasePrice,
+      purchase_note: createPetMembershipDto.purchase_note || undefined,
       benefits_snapshot: benefitsSnapshot,
     });
 
@@ -112,7 +120,9 @@ export class PetMembershipService {
       event_type: MembershipEventType.PURCHASED,
       start_date: startDate,
       end_date: endDate,
+      purchase_price: purchasePrice,
       benefits_snapshot_before: benefitsSnapshot,
+      note: createPetMembershipDto.purchase_note || undefined,
     });
 
     return saved;
@@ -763,6 +773,81 @@ export class PetMembershipService {
     };
   }
 
+  /**
+   * Update benefits_snapshot for all active & pending pet memberships of a given plan.
+   * Preserves usage tracking (used, period_reset_date) for benefits with matching _id.
+   */
+  async updateBenefitsFromPlan(
+    membershipPlanId: string,
+    newBenefits: any[],
+  ): Promise<number> {
+    const now = new Date();
+
+    // Find all active + pending pet memberships for this plan
+    const petMemberships = await this.petMembershipModel.find({
+      membership_plan_id: new Types.ObjectId(membershipPlanId),
+      is_active: true,
+      end_date: { $gte: now }, // active or pending (not expired)
+      isDeleted: false,
+    });
+
+    let updatedCount = 0;
+
+    for (const pm of petMemberships) {
+      const oldSnapshot = pm.benefits_snapshot || [];
+
+      // Build a map of old benefits by _id for preserving usage
+      const oldBenefitMap = new Map<string, any>();
+      for (const ob of oldSnapshot) {
+        oldBenefitMap.set(ob._id?.toString(), ob);
+      }
+
+      // Create new benefits snapshot, preserving usage for matching benefit IDs
+      const newSnapshot = newBenefits.map((b: any) => {
+        const existingBenefit = b._id
+          ? oldBenefitMap.get(b._id.toString())
+          : null;
+
+        return {
+          _id: b._id || new Types.ObjectId(),
+          applies_to: b.applies_to,
+          service_id: b.service_id || undefined,
+          label: b.label || undefined,
+          type: b.type,
+          period: b.period || 'unlimited',
+          limit: b.limit,
+          value: b.value,
+          used: existingBenefit ? existingBenefit.used : 0,
+          period_reset_date: existingBenefit
+            ? existingBenefit.period_reset_date
+            : this.calculateNextPeriodResetDate(
+                pm.start_date,
+                b.period || 'unlimited',
+              ),
+        };
+      });
+
+      // Log the update
+      await this.createLog({
+        pet_id: pm.pet_id,
+        pet_membership_id: (pm as any)._id,
+        membership_plan_id: pm.membership_plan_id,
+        event_type: MembershipEventType.UPDATED,
+        start_date: pm.start_date,
+        end_date: pm.end_date,
+        benefits_snapshot_before: oldSnapshot as any[],
+        note: 'Benefit diperbarui secara retroaktif dari perubahan paket membership',
+      });
+
+      // Update the benefits snapshot
+      pm.benefits_snapshot = newSnapshot as any;
+      await pm.save();
+      updatedCount++;
+    }
+
+    return updatedCount;
+  }
+
   private async createLog(data: {
     pet_id: Types.ObjectId;
     pet_membership_id: Types.ObjectId;
@@ -771,6 +856,7 @@ export class PetMembershipService {
     start_date: Date;
     end_date: Date;
     benefits_snapshot_before?: any[];
+    purchase_price?: number;
     note?: string;
   }): Promise<void> {
     await this.membershipLogModel.create({

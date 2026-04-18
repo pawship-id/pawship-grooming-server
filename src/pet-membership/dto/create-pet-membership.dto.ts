@@ -4,6 +4,8 @@ import {
   IsOptional,
   IsMongoId,
   IsDateString,
+  IsNumber,
+  Min,
 } from 'class-validator';
 
 export class CreatePetMembershipDto {
@@ -18,4 +20,13 @@ export class CreatePetMembershipDto {
   @IsOptional()
   @IsDateString()
   start_date?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  purchase_price?: number;
+
+  @IsOptional()
+  purchase_note?: string;
 }

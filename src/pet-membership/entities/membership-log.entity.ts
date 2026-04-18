@@ -57,6 +57,9 @@ export class MembershipLog {
   @Prop({ required: true })
   end_date: Date;
 
+  @Prop()
+  purchase_price?: number;
+
   @Prop({
     type: [
       {
