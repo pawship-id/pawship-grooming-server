@@ -2087,6 +2087,7 @@ export class BookingService {
       date_to,
       created_by_role,
       customer_id,
+      store_id,
     } = query;
 
     const filter: any = { isDeleted: false };
@@ -2107,6 +2108,10 @@ export class BookingService {
 
     if (customer_id) {
       filter.customer_id = customer_id;
+    }
+
+    if (store_id) {
+      filter.store_id = store_id;
     }
 
     const skip = (page - 1) * limit;

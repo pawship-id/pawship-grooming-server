@@ -33,4 +33,8 @@ export class ListBookingsDto {
   @IsOptional()
   @IsString()
   customer_id?: string;
+
+  @IsOptional()
+  @IsString()
+  store_id?: string;
 }
