@@ -2475,6 +2475,18 @@ export class BookingService {
     return booking;
   }
 
+  async updateNote(id: ObjectId, note?: string) {
+    const booking = await this.bookingModel.findByIdAndUpdate(
+      id,
+      {
+        $set: { note: note || '' },
+      },
+      { new: true },
+    );
+
+    return booking;
+  }
+
   async updateStatus(
     id: ObjectId,
     status: BookingStatus,
@@ -2707,14 +2719,13 @@ export class BookingService {
       if (serviceId) {
         // Re-snapshot addons from the service
         const pet = existing.pet_snapshot;
-        const newSnapshot =
-          (await this.serviceService.getServiceSnapshot(
-            new ObjectId(serviceId),
-            pet?.pet_type?._id ? new ObjectId(pet.pet_type._id) : undefined,
-            pet?.size?._id ? new ObjectId(pet.size._id) : undefined,
-            pet?.hair?._id ? new ObjectId(pet.hair._id) : undefined,
-            dto.service_addon_ids.map((aid) => new ObjectId(aid)),
-          )) as any;
+        const newSnapshot = (await this.serviceService.getServiceSnapshot(
+          new ObjectId(serviceId),
+          pet?.pet_type?._id ? new ObjectId(pet.pet_type._id) : undefined,
+          pet?.size?._id ? new ObjectId(pet.size._id) : undefined,
+          pet?.hair?._id ? new ObjectId(pet.hair._id) : undefined,
+          dto.service_addon_ids.map((aid) => new ObjectId(aid)),
+        )) as any;
 
         // Update service_addon_ids and service_snapshot with new addons
         existing.service_addon_ids = dto.service_addon_ids.map(

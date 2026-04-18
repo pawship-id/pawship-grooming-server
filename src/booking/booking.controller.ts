@@ -19,6 +19,7 @@ import { UpdateBookingDto } from './dto/update-booking.dto';
 import { BookingPreviewRequestDto } from './dto/booking-preview.dto';
 import { ObjectId } from 'mongodb';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
+import { UpdateBookingNoteDto } from './dto/update-booking-note.dto';
 import { AuthGuard } from 'src/auth/auth.guard';
 import { Public } from 'src/auth/public.decorator';
 import { GuestService } from './guest.service';
@@ -407,6 +408,26 @@ export class BookingController {
 
     return {
       message: 'Booking pricing updated successfully',
+    };
+  }
+
+  // update booking note
+  @Patch(':id/note')
+  async updateNote(
+    @Param('id') id: string,
+    @Body() body: UpdateBookingNoteDto,
+  ) {
+    if (!id) throw new BadRequestException('id is required');
+
+    const _id = new ObjectId(id);
+    const booking = await this.bookingService.findOne(_id);
+    if (!booking || booking.isDeleted)
+      throw new NotFoundException('Booking not found');
+
+    await this.bookingService.updateNote(_id, body.note);
+
+    return {
+      message: 'Booking note updated successfully',
     };
   }
 
