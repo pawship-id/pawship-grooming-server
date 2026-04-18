@@ -2157,6 +2157,13 @@ export class BookingService {
         throw new NotFoundException('Booking not found');
       }
 
+      // Guard: booking dengan status returned tidak bisa diubah
+      if (existingBooking.booking_status === BookingStatus.RETURNED) {
+        throw new BadRequestException(
+          "Booking dengan status 'returned' tidak dapat diubah lagi.",
+        );
+      }
+
       // simpan dan status_logs yang lama
       const { status_logs } = existingBooking;
 
@@ -2471,7 +2478,18 @@ export class BookingService {
     user?: { username: string; role: string },
   ) {
     try {
-      // status yang diupdate dari API ini hanya untuk CONFIRMED, RESCHEDULED, CANCELLED, GROOMER ON THE WAY, DRIVER ON THE WAY
+      // Guard: booking dengan status returned tidak bisa diubah
+      const existingBooking = await this.bookingModel.findById(id);
+      if (!existingBooking || existingBooking.isDeleted) {
+        throw new NotFoundException('Booking not found');
+      }
+      if (existingBooking.booking_status === BookingStatus.RETURNED) {
+        throw new BadRequestException(
+          "Booking dengan status 'returned' tidak dapat diubah lagi.",
+        );
+      }
+
+      // status yang diupdate dari API ini hanya untuk CONFIRMED, RESCHEDULED, CANCELLED, GROOMER ON THE WAY, DRIVER ON THE WAY, RETURNED
 
       // validasi: jika status RESCHEDULED, date dan time_range harus ada
       if (status === BookingStatus.RESCHEDULED) {
@@ -2661,6 +2679,9 @@ export class BookingService {
       addon_prices?: { addon_id: string; price?: number; discount?: number }[];
       selected_benefit_ids?: string[];
       selected_promotion_ids?: string[];
+      service_addon_ids?: string[];
+      pick_up?: boolean;
+      delivery?: boolean;
     },
   ) {
     const existing = await this.bookingModel.findById(id);
@@ -2668,7 +2689,54 @@ export class BookingService {
       throw new NotFoundException('Booking not found');
     }
 
+    // Guard: booking dengan status returned tidak bisa diubah
+    if (existing.booking_status === BookingStatus.RETURNED) {
+      throw new BadRequestException(
+        "Booking dengan status 'returned' tidak dapat diubah lagi.",
+      );
+    }
+
+    // ── 0. Handle addon changes (add/remove) ─────────────────────────────────
+    if (dto.service_addon_ids !== undefined) {
+      const serviceId = existing.service_id?.toString();
+      if (serviceId) {
+        // Re-snapshot addons from the service
+        const pet = existing.pet_snapshot;
+        const newSnapshot =
+          (await this.serviceService.getServiceSnapshot(
+            new ObjectId(serviceId),
+            pet?.pet_type?._id ? new ObjectId(pet.pet_type._id) : undefined,
+            pet?.size?._id ? new ObjectId(pet.size._id) : undefined,
+            pet?.hair?._id ? new ObjectId(pet.hair._id) : undefined,
+            dto.service_addon_ids.map((aid) => new ObjectId(aid)),
+          )) as any;
+
+        // Update service_addon_ids and service_snapshot with new addons
+        existing.service_addon_ids = dto.service_addon_ids.map(
+          (aid) => new Types.ObjectId(aid),
+        ) as any;
+        existing.service_snapshot = newSnapshot;
+
+        await this.bookingModel.findByIdAndUpdate(id, {
+          $set: {
+            service_addon_ids: dto.service_addon_ids.map(
+              (aid) => new Types.ObjectId(aid),
+            ),
+            service_snapshot: newSnapshot,
+          },
+        });
+      }
+    }
+
     // ── 1. Per-item base prices and item-level discounts ──────────────────────
+    // Handle pick_up / delivery changes
+    if (dto.pick_up !== undefined) {
+      existing.pick_up = dto.pick_up;
+    }
+    if (dto.delivery !== undefined) {
+      existing.delivery = dto.delivery;
+    }
+
     const svcBase = dto.service_price ?? existing.service_snapshot.price ?? 0;
     const svcDisc = dto.service_discount ?? 0;
     const svcEffective = Math.max(0, svcBase - svcDisc);
@@ -2880,6 +2948,8 @@ export class BookingService {
       id,
       {
         $set: {
+          pick_up: existing.pick_up,
+          delivery: existing.delivery,
           pickup_fee: pickupFeeBase,
           delivery_fee: deliveryFeeBase,
           travel_fee: tFeeBase, // backward compatibility

@@ -28,14 +28,30 @@ export class SessionService {
     private readonly userModel: Model<UserDocument>,
   ) {}
 
-  // ==================== SESSION MANAGEMENT ====================
+  // ==================== HELPERS ====================
 
-  // Create a new session for a booking
-  async createSession(bookingId: ObjectId, dto: CreateSessionDto) {
+  private async findBookingOrFail(bookingId: ObjectId) {
     const booking = await this.bookingModel.findById(bookingId);
     if (!booking || booking.isDeleted) {
       throw new NotFoundException('Booking not found');
     }
+    return booking;
+  }
+
+  private assertNotReturned(booking: BookingDocument) {
+    if (booking.booking_status === BookingStatus.RETURNED) {
+      throw new BadRequestException(
+        "Booking dengan status 'returned' tidak dapat diubah lagi.",
+      );
+    }
+  }
+
+  // ==================== SESSION MANAGEMENT ====================
+
+  // Create a new session for a booking
+  async createSession(bookingId: ObjectId, dto: CreateSessionDto) {
+    const booking = await this.findBookingOrFail(bookingId);
+    this.assertNotReturned(booking);
 
     const order = dto.order ?? booking.sessions.length;
 
@@ -69,10 +85,8 @@ export class SessionService {
     dto: UpdateSessionDto,
   ) {
     try {
-      const booking = await this.bookingModel.findById(bookingId);
-      if (!booking || booking.isDeleted) {
-        throw new NotFoundException('Booking not found');
-      }
+      const booking = await this.findBookingOrFail(bookingId);
+      this.assertNotReturned(booking);
 
       const sessionIndex = booking.sessions.findIndex(
         (s: any) => s._id.toString() === sessionId.toString(),
@@ -114,10 +128,8 @@ export class SessionService {
   // Delete a session by ID
   async deleteSession(bookingId: ObjectId, sessionId: ObjectId) {
     try {
-      const booking = await this.bookingModel.findById(bookingId);
-      if (!booking || booking.isDeleted) {
-        throw new NotFoundException('Booking not found');
-      }
+      const booking = await this.findBookingOrFail(bookingId);
+      this.assertNotReturned(booking);
 
       // Find the session to get the groomer_id and type
       const session = booking.sessions.find(
@@ -149,10 +161,8 @@ export class SessionService {
 
   // Allow a groomer to claim an unassigned session
   async claimSession(bookingId: ObjectId, sessionId: ObjectId, groomerId: ObjectId) {
-    const booking = await this.bookingModel.findById(bookingId);
-    if (!booking || booking.isDeleted) {
-      throw new NotFoundException('Booking not found');
-    }
+    const booking = await this.findBookingOrFail(bookingId);
+    this.assertNotReturned(booking);
 
     const sessionIndex = booking.sessions.findIndex(
       (s: any) => s._id.toString() === sessionId.toString(),
@@ -236,10 +246,8 @@ export class SessionService {
     user?: { username: string; role: string },
   ) {
     try {
-      const booking = await this.bookingModel.findById(bookingId);
-      if (!booking || booking.isDeleted) {
-        throw new NotFoundException('Booking not found');
-      }
+      const booking = await this.findBookingOrFail(bookingId);
+      this.assertNotReturned(booking);
 
       const sessionIndex = booking.sessions.findIndex(
         (s: any) => s._id.toString() === sessionId.toString(),
@@ -303,10 +311,8 @@ export class SessionService {
     user?: { username: string; role: string },
   ) {
     try {
-      const booking = await this.bookingModel.findById(bookingId);
-      if (!booking || booking.isDeleted) {
-        throw new NotFoundException('Booking not found');
-      }
+      const booking = await this.findBookingOrFail(bookingId);
+      this.assertNotReturned(booking);
 
       const sessionIndex = booking.sessions.findIndex(
         (s: any) => s._id.toString() === sessionId.toString(),
@@ -382,10 +388,8 @@ export class SessionService {
     user?: { _id: ObjectId; username: string; role: string },
   ) {
     try {
-      const booking = await this.bookingModel.findById(bookingId);
-      if (!booking || booking.isDeleted) {
-        throw new NotFoundException('Booking not found');
-      }
+      const booking = await this.findBookingOrFail(bookingId);
+      this.assertNotReturned(booking);
 
       const sessionIndex = booking.sessions.findIndex(
         (s: any) => s._id.toString() === sessionId.toString(),
@@ -438,10 +442,8 @@ export class SessionService {
     user?: { _id: ObjectId; username: string; role: string },
   ) {
     try {
-      const booking = await this.bookingModel.findById(bookingId);
-      if (!booking || booking.isDeleted) {
-        throw new NotFoundException('Booking not found');
-      }
+      const booking = await this.findBookingOrFail(bookingId);
+      this.assertNotReturned(booking);
 
       const base64Image = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
 
@@ -477,6 +479,9 @@ export class SessionService {
   // Delete a specific media item from a booking (matched by public_id)
   async deleteBookingMedia(bookingId: ObjectId, publicId: string) {
     try {
+      const booking = await this.findBookingOrFail(bookingId);
+      this.assertNotReturned(booking);
+
       const updatedBooking = await this.bookingModel.findByIdAndUpdate(
         bookingId,
         { $pull: { media: { public_id: publicId } } },

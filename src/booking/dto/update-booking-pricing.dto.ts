@@ -1,8 +1,10 @@
 import {
   IsArray,
+  IsBoolean,
   IsMongoId,
   IsNumber,
   IsOptional,
+  IsString,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -49,6 +51,19 @@ export class UpdateBookingPricingDto {
   @ValidateNested({ each: true })
   @Type(() => AddonPriceDto)
   addon_prices?: AddonPriceDto[];
+
+  @IsOptional()
+  @IsArray({ message: 'service_addon_ids must be an array' })
+  @IsString({ each: true, message: 'Each service_addon_id must be a string' })
+  service_addon_ids?: string[];
+
+  @IsOptional()
+  @IsBoolean({ message: 'pick_up must be a boolean' })
+  pick_up?: boolean;
+
+  @IsOptional()
+  @IsBoolean({ message: 'delivery must be a boolean' })
+  delivery?: boolean;
 
   @IsOptional()
   @IsArray({ message: 'selected_benefit_ids must be an array' })
