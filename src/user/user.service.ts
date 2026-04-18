@@ -122,13 +122,24 @@ export class UserService {
 
   async create(body: CreateUserDto) {
     try {
-      const hash = await hashPassword(body.password);
+      // Hash password only if provided
+      const hashedPassword = body.password
+        ? await hashPassword(body.password)
+        : undefined;
+
+      // Normalize email: convert empty string to undefined to work with sparse index
+      const normalizedEmail =
+        body.email && body.email.trim() !== '' ? body.email : undefined;
+
+      // Debug logging
+      console.log('🔍 Create user - body.email:', body.email);
+      console.log('🔍 Create user - normalizedEmail:', normalizedEmail);
 
       const user = new this.userModel({
         username: body.username,
-        email: body.email,
+        email: normalizedEmail,
         phone_number: body.phone_number,
-        password: hash,
+        password: hashedPassword,
         role: body.role,
         is_active: body.is_active,
         // Customer accounts created by admin default to idle (never logged in)
@@ -142,10 +153,12 @@ export class UserService {
 
       return await user.save();
     } catch (error) {
+      console.log('❌ Create user error:', error);
       if (error.code === 11000) {
         const duplicatedField = Object.keys(error.keyPattern)[0]; // ambil field yang duplicate
         throw new BadRequestException(`${duplicatedField} already exists`);
       }
+      throw error;
     }
   }
 
@@ -190,13 +203,12 @@ export class UserService {
       const user = await this.userModel
         .findById(userId)
         .select('profile.addresses');
-      const existingAddresses: any[] = (
-        user?.profile?.addresses || []
-      ).map((a: any) => (a.toObject ? a.toObject() : a));
+      const existingAddresses: any[] = (user?.profile?.addresses || []).map(
+        (a: any) => (a.toObject ? a.toObject() : a),
+      );
 
       // Determine caller created_by value: admin/ops roles → 'admin', customer → 'customer'
-      const callerCreatedBy =
-        callerRole === 'customer' ? 'customer' : 'admin';
+      const callerCreatedBy = callerRole === 'customer' ? 'customer' : 'admin';
 
       // Build a map of existing addresses by _id for quick lookup
       const existingMap = new Map<string, any>();
@@ -284,11 +296,14 @@ export class UserService {
   async update(id: ObjectId, body: UpdateUserDto) {
     try {
       // Exclude password from update
-      const { password, ...updateData } = body;
+      const { password, email, ...updateData } = body;
+
+      // Normalize email: convert empty string to undefined to work with sparse index
+      const normalizedEmail = email && email.trim() !== '' ? email : undefined;
 
       const user = await this.userModel.findByIdAndUpdate(
         id,
-        { $set: updateData },
+        { $set: { ...updateData, email: normalizedEmail } },
         { new: true },
       );
 

@@ -168,6 +168,23 @@ export class UserController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async createUser(@Body() body: CreateUserDto) {
+    console.log('🔵 Controller received body:', JSON.stringify(body, null, 2));
+    console.log('🔵 Email value:', body.email, '| Type:', typeof body.email);
+
+    // Validate: non-customer roles require email and password
+    if (body.role && body.role !== 'customer') {
+      if (!body.email || body.email.trim() === '') {
+        throw new BadRequestException(
+          'Email is required for non-customer roles',
+        );
+      }
+      if (!body.password || body.password.trim() === '') {
+        throw new BadRequestException(
+          'Password is required for non-customer roles',
+        );
+      }
+    }
+
     const user = await this.userService.create(body);
     return { message: 'Create user successfully', user };
   }

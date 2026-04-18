@@ -22,11 +22,19 @@ export class AuthService {
 
   async createUser(body: CreateUserDto) {
     try {
+      // Self-registration requires password
+      if (!body.password) {
+        throw new BadRequestException('password is required for registration');
+      }
       const hash = await hashPassword(body.password);
+
+      // Normalize email: convert empty string to undefined to work with sparse index
+      const normalizedEmail =
+        body.email && body.email.trim() !== '' ? body.email : undefined;
 
       const user = new this.userModel({
         username: body.username,
-        email: body.email,
+        email: normalizedEmail,
         phone_number: body.phone_number,
         password: hash,
         role: body.role,
@@ -60,6 +68,11 @@ export class AuthService {
 
     if (findUser.is_active === false) {
       throw new UnauthorizedException('user is inactive');
+    }
+
+    // Users without password (idle customers created by admin) cannot login
+    if (!findUser.password) {
+      throw new UnauthorizedException('invalid email or password');
     }
 
     const isMatch = await comparePassword(password, findUser.password);
@@ -145,7 +158,7 @@ export class AuthService {
 
   private async generateTokens(payload: {
     _id: string;
-    email: string;
+    email?: string;
     username: string;
     role: string;
   }) {
