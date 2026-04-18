@@ -125,6 +125,16 @@ export class AppliedPromotion {
 
   @Prop({ required: true })
   applied_at: Date;
+
+  // Usage limit tracking fields
+  @Prop({ type: String, default: 'none' })
+  limit_type?: string; // 'none' | 'per_user' | 'per_pet'
+
+  @Prop({ type: Number, default: null })
+  max_usage?: number | null;
+
+  @Prop({ type: String, default: 'lifetime' })
+  usage_period?: string; // 'lifetime' | 'daily' | 'weekly' | 'monthly'
 }
 
 @Schema({

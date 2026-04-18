@@ -93,6 +93,12 @@ export class PetMembership {
   })
   benefits_snapshot: PetMembershipBenefit[];
 
+  @Prop()
+  purchase_price: number;
+
+  @Prop()
+  purchase_note?: string;
+
   @Prop({ default: true })
   is_active: boolean;
 

@@ -25,6 +25,19 @@ export enum DiscountType {
   FIXED = 'fixed',
 }
 
+export enum PromotionLimitType {
+  NONE = 'none',
+  PER_USER = 'per_user',
+  PER_PET = 'per_pet',
+}
+
+export enum PromotionUsagePeriod {
+  LIFETIME = 'lifetime',
+  DAILY = 'daily',
+  WEEKLY = 'weekly',
+  MONTHLY = 'monthly',
+}
+
 // ─── Create DTO ──────────────────────────────────────────────────────────────
 
 export class CreatePromotionDto {
@@ -82,4 +95,30 @@ export class CreatePromotionDto {
   @IsOptional()
   @IsBoolean({ message: 'is_active must be a boolean' })
   is_active?: boolean;
+
+  @IsOptional()
+  @IsEnum(PromotionLimitType, {
+    message: 'limit_type must be none, per_user, or per_pet',
+  })
+  limit_type?: PromotionLimitType;
+
+  @ValidateIf(
+    (o: CreatePromotionDto) => o.limit_type !== PromotionLimitType.NONE,
+  )
+  @IsNotEmpty({ message: 'max_usage is required when limit_type is enabled' })
+  @IsNumber({}, { message: 'max_usage must be a number' })
+  @Min(1, { message: 'max_usage must be at least 1' })
+  @Type(() => Number)
+  max_usage?: number | null;
+
+  @ValidateIf(
+    (o: CreatePromotionDto) => o.limit_type !== PromotionLimitType.NONE,
+  )
+  @IsNotEmpty({
+    message: 'usage_period is required when limit_type is enabled',
+  })
+  @IsEnum(PromotionUsagePeriod, {
+    message: 'usage_period must be lifetime, daily, weekly, or monthly',
+  })
+  usage_period?: PromotionUsagePeriod;
 }

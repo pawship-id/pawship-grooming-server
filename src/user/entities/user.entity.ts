@@ -141,6 +141,10 @@ export class User {
   @Prop({ default: true })
   is_active: boolean;
 
+  /** true = user has never logged in (e.g. created by admin). null/undefined treated as true for backward compat. */
+  @Prop({ type: Boolean, default: null })
+  is_idle?: boolean;
+
   @Prop({ default: false })
   isDeleted: boolean;
 

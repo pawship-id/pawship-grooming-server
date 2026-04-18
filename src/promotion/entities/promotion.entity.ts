@@ -1,6 +1,11 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
-import { AppliesTo, DiscountType } from '../dto/create-promotion.dto';
+import {
+  AppliesTo,
+  DiscountType,
+  PromotionLimitType,
+  PromotionUsagePeriod,
+} from '../dto/create-promotion.dto';
 
 export type PromotionDocument = HydratedDocument<Promotion>;
 
@@ -18,7 +23,11 @@ export type PromotionDocument = HydratedDocument<Promotion>;
 
       // Promote populated service_id → service
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      if (ret.service_id && typeof ret.service_id === 'object' && ret.service_id._id) {
+      if (
+        ret.service_id &&
+        typeof ret.service_id === 'object' &&
+        ret.service_id._id
+      ) {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         ret.service = ret.service_id;
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
@@ -68,6 +77,15 @@ export class Promotion {
   @Prop({ default: true })
   is_active!: boolean;
 
+  @Prop({ enum: PromotionLimitType, default: PromotionLimitType.NONE })
+  limit_type!: PromotionLimitType;
+
+  @Prop({ type: Number, default: null, min: 1 })
+  max_usage!: number | null;
+
+  @Prop({ enum: PromotionUsagePeriod, default: PromotionUsagePeriod.LIFETIME })
+  usage_period!: PromotionUsagePeriod;
+
   @Prop({ default: false })
   isDeleted!: boolean;
 
@@ -76,3 +94,12 @@ export class Promotion {
 }
 
 export const PromotionSchema = SchemaFactory.createForClass(Promotion);
+
+PromotionSchema.index({ code: 1 }, { unique: true });
+PromotionSchema.index({
+  is_active: 1,
+  isDeleted: 1,
+  start_date: 1,
+  end_date: 1,
+});
+PromotionSchema.index({ limit_type: 1, usage_period: 1 });

@@ -2,6 +2,8 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -10,6 +12,7 @@ import { CreateMembershipDto } from './dto/create-membership.dto';
 import { UpdateMembershipDto } from './dto/update-membership.dto';
 import { GetMembershipQueryDto } from './dto/get-membership-query.dto';
 import { Service } from 'src/service/entities/service.entity';
+import { PetMembershipService } from 'src/pet-membership/pet-membership.service';
 
 @Injectable()
 export class MembershipService {
@@ -18,6 +21,8 @@ export class MembershipService {
     private membershipModel: Model<MembershipDocument>,
     @InjectModel(Service.name)
     private serviceModel: Model<Service>,
+    @Inject(forwardRef(() => PetMembershipService))
+    private petMembershipService: PetMembershipService,
   ) {}
 
   async create(createMembershipDto: CreateMembershipDto): Promise<Membership> {
@@ -188,7 +193,8 @@ export class MembershipService {
       throw new BadRequestException('invalid membership ID');
     }
 
-    const { name, pet_type_ids, benefits, ...rest } = updateMembershipDto;
+    const { name, pet_type_ids, benefits, apply_retroactive, ...rest } =
+      updateMembershipDto;
 
     // Validate unique name if updating
     if (name) {
@@ -240,6 +246,14 @@ export class MembershipService {
 
     if (!membership) {
       throw new NotFoundException('membership not found');
+    }
+
+    // If retroactive and benefits were updated, propagate to active+pending pet memberships
+    if (apply_retroactive && benefits) {
+      await this.petMembershipService.updateBenefitsFromPlan(
+        id,
+        membership.benefits as any[],
+      );
     }
 
     return membership;

@@ -24,6 +24,7 @@ import { Public } from 'src/auth/public.decorator';
 import { GuestService } from './guest.service';
 import { RegisterGuestDto } from './dto/register-guest.dto';
 import { CreateGuestPetDto } from './dto/create-guest-pet.dto';
+import { UpdateGuestAddressDto } from './dto/update-guest-address.dto';
 import { StoreService } from 'src/store/store.service';
 import { ServiceService } from 'src/service/service.service';
 import { OptionService } from 'src/option/option.service';
@@ -39,6 +40,7 @@ import {
   ListGroomerMyJobsDto,
   ListGroomerOpenJobsDto,
 } from './dto/list-groomer-bookings.dto';
+import { GetDailyUsagesDto } from './dto/get-daily-usages.dto';
 
 @Controller('bookings')
 @UseGuards(AuthGuard)
@@ -101,12 +103,8 @@ export class BookingController {
 
     const result = await this.guestService.checkUserByPhone(phone_number);
 
-    if (!result.exists) {
-      throw new NotFoundException('data not found');
-    }
-
     return {
-      message: 'User found',
+      message: result.exists ? 'User found' : 'User not found',
       ...result,
     };
   }
@@ -132,6 +130,18 @@ export class BookingController {
       message: 'Pet created successfully',
       ...result,
     };
+  }
+
+  // Update address for idle guest user (public)
+  @Public()
+  @Patch('public/user/address')
+  async updateGuestAddress(@Body() dto: UpdateGuestAddressDto) {
+    const result = await this.guestService.updateAddressForIdleUser(
+      dto.phone_number,
+      dto.address,
+      dto.address_id,
+    );
+    return result;
   }
 
   // Create booking only customer (public)
@@ -190,8 +200,10 @@ export class BookingController {
   @Public()
   @Post('public/preview')
   async publicPreview(@Body() dto: BookingPreviewRequestDto) {
-    // For public preview, skip pick_up travel fee calculation (no customer_id)
-    const safeDto = { ...dto, pick_up: false };
+    // Only calculate pickup/delivery fees when customer_id is present (required for zone lookup)
+    const safeDto = dto.customer_id
+      ? dto
+      : { ...dto, pick_up: false, delivery: false };
     const preview = await this.bookingService.getBookingPreview(safeDto);
     return {
       message: 'Booking preview calculated successfully',
@@ -236,6 +248,10 @@ export class BookingController {
       delivery: dto.delivery,
       has_active_membership: dto.has_active_membership,
       addon_prices: dto.addon_prices,
+      customer_id: dto.customer_id,
+      pet_id: dto.pet_id,
+      booking_date: dto.booking_date,
+      exclude_booking_id: dto.exclude_booking_id,
     });
     return {
       message: 'Promotion preview calculated successfully',
@@ -313,6 +329,17 @@ export class BookingController {
 
     return {
       message: 'Fetch bookings successfully',
+      ...result,
+    };
+  }
+
+  // Get daily usage statistics (admin)
+  @Get('daily-usages')
+  async getDailyUsages(@Query() query: GetDailyUsagesDto) {
+    const result = await this.bookingService.getDailyUsages(query);
+
+    return {
+      message: 'Fetch daily usages successfully',
       ...result,
     };
   }

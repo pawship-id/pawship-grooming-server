@@ -3,7 +3,12 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ObjectId } from 'mongodb';
 import { Promotion, PromotionDocument } from './entities/promotion.entity';
-import { AppliesTo, CreatePromotionDto } from './dto/create-promotion.dto';
+import {
+  AppliesTo,
+  CreatePromotionDto,
+  PromotionLimitType,
+  PromotionUsagePeriod,
+} from './dto/create-promotion.dto';
 import { UpdatePromotionDto } from './dto/update-promotion.dto';
 import { GetPromotionsQueryDto } from './dto/get-promotions-query.dto';
 import { capitalizeWords } from 'src/helpers/string.helper';
@@ -27,9 +32,39 @@ export class PromotionService {
     }
   }
 
+  private normalizeLimitConfig(
+    body: Partial<
+      Pick<CreatePromotionDto, 'limit_type' | 'max_usage' | 'usage_period'>
+    >,
+    options?: { enforceDefaultLimitType?: boolean },
+  ) {
+    if (!body.limit_type && options?.enforceDefaultLimitType) {
+      body.limit_type = PromotionLimitType.NONE;
+    }
+
+    if (
+      !body.limit_type &&
+      body.max_usage === undefined &&
+      body.usage_period === undefined
+    ) {
+      return;
+    }
+
+    if (body.limit_type === PromotionLimitType.NONE) {
+      body.max_usage = null;
+      body.usage_period = PromotionUsagePeriod.LIFETIME;
+      return;
+    }
+
+    if (!body.usage_period) {
+      body.usage_period = PromotionUsagePeriod.LIFETIME;
+    }
+  }
+
   async create(body: CreatePromotionDto) {
     body.name = capitalizeWords(body.name);
     this.normalizeServiceId(body);
+    this.normalizeLimitConfig(body, { enforceDefaultLimitType: true });
     try {
       return await new this.promotionModel(body).save();
     } catch (error) {
@@ -106,6 +141,7 @@ export class PromotionService {
   async update(id: ObjectId, body: UpdatePromotionDto) {
     if (body.name) body.name = capitalizeWords(body.name);
     this.normalizeServiceId(body);
+    this.normalizeLimitConfig(body);
     try {
       return await this.promotionModel
         .findByIdAndUpdate(id, body, { new: true })

@@ -1,4 +1,4 @@
-import { IsMongoId, IsNotEmpty, IsString } from 'class-validator';
+import { IsMongoId, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateGuestPetDto {
   @IsNotEmpty()
@@ -14,8 +14,8 @@ export class CreateGuestPetDto {
   pet_type_id: string;
 
   @IsMongoId()
-  @IsNotEmpty()
-  breed_category_id: string;
+  @IsOptional()
+  breed_category_id?: string;
 
   @IsMongoId()
   @IsNotEmpty()

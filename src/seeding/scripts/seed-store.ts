@@ -70,19 +70,7 @@ const StoreSchema = new mongoose.Schema(
           min_radius_km: { type: Number, required: true },
           max_radius_km: { type: Number, required: true },
           travel_time_minutes: { type: Number, required: true },
-          prices: {
-            type: [
-              {
-                size_category_id: {
-                  type: mongoose.Schema.Types.ObjectId,
-                  ref: 'Option',
-                  required: true,
-                },
-                price: { type: Number, required: true },
-              },
-            ],
-            required: true,
-          },
+          price: { type: Number, required: true },
         },
       ],
       default: [],

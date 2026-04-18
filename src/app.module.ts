@@ -18,6 +18,7 @@ import { ServiceTypeModule } from './service-type/service-type.module';
 import { UploadFileModule } from './upload-file/upload-file.module';
 import { BannerModule } from './banner/banner.module';
 import { PromotionModule } from './promotion/promotion.module';
+import { PromotionUsageModule } from './promotion-usage/promotion-usage.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 
 @Module({
@@ -47,6 +48,7 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
     UploadFileModule,
     BannerModule,
     PromotionModule,
+    PromotionUsageModule,
   ],
   controllers: [AppController],
   providers: [AppService],

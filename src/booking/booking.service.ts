@@ -34,11 +34,17 @@ import {
   Promotion,
   PromotionDocument,
 } from 'src/promotion/entities/promotion.entity';
+import {
+  PromotionLimitType,
+  PromotionUsagePeriod,
+} from 'src/promotion/dto/create-promotion.dto';
+import { PromotionUsageService } from 'src/promotion-usage/promotion-usage.service';
 import { ListBookingsDto } from './dto/list-bookings.dto';
 import {
   ListGroomerMyJobsDto,
   ListGroomerOpenJobsDto,
 } from './dto/list-groomer-bookings.dto';
+import { GetDailyUsagesDto } from './dto/get-daily-usages.dto';
 
 @Injectable()
 export class BookingService {
@@ -65,6 +71,7 @@ export class BookingService {
     private readonly serviceService: ServiceService,
     private readonly petMembershipService: PetMembershipService,
     private readonly benefitUsageService: BenefitUsageService,
+    private readonly promotionUsageService: PromotionUsageService,
   ) {}
 
   /**
@@ -273,7 +280,6 @@ export class BookingService {
               latitude: mainAddress.latitude,
               longitude: mainAddress.longitude,
             },
-            pet,
             dto.pick_up === true,
             dto.delivery === true,
           );
@@ -403,6 +409,10 @@ export class BookingService {
         addonPrices,
         travelFee,
         grandTotal,
+        customerId: dto.customer_id,
+        petId: dto.pet_id,
+        bookingDate: dto.date ? new Date(dto.date) : new Date(),
+        excludeBookingId: dto.exclude_booking_id,
       });
 
       // 7. Build response
@@ -774,7 +784,6 @@ export class BookingService {
                 latitude: mainAddress.latitude,
                 longitude: mainAddress.longitude,
               },
-              pet,
               pickUp === true,
               delivery === true,
             );
@@ -812,9 +821,10 @@ export class BookingService {
       discountAmount = Math.max(0, discountAmount);
 
       // Resolve the actual service_id used in this breakdown entry
-      const resolvedBreakdownServiceId = appliesTo === 'service'
-        ? (benefit.service_id || serviceId)
-        : benefit.service_id;
+      const resolvedBreakdownServiceId =
+        appliesTo === 'service'
+          ? benefit.service_id || serviceId
+          : benefit.service_id;
 
       breakdown.push({
         benefit: {
@@ -888,6 +898,10 @@ export class BookingService {
     addonPrices: { _id: string; name: string; price: number }[];
     travelFee: number;
     grandTotal: number;
+    customerId?: string;
+    petId?: string;
+    bookingDate?: Date;
+    excludeBookingId?: string;
   }) {
     const now = new Date();
 
@@ -907,74 +921,135 @@ export class BookingService {
     const hasAddons = addonIdSet.size > 0;
     const addonsTotal = opts.addonPrices.reduce((s, a) => s + a.price, 0);
 
-    return promotions
-      .filter((promo: any) => {
-        // Filter by membership availability
-        if (opts.hasActiveMembership && !promo.is_available_to_membership) {
-          return false;
-        }
-
-        const promoServiceId = promo.service_id?._id?.toString() ?? promo.service_id?.toString() ?? null;
-
-        if (promo.applies_to === 'service') {
-          return !promoServiceId || promoServiceId === opts.serviceId;
-        }
-        if (promo.applies_to === 'addon') {
-          return hasAddons && (!promoServiceId || addonIdSet.has(promoServiceId));
-        }
-        if (promo.applies_to === 'pickup') {
-          return opts.travelFee > 0 || opts.pickUp === true || opts.delivery === true;
-        }
-        if (promo.applies_to === 'booking') {
-          return true;
-        }
+    const filteredPromotions = promotions.filter((promo: any) => {
+      // Filter by membership availability
+      if (opts.hasActiveMembership && !promo.is_available_to_membership) {
         return false;
-      })
-      .map((promo: any) => {
-        let discountBase = 0;
-        const promoServiceId = promo.service_id?._id?.toString() ?? promo.service_id?.toString() ?? null;
+      }
 
-        if (promo.applies_to === 'service') {
-          discountBase = opts.originalServicePrice;
-        } else if (promo.applies_to === 'addon') {
-          if (promoServiceId) {
-            const matchingAddon = opts.addonPrices.find(
-              (a) => a._id.toString() === promoServiceId,
-            );
-            discountBase = matchingAddon?.price ?? 0;
-          } else {
-            discountBase = addonsTotal;
-          }
-        } else if (promo.applies_to === 'pickup') {
-          discountBase = opts.travelFee;
-        } else if (promo.applies_to === 'booking') {
-          discountBase = opts.grandTotal;
+      const promoServiceId =
+        promo.service_id?._id?.toString() ??
+        promo.service_id?.toString() ??
+        null;
+
+      if (promo.applies_to === 'service') {
+        return !promoServiceId || promoServiceId === opts.serviceId;
+      }
+      if (promo.applies_to === 'addon') {
+        return hasAddons && (!promoServiceId || addonIdSet.has(promoServiceId));
+      }
+      if (promo.applies_to === 'pickup') {
+        return (
+          opts.travelFee > 0 || opts.pickUp === true || opts.delivery === true
+        );
+      }
+      if (promo.applies_to === 'booking') {
+        return true;
+      }
+      return false;
+    });
+
+    const mappedPromotions = filteredPromotions.map(async (promo: any) => {
+      let discountBase = 0;
+      const promoServiceId =
+        promo.service_id?._id?.toString() ??
+        promo.service_id?.toString() ??
+        null;
+
+      if (promo.applies_to === 'service') {
+        discountBase = opts.originalServicePrice;
+      } else if (promo.applies_to === 'addon') {
+        if (promoServiceId) {
+          const matchingAddon = opts.addonPrices.find(
+            (a) => a._id.toString() === promoServiceId,
+          );
+          discountBase = matchingAddon?.price ?? 0;
+        } else {
+          discountBase = addonsTotal;
         }
+      } else if (promo.applies_to === 'pickup') {
+        discountBase = opts.travelFee;
+      } else if (promo.applies_to === 'booking') {
+        discountBase = opts.grandTotal;
+      }
 
-        const amountDiscount =
-          promo.discount_type === 'percent'
-            ? (promo.value / 100) * discountBase
-            : Math.min(promo.value, discountBase);
+      const amountDiscount =
+        promo.discount_type === 'percent'
+          ? (promo.value / 100) * discountBase
+          : Math.min(promo.value, discountBase);
 
-        const serviceName = typeof promo.service_id === 'object' && promo.service_id?.name
+      const serviceName =
+        typeof promo.service_id === 'object' && promo.service_id?.name
           ? promo.service_id.name
           : null;
 
-        return {
-          _id: promo._id.toString(),
-          code: promo.code,
-          name: promo.name,
-          description: promo.description || null,
-          applies_to: promo.applies_to,
-          service_id: promoServiceId,
-          service_name: serviceName,
-          discount_type: promo.discount_type,
-          value: promo.value,
-          is_stackable: promo.is_stackable,
-          is_available_to_membership: promo.is_available_to_membership,
-          amount_discount: amountDiscount,
-        };
-      });
+      const limitType = promo.limit_type ?? PromotionLimitType.NONE;
+      const maxUsage = promo.max_usage ?? null;
+      const usagePeriod = promo.usage_period ?? PromotionUsagePeriod.LIFETIME;
+
+      // Check if promotion can be used (limit enforcement)
+      let canUse = true;
+      let usageCount = 0;
+      let limitMessage: string | null = null;
+
+      if (
+        limitType !== PromotionLimitType.NONE &&
+        maxUsage !== null &&
+        maxUsage > 0
+      ) {
+        try {
+          await this.promotionUsageService.assertCanUse({
+            promotionId: promo._id.toString(),
+            maxUsage,
+            limitType,
+            usagePeriod,
+            bookingDate: opts.bookingDate ?? new Date(),
+            userId: opts.customerId,
+            petId: opts.petId,
+            excludeBookingId: opts.excludeBookingId,
+          });
+          // If assertCanUse doesn't throw, promotion can be used
+          canUse = true;
+
+          // Get current usage count for display
+          const count = await this.promotionUsageService.countUsage({
+            promotionId: promo._id.toString(),
+            limitType,
+            usagePeriod,
+            bookingDate: opts.bookingDate ?? new Date(),
+            userId: opts.customerId,
+            petId: opts.petId,
+          });
+          usageCount = count;
+        } catch (err) {
+          canUse = false;
+          limitMessage = err instanceof Error ? err.message : 'Limit tercapai';
+        }
+      }
+
+      return {
+        _id: promo._id.toString(),
+        code: promo.code,
+        name: promo.name,
+        description: promo.description || null,
+        applies_to: promo.applies_to,
+        service_id: promoServiceId,
+        service_name: serviceName,
+        discount_type: promo.discount_type,
+        value: promo.value,
+        is_stackable: promo.is_stackable,
+        is_available_to_membership: promo.is_available_to_membership,
+        amount_discount: amountDiscount,
+        limit_type: limitType,
+        max_usage: maxUsage,
+        usage_period: usagePeriod,
+        can_use: canUse,
+        usage_count: usageCount,
+        limit_message: limitMessage,
+      };
+    });
+
+    return Promise.all(mappedPromotions);
   }
 
   /**
@@ -993,6 +1068,10 @@ export class BookingService {
       addonPrices: { _id: string; name: string; price: number }[];
       travelFee: number;
       grandTotal: number;
+      customerId?: string;
+      petId?: string;
+      bookingDate?: Date;
+      excludeBookingId?: string;
     },
   ): Promise<{
     applied_promotions: any[];
@@ -1022,6 +1101,15 @@ export class BookingService {
       return emptyResult;
     }
 
+    this.logger.log(
+      `[applyPromotionsToBooking] Fetched ${promotions.length} promotions from DB`,
+    );
+    promotions.forEach((p: any) => {
+      this.logger.log(
+        `[applyPromotionsToBooking] Promo ${p.code}: limit_type=${p.limit_type}, max_usage=${p.max_usage}, usage_period=${p.usage_period}`,
+      );
+    });
+
     // Validate stacking: if any promo is non-stackable, only 1 is allowed
     if (promotions.length > 1) {
       const hasNonStackable = promotions.some((p: any) => !p.is_stackable);
@@ -1042,7 +1130,10 @@ export class BookingService {
     let totalDiscount = 0;
 
     for (const promo of promotions) {
-      const promoServiceId = (promo as any).service_id?._id?.toString() ?? (promo as any).service_id?.toString() ?? null;
+      const promoServiceId =
+        (promo as any).service_id?._id?.toString() ??
+        (promo as any).service_id?.toString() ??
+        null;
 
       // Verify the promo still applies to the booking context
       let discountBase = 0;
@@ -1084,6 +1175,31 @@ export class BookingService {
           ? (promo.value / 100) * discountBase
           : Math.min(promo.value, discountBase);
 
+      const limitType = (promo as any).limit_type ?? PromotionLimitType.NONE;
+      const maxUsage =
+        typeof (promo as any).max_usage === 'number'
+          ? (promo as any).max_usage
+          : null;
+      const usagePeriod =
+        (promo as any).usage_period ?? PromotionUsagePeriod.LIFETIME;
+
+      this.logger.log(
+        `[applyPromotionsToBooking] Processing promo ${promo.code}: limitType=${limitType}, maxUsage=${maxUsage}, usagePeriod=${usagePeriod}, willValidate=${limitType !== PromotionLimitType.NONE && maxUsage && maxUsage > 0}`,
+      );
+
+      if (limitType !== PromotionLimitType.NONE && maxUsage && maxUsage > 0) {
+        await this.promotionUsageService.assertCanUse({
+          promotionId: promo._id.toString(),
+          maxUsage,
+          limitType,
+          usagePeriod,
+          bookingDate: opts.bookingDate ?? new Date(),
+          userId: opts.customerId,
+          petId: opts.petId,
+          excludeBookingId: opts.excludeBookingId,
+        });
+      }
+
       totalDiscount += amountDeducted;
 
       const entry = {
@@ -1097,6 +1213,9 @@ export class BookingService {
         amount_deducted: amountDeducted,
         service_id: promoServiceId ? new Types.ObjectId(promoServiceId) : null,
         applied_at: new Date(),
+        limit_type: limitType,
+        max_usage: maxUsage,
+        usage_period: usagePeriod,
       };
 
       appliedPromotions.push({
@@ -1108,6 +1227,9 @@ export class BookingService {
         value: promo.value,
         amount_deducted: amountDeducted,
         applied_at: new Date(),
+        limit_type: limitType,
+        max_usage: maxUsage,
+        usage_period: usagePeriod,
       });
 
       breakdown.push(entry);
@@ -1153,7 +1275,6 @@ export class BookingService {
     customerLongitude: number,
     storeLatitude: number,
     storeLongitude: number,
-    petSizeCategoryId: string | null,
     zoneType: 'home_service' | 'pickup_delivery',
   ): Promise<{ zone: any; price: number; distance: number }> {
     if (!storeLatitude || !storeLongitude) {
@@ -1196,13 +1317,13 @@ export class BookingService {
         );
       }
     } else {
-      // Pickup/delivery has size-based pricing
-      if (!petSizeCategoryId) {
+      // Pickup/delivery now also uses flat price
+      price = matchingZone.price;
+      if (price == null || price < 0) {
         throw new BadRequestException(
-          'Pet size category is required for pickup/delivery service',
+          `Zone "${matchingZone.area_name}" has invalid pricing configured`,
         );
       }
-      price = this.extractPriceFromZone(matchingZone, petSizeCategoryId);
     }
 
     return { zone: matchingZone, price, distance };
@@ -1226,7 +1347,6 @@ export class BookingService {
       customerLocation.longitude,
       store.location.latitude,
       store.location.longitude,
-      null, // Home service doesn't use size-based pricing
       'home_service',
     );
 
@@ -1250,7 +1370,6 @@ export class BookingService {
   private async calculatePickupDeliveryFees(
     store: StoreDocument,
     customerLocation: { latitude: number; longitude: number },
-    pet: any,
     pick_up: boolean,
     delivery: boolean,
   ): Promise<{
@@ -1273,22 +1392,12 @@ export class BookingService {
       throw new BadRequestException('Store location not properly configured');
     }
 
-    const petSizeCategoryId =
-      pet.size_category_id?.toString() || pet.size?._id?.toString();
-
-    if (!petSizeCategoryId) {
-      throw new BadRequestException(
-        'Pet size category is required for pickup/delivery service',
-      );
-    }
-
     const { zone, price, distance } = await this.findZoneForCustomer(
       store.pickup_delivery_zones,
       customerLocation.latitude,
       customerLocation.longitude,
       store.location.latitude,
       store.location.longitude,
-      petSizeCategoryId,
       'pickup_delivery',
     );
 
@@ -1310,7 +1419,7 @@ export class BookingService {
       min_radius_km: zone.min_radius_km,
       max_radius_km: zone.max_radius_km,
       travel_time_minutes: zone.travel_time_minutes,
-      prices: zone.prices,
+      price: zone.price,
       zone_type: 'pickup_delivery',
       travel_fee: total, // backward compatibility
     };
@@ -1459,7 +1568,6 @@ export class BookingService {
               latitude: mainAddress.latitude,
               longitude: mainAddress.longitude,
             },
-            pet,
             body.pick_up === true,
             body.delivery === true,
           );
@@ -1568,13 +1676,16 @@ export class BookingService {
         body.selected_promotion_ids.length > 0
       ) {
         // Build addon prices for promotion calculation
-        const snapshotAddons =
-          (body.service_snapshot as any)?.addons ?? [];
+        const snapshotAddons = (body.service_snapshot as any)?.addons ?? [];
         const promoAddonPrices = snapshotAddons.map((a: any) => ({
           _id: a._id?.toString() ?? '',
           name: a.name ?? '',
           price: a.price ?? 0,
         }));
+
+        this.logger.log(
+          `[applyPromotions] Applying promotions for customer=${body.customer_id}, pet=${body.pet_id}, date=${body.date}`,
+        );
 
         appliedPromotionsData = await this.applyPromotionsToBooking(
           body.selected_promotion_ids,
@@ -1583,13 +1694,26 @@ export class BookingService {
             addonIds: body.service_addon_ids,
             pickUp: body.pick_up === true,
             delivery: body.delivery === true,
-            hasActiveMembership: appliedBenefitsData.applied_benefits.length > 0,
+            hasActiveMembership:
+              appliedBenefitsData.applied_benefits.length > 0,
             originalServicePrice: service.price,
             addonPrices: promoAddonPrices,
             travelFee: travelFee,
             grandTotal: originalTotalPrice,
+            customerId: body.customer_id,
+            petId: body.pet_id,
+            bookingDate: body.date ? new Date(body.date) : new Date(),
           },
         );
+
+        this.logger.log(
+          `[applyPromotions] Result: ${appliedPromotionsData.applied_promotions?.length || 0} promotions applied`,
+        );
+        if (appliedPromotionsData.applied_promotions?.length > 0) {
+          this.logger.log(
+            `[applyPromotions] First promo details: ${JSON.stringify(appliedPromotionsData.applied_promotions[0])}`,
+          );
+        }
       }
 
       // Combine discounts: benefit + promotion
@@ -1597,7 +1721,10 @@ export class BookingService {
         appliedBenefitsData.total_discount +
         appliedPromotionsData.total_discount;
       body.total_discount = combinedDiscount;
-      body.final_total_price = Math.max(0, originalTotalPrice - combinedDiscount);
+      body.final_total_price = Math.max(
+        0,
+        originalTotalPrice - combinedDiscount,
+      );
       (body as any).applied_promotions = appliedPromotionsData.breakdown;
       (body as any).selected_promotion_ids = (
         body.selected_promotion_ids ?? []
@@ -1620,10 +1747,15 @@ export class BookingService {
       }
 
       // 12. get capacity by store_id and date (override or default)
+      const targetDate = new Date(body.date);
+      targetDate.setHours(0, 0, 0, 0);
+      const nextDay = new Date(targetDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+
       const dailyOverride = await this.storeDailyCapacityModel
         .findOne({
           store_id: new ObjectId(body.store_id),
-          date: new Date(body.date),
+          date: { $gte: targetDate, $lt: nextDay },
         })
         .session(session);
 
@@ -1746,6 +1878,69 @@ export class BookingService {
         }
       }
 
+      if (appliedPromotionsData.applied_promotions?.length > 0) {
+        const bookingDate = body.date ? new Date(body.date) : new Date();
+        const bookingId = (booking[0] as any)._id.toString();
+
+        this.logger.log(
+          `[recordPromotionUsage] Processing ${appliedPromotionsData.applied_promotions.length} promotions for booking ${bookingId}`,
+        );
+
+        for (const applied of appliedPromotionsData.applied_promotions) {
+          const limitType = applied.limit_type ?? PromotionLimitType.NONE;
+          const maxUsage = applied.max_usage;
+          const usagePeriod =
+            applied.usage_period ?? PromotionUsagePeriod.LIFETIME;
+
+          this.logger.log(
+            `[recordPromotionUsage] Promo ${applied.code}: limitType=${limitType}, maxUsage=${maxUsage}, usagePeriod=${usagePeriod}, promotionId=${applied.promotion_id}`,
+          );
+
+          if (
+            limitType !== PromotionLimitType.NONE &&
+            typeof maxUsage === 'number' &&
+            maxUsage > 0
+          ) {
+            try {
+              this.logger.log(
+                `[recordPromotionUsage] Recording usage with params: promotionId=${applied.promotion_id}, bookingId=${bookingId}, customerId=${body.customer_id}, petId=${body.pet_id}, limitType=${limitType}, usagePeriod=${usagePeriod}`,
+              );
+
+              const usageRecord = await this.promotionUsageService.recordUsage({
+                promotionId: applied.promotion_id?.toString() || '',
+                bookingId,
+                bookingDate,
+                limitType,
+                usagePeriod,
+                userId: body.customer_id?.toString(),
+                petId: body.pet_id?.toString(),
+              });
+
+              this.logger.log(
+                `[recordPromotionUsage] ✓ Successfully recorded usage for promo ${applied.code}, usage record ID: ${(usageRecord as any)._id}`,
+              );
+            } catch (err) {
+              // Non-fatal: usage recording failure should not roll back a committed booking
+              this.logger.error(
+                `[recordPromotionUsage] ✗ Failed to record usage for promo ${applied.code}`,
+              );
+              this.logger.error(
+                `[recordPromotionUsage] Error details: ${err instanceof Error ? err.message : String(err)}`,
+              );
+              if (err instanceof Error && err.stack) {
+                this.logger.error(
+                  `[recordPromotionUsage] Stack trace: ${err.stack}`,
+                );
+              }
+            }
+          } else {
+            this.logger.log(
+              `[recordPromotionUsage] Skipping promo ${applied.code} - no limit configured (limitType=${limitType}, maxUsage=${maxUsage})`,
+            );
+          }
+        }
+      }
+
       return booking[0];
     } catch (error) {
       await session.abortTransaction();
@@ -1855,10 +2050,7 @@ export class BookingService {
     if (groomerSkills.length > 0) {
       const skillsRegex = groomerSkills.map(
         (skill) =>
-          new RegExp(
-            `^${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
-            'i',
-          ),
+          new RegExp(`^${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
       );
       elemMatchFilter.type = { $in: skillsRegex };
     }
@@ -1895,6 +2087,7 @@ export class BookingService {
       date_to,
       created_by_role,
       customer_id,
+      store_id,
     } = query;
 
     const filter: any = { isDeleted: false };
@@ -1915,6 +2108,10 @@ export class BookingService {
 
     if (customer_id) {
       filter.customer_id = customer_id;
+    }
+
+    if (store_id) {
+      filter.store_id = store_id;
     }
 
     const skip = (page - 1) * limit;
@@ -1963,6 +2160,13 @@ export class BookingService {
 
       if (!existingBooking || existingBooking.isDeleted) {
         throw new NotFoundException('Booking not found');
+      }
+
+      // Guard: booking dengan status returned tidak bisa diubah
+      if (existingBooking.booking_status === BookingStatus.RETURNED) {
+        throw new BadRequestException(
+          "Booking dengan status 'returned' tidak dapat diubah lagi.",
+        );
       }
 
       // simpan dan status_logs yang lama
@@ -2141,10 +2345,15 @@ export class BookingService {
 
         if (!store) throw new NotFoundException('Store not found');
 
+        const targetDate = new Date(newDate);
+        targetDate.setHours(0, 0, 0, 0);
+        const nextDay = new Date(targetDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+
         const dailyOverride = await this.storeDailyCapacityModel
           .findOne({
             store_id: new ObjectId(body.store_id),
-            date: newDate,
+            date: { $gte: targetDate, $lt: nextDay },
           })
           .session(session);
 
@@ -2274,7 +2483,18 @@ export class BookingService {
     user?: { username: string; role: string },
   ) {
     try {
-      // status yang diupdate dari API ini hanya untuk CONFIRMED, RESCHEDULED, CANCELLED, GROOMER ON THE WAY, DRIVER ON THE WAY
+      // Guard: booking dengan status returned tidak bisa diubah
+      const existingBooking = await this.bookingModel.findById(id);
+      if (!existingBooking || existingBooking.isDeleted) {
+        throw new NotFoundException('Booking not found');
+      }
+      if (existingBooking.booking_status === BookingStatus.RETURNED) {
+        throw new BadRequestException(
+          "Booking dengan status 'returned' tidak dapat diubah lagi.",
+        );
+      }
+
+      // status yang diupdate dari API ini hanya untuk CONFIRMED, RESCHEDULED, CANCELLED, GROOMER ON THE WAY, DRIVER ON THE WAY, RETURNED
 
       // validasi: jika status RESCHEDULED, date dan time_range harus ada
       if (status === BookingStatus.RESCHEDULED) {
@@ -2322,6 +2542,17 @@ export class BookingService {
       ) {
         try {
           await this.benefitUsageService.softDeleteByBookingId(id.toString());
+        } catch {
+          // Non-fatal: restoration failure should not block status update
+        }
+      }
+
+      if (
+        status === BookingStatus.CANCELLED &&
+        updatedBooking?.applied_promotions?.length
+      ) {
+        try {
+          await this.promotionUsageService.softDeleteByBookingId(id.toString());
         } catch {
           // Non-fatal: restoration failure should not block status update
         }
@@ -2406,6 +2637,10 @@ export class BookingService {
     delivery?: boolean;
     has_active_membership?: boolean;
     addon_prices?: { _id: string; name: string; price: number }[];
+    customer_id?: string;
+    pet_id?: string;
+    booking_date?: string;
+    exclude_booking_id?: string;
   }) {
     if (
       !dto.selected_promotion_ids ||
@@ -2424,6 +2659,10 @@ export class BookingService {
       addonPrices: dto.addon_prices ?? [],
       travelFee: dto.travel_fee ?? 0,
       grandTotal: dto.grand_total ?? 0,
+      customerId: dto.customer_id,
+      petId: dto.pet_id,
+      bookingDate: dto.booking_date ? new Date(dto.booking_date) : new Date(),
+      excludeBookingId: dto.exclude_booking_id,
     });
   }
 
@@ -2445,6 +2684,9 @@ export class BookingService {
       addon_prices?: { addon_id: string; price?: number; discount?: number }[];
       selected_benefit_ids?: string[];
       selected_promotion_ids?: string[];
+      service_addon_ids?: string[];
+      pick_up?: boolean;
+      delivery?: boolean;
     },
   ) {
     const existing = await this.bookingModel.findById(id);
@@ -2452,7 +2694,54 @@ export class BookingService {
       throw new NotFoundException('Booking not found');
     }
 
+    // Guard: booking dengan status returned tidak bisa diubah
+    if (existing.booking_status === BookingStatus.RETURNED) {
+      throw new BadRequestException(
+        "Booking dengan status 'returned' tidak dapat diubah lagi.",
+      );
+    }
+
+    // ── 0. Handle addon changes (add/remove) ─────────────────────────────────
+    if (dto.service_addon_ids !== undefined) {
+      const serviceId = existing.service_id?.toString();
+      if (serviceId) {
+        // Re-snapshot addons from the service
+        const pet = existing.pet_snapshot;
+        const newSnapshot =
+          (await this.serviceService.getServiceSnapshot(
+            new ObjectId(serviceId),
+            pet?.pet_type?._id ? new ObjectId(pet.pet_type._id) : undefined,
+            pet?.size?._id ? new ObjectId(pet.size._id) : undefined,
+            pet?.hair?._id ? new ObjectId(pet.hair._id) : undefined,
+            dto.service_addon_ids.map((aid) => new ObjectId(aid)),
+          )) as any;
+
+        // Update service_addon_ids and service_snapshot with new addons
+        existing.service_addon_ids = dto.service_addon_ids.map(
+          (aid) => new Types.ObjectId(aid),
+        ) as any;
+        existing.service_snapshot = newSnapshot;
+
+        await this.bookingModel.findByIdAndUpdate(id, {
+          $set: {
+            service_addon_ids: dto.service_addon_ids.map(
+              (aid) => new Types.ObjectId(aid),
+            ),
+            service_snapshot: newSnapshot,
+          },
+        });
+      }
+    }
+
     // ── 1. Per-item base prices and item-level discounts ──────────────────────
+    // Handle pick_up / delivery changes
+    if (dto.pick_up !== undefined) {
+      existing.pick_up = dto.pick_up;
+    }
+    if (dto.delivery !== undefined) {
+      existing.delivery = dto.delivery;
+    }
+
     const svcBase = dto.service_price ?? existing.service_snapshot.price ?? 0;
     const svcDisc = dto.service_discount ?? 0;
     const svcEffective = Math.max(0, svcBase - svcDisc);
@@ -2630,10 +2919,10 @@ export class BookingService {
             pickUp: existing.pick_up === true,
             delivery: existing.delivery === true,
             hasActiveMembership: selectedBenefitIds.length > 0,
-            originalServicePrice: svcBase,   // before admin service discount
+            originalServicePrice: svcBase, // before admin service discount
             addonPrices: promoAddonPrices,
-            travelFee: tFeeBase,             // before admin travel-fee discount
-            grandTotal: newOriginalTotal,    // sum of all base prices before discounts
+            travelFee: tFeeBase, // before admin travel-fee discount
+            grandTotal: newOriginalTotal, // sum of all base prices before discounts
           },
         );
       } catch (err) {
@@ -2664,6 +2953,8 @@ export class BookingService {
       id,
       {
         $set: {
+          pick_up: existing.pick_up,
+          delivery: existing.delivery,
           pickup_fee: pickupFeeBase,
           delivery_fee: deliveryFeeBase,
           travel_fee: tFeeBase, // backward compatibility
@@ -2734,5 +3025,131 @@ export class BookingService {
       applied_benefits_count: benefitResult.applied_benefits.length,
       applied_promotions_count: promotionResult.applied_promotions.length,
     };
+  }
+
+  /**
+   * Get daily usage statistics for admin dashboard
+   * Returns usage data per store per day with capacity information
+   */
+  async getDailyUsages(query: GetDailyUsagesDto): Promise<any> {
+    try {
+      // Build query filter
+      const filter: any = {};
+
+      if (query.store_id) {
+        filter.store_id = new Types.ObjectId(query.store_id);
+      }
+
+      if (query.date) {
+        // Single date filter
+        const targetDate = new Date(query.date);
+        targetDate.setHours(0, 0, 0, 0);
+        const nextDay = new Date(targetDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+        filter.date = { $gte: targetDate, $lt: nextDay };
+      } else if (query.start_date || query.end_date) {
+        // Date range filter
+        filter.date = {};
+        if (query.start_date) {
+          const startDate = new Date(query.start_date);
+          startDate.setHours(0, 0, 0, 0);
+          filter.date.$gte = startDate;
+        }
+        if (query.end_date) {
+          const endDate = new Date(query.end_date);
+          endDate.setHours(23, 59, 59, 999);
+          filter.date.$lte = endDate;
+        }
+      }
+
+      // Fetch usage records
+      const usageRecords = await this.storeDailyUsageModel
+        .find(filter)
+        .sort({ date: -1, store_id: 1 })
+        .exec();
+
+      // Process each usage record to calculate capacity and percentages
+      const results = await Promise.all(
+        usageRecords.map(async (usage) => {
+          // Fetch store manually
+          const store = await this.storeModel.findById(usage.store_id).exec();
+          if (!store) {
+            return null;
+          }
+
+          // Store the store_id
+          const storeId = usage.store_id.toString();
+
+          // Get capacity override for this date, if any
+          const usageDate = new Date(usage.date);
+          usageDate.setHours(0, 0, 0, 0);
+          const nextDay = new Date(usageDate);
+          nextDay.setDate(nextDay.getDate() + 1);
+
+          const capacityOverride = await this.storeDailyCapacityModel
+            .findOne({
+              store_id: new Types.ObjectId(storeId),
+              date: { $gte: usageDate, $lt: nextDay },
+            })
+            .exec();
+
+          // Determine total capacity (override or default)
+          let totalCapacityMinutes =
+            store.capacity?.default_daily_capacity_minutes || 960;
+
+          if (capacityOverride) {
+            totalCapacityMinutes = capacityOverride.total_capacity_minutes;
+          }
+
+          const overbookingLimit =
+            store.capacity?.overbooking_limit_minutes || 120;
+          const maxCapacity = totalCapacityMinutes + overbookingLimit;
+
+          // Calculate metrics
+          const usedMinutes = usage.used_minutes || 0;
+          const remainingMinutes = Math.max(
+            0,
+            totalCapacityMinutes - usedMinutes,
+          );
+          // Calculate percentage with exactly 2 decimals without rounding
+          const rawPercentage =
+            totalCapacityMinutes > 0
+              ? (usedMinutes / totalCapacityMinutes) * 100
+              : 0;
+          const usagePercentage = Math.floor(rawPercentage * 100) / 100;
+          const isOverbooked = usedMinutes > totalCapacityMinutes;
+          const isAtCapacity = usedMinutes >= maxCapacity;
+
+          return {
+            _id: usage._id,
+            store_id: storeId,
+            store_name: store.name,
+            store_code: store.code,
+            date: usage.date,
+            used_minutes: usedMinutes,
+            total_capacity_minutes: totalCapacityMinutes,
+            remaining_minutes: remainingMinutes,
+            overbooking_limit_minutes: overbookingLimit,
+            max_capacity_minutes: maxCapacity,
+            usage_percentage: usagePercentage,
+            is_overbooked: isOverbooked,
+            is_at_capacity: isAtCapacity,
+            has_capacity_override: !!capacityOverride,
+            capacity_notes: capacityOverride?.notes || null,
+          };
+        }),
+      );
+
+      // Filter out null results (stores not found)
+      const validResults = results.filter((r) => r !== null);
+
+      return {
+        count: validResults.length,
+        data: validResults,
+      };
+    } catch (error) {
+      this.logger.error(`Error fetching daily usages: ${error.message}`);
+      throw error;
+    }
   }
 }
