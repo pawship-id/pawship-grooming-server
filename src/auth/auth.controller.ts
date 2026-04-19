@@ -10,7 +10,13 @@ import {
 import { AuthService } from './auth.service';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { Public } from './public.decorator';
-import { RefreshTokenDto } from './auth.dto';
+import {
+  CheckPhoneDto,
+  RefreshTokenDto,
+  SendPasswordSetupDto,
+  SetPasswordDto,
+  VerifySetupTokenDto,
+} from './auth.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -55,6 +61,44 @@ export class AuthController {
       message: 'token refreshed successfully',
       ...tokens,
     };
+  }
+
+  @Public()
+  @Post('check-phone')
+  @HttpCode(HttpStatus.OK)
+  async checkPhone(@Body() body: CheckPhoneDto) {
+    const result = await this.authService.checkPhone(body.phone_number);
+    return result;
+  }
+
+  @Public()
+  @Post('send-password-setup')
+  @HttpCode(HttpStatus.OK)
+  async sendPasswordSetup(@Body() body: SendPasswordSetupDto) {
+    const result = await this.authService.sendPasswordSetup(
+      body.phone_number,
+      body.email,
+    );
+    return result;
+  }
+
+  @Public()
+  @Post('verify-setup-token')
+  @HttpCode(HttpStatus.OK)
+  async verifySetupToken(@Body() body: VerifySetupTokenDto) {
+    const result = await this.authService.verifySetupToken(body.token);
+    return result;
+  }
+
+  @Public()
+  @Post('set-password')
+  @HttpCode(HttpStatus.OK)
+  async setPassword(@Body() body: SetPasswordDto) {
+    const result = await this.authService.setPassword(
+      body.token,
+      body.password,
+    );
+    return result;
   }
 
   @Post('logout')

@@ -20,6 +20,7 @@ import { BannerModule } from './banner/banner.module';
 import { PromotionModule } from './promotion/promotion.module';
 import { PromotionUsageModule } from './promotion-usage/promotion-usage.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
     BannerModule,
     PromotionModule,
     PromotionUsageModule,
+    EmailModule,
   ],
   controllers: [AppController],
   providers: [AppService],

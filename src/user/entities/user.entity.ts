@@ -157,6 +157,12 @@ export class User {
   @Prop({ default: null })
   refresh_token_expires_at: Date;
 
+  @Prop({ default: null, index: true })
+  password_setup_token?: string;
+
+  @Prop({ default: null })
+  password_setup_token_expires_at?: Date;
+
   @Prop({ default: null })
   deletedAt: Date;
 }
