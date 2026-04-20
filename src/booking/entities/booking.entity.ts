@@ -207,6 +207,9 @@ export class PetSnapshot {
     default: null,
   })
   breed?: { _id: Types.ObjectId; name: string };
+
+  @Prop({ type: [String], default: [] })
+  tags?: string[];
 }
 
 @Schema({
