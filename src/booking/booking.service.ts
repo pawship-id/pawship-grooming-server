@@ -1746,6 +1746,42 @@ export class BookingService {
         (body as any).sessions = [];
       }
 
+      // 11. inject Pickup / Dropoff sessions for in-store bookings with pickup/delivery
+      if (body.type === GroomingType.IN_STORE) {
+        const generatedSessions: any[] = (body as any).sessions;
+
+        if (body.pick_up) {
+          // Shift all existing sessions' order by 1 to make room at index 0
+          generatedSessions.forEach((s) => s.order++);
+
+          generatedSessions.unshift({
+            type: 'Pickup',
+            groomer_id: null,
+            status: SessionStatus.NOT_STARTED,
+            started_at: null,
+            finished_at: null,
+            notes: null,
+            internal_note: null,
+            order: 0,
+          });
+        }
+
+        if (body.delivery) {
+          generatedSessions.push({
+            type: 'Dropoff',
+            groomer_id: null,
+            status: SessionStatus.NOT_STARTED,
+            started_at: null,
+            finished_at: null,
+            notes: null,
+            internal_note: null,
+            order: generatedSessions.length,
+          });
+        }
+
+        (body as any).sessions = generatedSessions;
+      }
+
       // 12. get capacity by store_id and date (override or default)
       const targetDate = new Date(body.date);
       targetDate.setHours(0, 0, 0, 0);
