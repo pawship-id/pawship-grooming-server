@@ -221,4 +221,56 @@ export class SessionController {
       message: 'Media deleted successfully',
     };
   }
+
+  // Upload "other" media from a specific session — stored in booking.media[]
+  // Only admin or groomer assigned to the session can upload
+  @Post(':bookingId/session/:sessionId/media/other')
+  @UseInterceptors(FileInterceptor('image'))
+  async uploadSessionOtherMedia(
+    @Param('bookingId') bookingId: string,
+    @Param('sessionId') sessionId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('note') note: string,
+    @Req() request: any,
+  ) {
+    if (!bookingId) throw new BadRequestException('bookingId is required');
+    if (!sessionId) throw new BadRequestException('sessionId is required');
+    if (!file) throw new BadRequestException('image file is required');
+
+    const _bookingId = new ObjectId(bookingId);
+    const _sessionId = new ObjectId(sessionId);
+    await this.sessionService.uploadSessionOtherMedia(
+      _bookingId,
+      _sessionId,
+      file,
+      note,
+      request.user,
+    );
+
+    return {
+      message: 'Media uploaded successfully',
+    };
+  }
+
+  // Delete booking media with auth check (admin or original uploader)
+  @Delete(':bookingId/media/auth')
+  async deleteBookingMediaAuth(
+    @Param('bookingId') bookingId: string,
+    @Query('public_id') publicId: string,
+    @Req() request: any,
+  ) {
+    if (!bookingId) throw new BadRequestException('bookingId is required');
+    if (!publicId) throw new BadRequestException('public_id is required');
+
+    const _bookingId = new ObjectId(bookingId);
+    await this.sessionService.deleteBookingMediaWithAuth(
+      _bookingId,
+      publicId,
+      request.user,
+    );
+
+    return {
+      message: 'Media deleted successfully',
+    };
+  }
 }

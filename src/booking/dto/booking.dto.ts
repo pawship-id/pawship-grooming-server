@@ -26,4 +26,5 @@ export enum GroomingType {
 export enum MediaType {
   BEFORE = 'before',
   AFTER = 'after',
+  OTHER = 'other',
 }

@@ -292,6 +292,10 @@ export class SessionMedia {
   @Prop()
   note?: string;
 
+  // ID sesi asal — diisi jika upload melalui sesi tertentu
+  @Prop()
+  session_id?: string;
+
   @Prop({
     type: {
       user_id: { type: String, required: true },
