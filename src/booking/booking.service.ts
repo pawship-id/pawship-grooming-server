@@ -2721,6 +2721,7 @@ export class BookingService {
   async updatePricing(
     id: ObjectId,
     dto: {
+      service_id?: string;
       service_price?: number;
       service_discount?: number;
       travel_fee?: number; // backward compatibility - will be split into pickup + delivery
@@ -2746,6 +2747,46 @@ export class BookingService {
     if (existing.booking_status === BookingStatus.RETURNED) {
       throw new BadRequestException(
         "Booking dengan status 'returned' tidak dapat diubah lagi.",
+      );
+    }
+
+    // ── -1. Handle main service change ───────────────────────────────────────
+    if (dto.service_id && dto.service_id !== existing.service_id?.toString()) {
+      const newServiceObjectId = new ObjectId(dto.service_id);
+      const pet = existing.pet_snapshot;
+      const addonIdsForSnapshot = (dto.service_addon_ids ?? []).map(
+        (aid) => new ObjectId(aid),
+      );
+
+      const newSnapshot = (await this.serviceService.getServiceSnapshot(
+        newServiceObjectId,
+        pet?.pet_type?._id ? new ObjectId(pet.pet_type._id) : undefined,
+        pet?.size?._id ? new ObjectId(pet.size._id) : undefined,
+        pet?.hair?._id ? new ObjectId(pet.hair._id) : undefined,
+        addonIdsForSnapshot,
+      )) as any;
+
+      // Update service on the document (in-memory + DB)
+      existing.service_id = new Types.ObjectId(dto.service_id) as any;
+      existing.service_snapshot = newSnapshot;
+
+      // Reset addons if no new addon_ids were provided together with the new service
+      if (dto.service_addon_ids === undefined) {
+        existing.service_addon_ids = [] as any;
+      }
+
+      await this.bookingModel.findByIdAndUpdate(id, {
+        $set: {
+          service_id: new Types.ObjectId(dto.service_id),
+          service_snapshot: newSnapshot,
+          service_addon_ids: (dto.service_addon_ids ?? []).map(
+            (aid) => new Types.ObjectId(aid),
+          ),
+        },
+      });
+
+      this.logger.log(
+        `[updatePricing] service changed to ${dto.service_id} for booking ${id}`,
       );
     }
 
