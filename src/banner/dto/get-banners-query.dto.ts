@@ -1,5 +1,13 @@
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
+import { BannerPage } from '../entities/banner.entity';
 
 export class GetBannersQueryDto {
   @IsOptional()
@@ -22,4 +30,10 @@ export class GetBannersQueryDto {
   })
   @IsBoolean()
   is_active?: boolean;
+
+  @IsOptional()
+  @IsEnum(BannerPage, {
+    message: `page must be one of: ${Object.values(BannerPage).join(', ')}`,
+  })
+  page_filter?: BannerPage;
 }

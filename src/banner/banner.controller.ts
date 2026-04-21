@@ -43,8 +43,8 @@ export class BannerController {
 
   @Public()
   @Get('public')
-  async getPublicBanners() {
-    const banners = await this.bannerService.getPublicBanners();
+  async getPublicBanners(@Query('page') page?: string) {
+    const banners = await this.bannerService.getPublicBanners(page);
     return {
       message: 'Fetch public banners successfully',
       banners,
