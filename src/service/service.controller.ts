@@ -53,6 +53,22 @@ export class ServiceController {
     };
   }
 
+  @Public()
+  @Get('public')
+  async findAllPublic(
+    @Query('service_type_id') serviceTypeId?: string,
+    @Query('store_id') storeId?: string,
+  ) {
+    const services = await this.serviceService.findAllForGuest(
+      storeId,
+      serviceTypeId,
+    );
+    return {
+      message: 'Fetch public services successfully',
+      services,
+    };
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
     if (!id) throw new BadRequestException('id is required');
