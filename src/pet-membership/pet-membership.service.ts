@@ -136,12 +136,52 @@ export class PetMembershipService {
     const now = new Date();
     const base = { pet_id: id, isDeleted: false };
     const [active, pending, expired, cancelled] = await Promise.all([
-      this.petMembershipModel.countDocuments({ ...base, is_active: true, start_date: { $lte: now }, end_date: { $gte: now } }),
-      this.petMembershipModel.countDocuments({ ...base, is_active: true, start_date: { $gt: now } }),
-      this.petMembershipModel.countDocuments({ ...base, is_active: true, end_date: { $lt: now } }),
+      this.petMembershipModel.countDocuments({
+        ...base,
+        is_active: true,
+        start_date: { $lte: now },
+        end_date: { $gte: now },
+      }),
+      this.petMembershipModel.countDocuments({
+        ...base,
+        is_active: true,
+        start_date: { $gt: now },
+      }),
+      this.petMembershipModel.countDocuments({
+        ...base,
+        is_active: true,
+        end_date: { $lt: now },
+      }),
       this.petMembershipModel.countDocuments({ ...base, is_active: false }),
     ]);
     return { active, pending, expired, cancelled };
+  }
+
+  async exportAll(): Promise<any[]> {
+    const petMemberships = await this.petMembershipModel
+      .find({ isDeleted: false })
+      .populate({
+        path: 'pet',
+        select: 'name pet_type_id customer_id',
+        populate: [
+          { path: 'pet_type', select: 'name' },
+          { path: 'owner', select: 'username' },
+        ],
+      })
+      .populate('membership', 'name')
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec();
+
+    return petMemberships.map((pm: any) => ({
+      pet_name: pm.pet?.name ?? '-',
+      pet_type: pm.pet?.pet_type?.name ?? '-',
+      owner_name: pm.pet?.owner?.username ?? '-',
+      membership_name: pm.membership?.name ?? '-',
+      buy_date: pm.createdAt ?? null,
+      start_date: pm.start_date ?? null,
+      end_date: pm.end_date ?? null,
+    }));
   }
 
   async findAll(query: GetPetMembershipQueryDto): Promise<any[]> {
@@ -286,7 +326,11 @@ export class PetMembershipService {
     return this.populateBenefitsWithServices(petMembership);
   }
 
-  async getAvailableBenefits(petId: string, bookingDate?: Date, excludeBookingId?: string): Promise<any> {
+  async getAvailableBenefits(
+    petId: string,
+    bookingDate?: Date,
+    excludeBookingId?: string,
+  ): Promise<any> {
     const activeMemberships = await this.getActiveMembership(petId);
 
     if (!activeMemberships) {
@@ -940,7 +984,9 @@ export class PetMembershipService {
 
     if (period === BenefitPeriod.WEEKLY) {
       // Reset setiap Senin (hari ke-1 minggu)
-      resetDate.setDate(resetDate.getDate() + (((8 - resetDate.getDay()) % 7) || 7));
+      resetDate.setDate(
+        resetDate.getDate() + ((8 - resetDate.getDay()) % 7 || 7),
+      );
       resetDate.setHours(0, 0, 0, 0);
     } else if (period === BenefitPeriod.MONTHLY) {
       // Reset pada hari 1 setiap bulan
