@@ -1093,4 +1093,45 @@ export class PetMembershipService {
     // Can apply if limit is -1 (unlimited) or used < limit
     return benefit.limit === -1 || benefit.used < benefit.limit;
   }
+
+  /**
+   * Batch-fetch all pet memberships (active = true, not deleted) for the given
+   * pet IDs. Returns a Map keyed by pet-id string, where each value is an
+   * array of { name, start_date, end_date } — one entry per membership record.
+   *
+   * Callers can then filter per booking-date in JS without extra DB round-trips.
+   */
+  async getActiveMembershipsForPets(
+    petIds: string[],
+  ): Promise<
+    Map<string, { name: string; start_date: Date; end_date: Date }[]>
+  > {
+    const result = new Map<
+      string,
+      { name: string; start_date: Date; end_date: Date }[]
+    >();
+    if (!petIds.length) return result;
+
+    const records = await this.petMembershipModel
+      .find({
+        pet_id: { $in: petIds.map((id) => new Types.ObjectId(id)) },
+        is_active: true,
+        isDeleted: false,
+      })
+      .populate('membership_plan_id', 'name')
+      .lean()
+      .exec();
+
+    for (const pm of records as any[]) {
+      const petIdStr = pm.pet_id?.toString();
+      if (!petIdStr) continue;
+      if (!result.has(petIdStr)) result.set(petIdStr, []);
+      result.get(petIdStr)!.push({
+        name: pm.membership_plan_id?.name ?? 'Unknown',
+        start_date: pm.start_date,
+        end_date: pm.end_date,
+      });
+    }
+    return result;
+  }
 }

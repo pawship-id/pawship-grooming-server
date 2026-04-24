@@ -2160,11 +2160,45 @@ export class BookingService {
         .limit(limit)
         .populate('customer', 'username email phone_number')
         .populate('store', 'name')
+        .populate({
+          path: 'sessions.groomer_id',
+          select: 'username email phone_number',
+          model: 'User',
+        })
         .exec(),
       this.bookingModel.countDocuments(filter),
     ]);
 
-    return { bookings, total, page, limit };
+    // Enrich each booking with active_memberships at the booking date
+    const petIds = [
+      ...new Set(
+        bookings
+          .map((b) => (b as any).pet_id?.toString())
+          .filter(Boolean) as string[],
+      ),
+    ];
+    const membershipsMap =
+      await this.petMembershipService.getActiveMembershipsForPets(petIds);
+
+    const enrichedBookings = bookings.map((booking) => {
+      const plain = (booking as any).toJSON
+        ? (booking as any).toJSON()
+        : (booking as any);
+      const petIdStr = plain.pet_id?.toString();
+      const bookingDate = new Date(plain.date);
+      const petMemberships = membershipsMap.get(petIdStr) ?? [];
+      const activeMemberships = petMemberships.filter(
+        (pm) =>
+          bookingDate >= new Date(pm.start_date) &&
+          bookingDate <= new Date(pm.end_date),
+      );
+      plain.active_memberships = activeMemberships.map((pm) => ({
+        name: pm.name,
+      }));
+      return plain;
+    });
+
+    return { bookings: enrichedBookings, total, page, limit };
   }
 
   async findOne(id: ObjectId) {
