@@ -14,6 +14,7 @@ import { PetMembershipService } from './pet-membership.service';
 import { CreatePetMembershipDto } from './dto/create-pet-membership.dto';
 import { UpdatePetMembershipDto } from './dto/update-pet-membership.dto';
 import { GetPetMembershipQueryDto } from './dto/get-pet-membership-query.dto';
+import { RenewPetMembershipDto } from './dto/renew-pet-membership.dto';
 import { AuthGuard } from 'src/auth/auth.guard';
 
 @Controller('pet-memberships')
@@ -97,8 +98,8 @@ export class PetMembershipController {
   }
 
   @Post(':id/renew')
-  async renew(@Param('id') id: string) {
-    const petMembership = await this.petMembershipService.renew(id);
+  async renew(@Param('id') id: string, @Body() dto: RenewPetMembershipDto) {
+    const petMembership = await this.petMembershipService.renew(id, dto);
     return {
       message: 'membership renewed successfully',
       data: petMembership,
