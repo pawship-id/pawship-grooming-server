@@ -50,6 +50,11 @@ export class PetSnapshotDto {
   @IsOptional()
   @IsObject()
   breed: { _id: string; name: string };
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
 }
 
 export class ServiceSnapshotAddonDto {

@@ -207,6 +207,9 @@ export class PetSnapshot {
     default: null,
   })
   breed?: { _id: Types.ObjectId; name: string };
+
+  @Prop({ type: [String], default: [] })
+  tags?: string[];
 }
 
 @Schema({
@@ -288,6 +291,10 @@ export class SessionMedia {
 
   @Prop()
   note?: string;
+
+  // ID sesi asal — diisi jika upload melalui sesi tertentu
+  @Prop()
+  session_id?: string;
 
   @Prop({
     type: {

@@ -26,6 +26,7 @@
     "seed:user-pet": "ts-node -r tsconfig-paths/register src/seeding/scripts/seed-user-pet.ts"
   },
   "dependencies": {
+    "@nestjs-modules/mailer": "^2.3.4",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
@@ -40,9 +41,12 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
     "cloudinary": "^2.9.0",
+    "googleapis": "^171.4.0",
+    "handlebars": "^4.7.9",
     "mongodb": "^7.1.0",
     "mongoose": "^9.2.0",
     "multer": "^2.0.2",
+    "nodemailer": "^8.0.5",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "sharp": "^0.34.5",

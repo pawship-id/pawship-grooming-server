@@ -1746,6 +1746,42 @@ export class BookingService {
         (body as any).sessions = [];
       }
 
+      // 11. inject Pickup / Dropoff sessions for in-store bookings with pickup/delivery
+      if (body.type === GroomingType.IN_STORE) {
+        const generatedSessions: any[] = (body as any).sessions;
+
+        if (body.pick_up) {
+          // Shift all existing sessions' order by 1 to make room at index 0
+          generatedSessions.forEach((s) => s.order++);
+
+          generatedSessions.unshift({
+            type: 'Pickup',
+            groomer_id: null,
+            status: SessionStatus.NOT_STARTED,
+            started_at: null,
+            finished_at: null,
+            notes: null,
+            internal_note: null,
+            order: 0,
+          });
+        }
+
+        if (body.delivery) {
+          generatedSessions.push({
+            type: 'Dropoff',
+            groomer_id: null,
+            status: SessionStatus.NOT_STARTED,
+            started_at: null,
+            finished_at: null,
+            notes: null,
+            internal_note: null,
+            order: generatedSessions.length,
+          });
+        }
+
+        (body as any).sessions = generatedSessions;
+      }
+
       // 12. get capacity by store_id and date (override or default)
       const targetDate = new Date(body.date);
       targetDate.setHours(0, 0, 0, 0);
@@ -2124,11 +2160,45 @@ export class BookingService {
         .limit(limit)
         .populate('customer', 'username email phone_number')
         .populate('store', 'name')
+        .populate({
+          path: 'sessions.groomer_id',
+          select: 'username email phone_number',
+          model: 'User',
+        })
         .exec(),
       this.bookingModel.countDocuments(filter),
     ]);
 
-    return { bookings, total, page, limit };
+    // Enrich each booking with active_memberships at the booking date
+    const petIds = [
+      ...new Set(
+        bookings
+          .map((b) => (b as any).pet_id?.toString())
+          .filter(Boolean) as string[],
+      ),
+    ];
+    const membershipsMap =
+      await this.petMembershipService.getActiveMembershipsForPets(petIds);
+
+    const enrichedBookings = bookings.map((booking) => {
+      const plain = (booking as any).toJSON
+        ? (booking as any).toJSON()
+        : (booking as any);
+      const petIdStr = plain.pet_id?.toString();
+      const bookingDate = new Date(plain.date);
+      const petMemberships = membershipsMap.get(petIdStr) ?? [];
+      const activeMemberships = petMemberships.filter(
+        (pm) =>
+          bookingDate >= new Date(pm.start_date) &&
+          bookingDate <= new Date(pm.end_date),
+      );
+      plain.active_memberships = activeMemberships.map((pm) => ({
+        name: pm.name,
+      }));
+      return plain;
+    });
+
+    return { bookings: enrichedBookings, total, page, limit };
   }
 
   async findOne(id: ObjectId) {
@@ -2475,6 +2545,18 @@ export class BookingService {
     return booking;
   }
 
+  async updateNote(id: ObjectId, note?: string) {
+    const booking = await this.bookingModel.findByIdAndUpdate(
+      id,
+      {
+        $set: { note: note || '' },
+      },
+      { new: true },
+    );
+
+    return booking;
+  }
+
   async updateStatus(
     id: ObjectId,
     status: BookingStatus,
@@ -2673,6 +2755,7 @@ export class BookingService {
   async updatePricing(
     id: ObjectId,
     dto: {
+      service_id?: string;
       service_price?: number;
       service_discount?: number;
       travel_fee?: number; // backward compatibility - will be split into pickup + delivery
@@ -2701,20 +2784,59 @@ export class BookingService {
       );
     }
 
+    // ── -1. Handle main service change ───────────────────────────────────────
+    if (dto.service_id && dto.service_id !== existing.service_id?.toString()) {
+      const newServiceObjectId = new ObjectId(dto.service_id);
+      const pet = existing.pet_snapshot;
+      const addonIdsForSnapshot = (dto.service_addon_ids ?? []).map(
+        (aid) => new ObjectId(aid),
+      );
+
+      const newSnapshot = (await this.serviceService.getServiceSnapshot(
+        newServiceObjectId,
+        pet?.pet_type?._id ? new ObjectId(pet.pet_type._id) : undefined,
+        pet?.size?._id ? new ObjectId(pet.size._id) : undefined,
+        pet?.hair?._id ? new ObjectId(pet.hair._id) : undefined,
+        addonIdsForSnapshot,
+      )) as any;
+
+      // Update service on the document (in-memory + DB)
+      existing.service_id = new Types.ObjectId(dto.service_id) as any;
+      existing.service_snapshot = newSnapshot;
+
+      // Reset addons if no new addon_ids were provided together with the new service
+      if (dto.service_addon_ids === undefined) {
+        existing.service_addon_ids = [] as any;
+      }
+
+      await this.bookingModel.findByIdAndUpdate(id, {
+        $set: {
+          service_id: new Types.ObjectId(dto.service_id),
+          service_snapshot: newSnapshot,
+          service_addon_ids: (dto.service_addon_ids ?? []).map(
+            (aid) => new Types.ObjectId(aid),
+          ),
+        },
+      });
+
+      this.logger.log(
+        `[updatePricing] service changed to ${dto.service_id} for booking ${id}`,
+      );
+    }
+
     // ── 0. Handle addon changes (add/remove) ─────────────────────────────────
     if (dto.service_addon_ids !== undefined) {
       const serviceId = existing.service_id?.toString();
       if (serviceId) {
         // Re-snapshot addons from the service
         const pet = existing.pet_snapshot;
-        const newSnapshot =
-          (await this.serviceService.getServiceSnapshot(
-            new ObjectId(serviceId),
-            pet?.pet_type?._id ? new ObjectId(pet.pet_type._id) : undefined,
-            pet?.size?._id ? new ObjectId(pet.size._id) : undefined,
-            pet?.hair?._id ? new ObjectId(pet.hair._id) : undefined,
-            dto.service_addon_ids.map((aid) => new ObjectId(aid)),
-          )) as any;
+        const newSnapshot = (await this.serviceService.getServiceSnapshot(
+          new ObjectId(serviceId),
+          pet?.pet_type?._id ? new ObjectId(pet.pet_type._id) : undefined,
+          pet?.size?._id ? new ObjectId(pet.size._id) : undefined,
+          pet?.hair?._id ? new ObjectId(pet.hair._id) : undefined,
+          dto.service_addon_ids.map((aid) => new ObjectId(aid)),
+        )) as any;
 
         // Update service_addon_ids and service_snapshot with new addons
         existing.service_addon_ids = dto.service_addon_ids.map(

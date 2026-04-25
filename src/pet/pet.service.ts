@@ -171,7 +171,7 @@ export class PetService {
     const pet = await this.petModel
       .findById(petId)
       .select(
-        'name description internal_note isDeleted size_category_id pet_type_id hair_category_id breed_category_id',
+        'name description internal_note isDeleted size_category_id pet_type_id hair_category_id breed_category_id tags',
       )
       .populate('pet_type', '_id name')
       .populate('size', '_id name')
@@ -198,6 +198,7 @@ export class PetService {
       size: { _id: size._id, name: size.name },
       hair: { _id: hair._id, name: hair.name },
       breed: { _id: breed._id, name: breed.name },
+      tags: (pet as any).tags ?? [],
     };
   }
 }

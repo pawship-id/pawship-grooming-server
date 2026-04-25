@@ -61,7 +61,10 @@ export class UserAddress {
   is_main_address?: boolean;
 
   /** Who created this address */
-  @Prop({ enum: Object.values(AddressCreatedBy), default: AddressCreatedBy.CUSTOMER })
+  @Prop({
+    enum: Object.values(AddressCreatedBy),
+    default: AddressCreatedBy.CUSTOMER,
+  })
   created_by?: string;
 }
 
@@ -123,14 +126,14 @@ export class User {
   @Prop({ required: true })
   username: string;
 
-  @Prop({ required: true, unique: true })
-  email: string;
+  @Prop({ sparse: true, unique: true })
+  email?: string;
 
   @Prop({ required: true, unique: true })
   phone_number: string;
 
-  @Prop({ type: String, required: true })
-  password: string;
+  @Prop({ type: String })
+  password?: string;
 
   @Prop({ enum: Object.values(UserRole), default: UserRole.CUSTOMER })
   role: string;
@@ -153,6 +156,12 @@ export class User {
 
   @Prop({ default: null })
   refresh_token_expires_at: Date;
+
+  @Prop({ default: null, index: true })
+  password_setup_token?: string;
+
+  @Prop({ default: null })
+  password_setup_token_expires_at?: Date;
 
   @Prop({ default: null })
   deletedAt: Date;

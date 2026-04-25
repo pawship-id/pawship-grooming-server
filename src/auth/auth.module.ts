@@ -6,6 +6,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { User, UserSchema } from 'src/user/entities/user.entity';
 import { ConfigService } from '@nestjs/config';
 import { AuthGuard } from './auth.guard';
+import { EmailModule } from 'src/email/email.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { AuthGuard } from './auth.guard';
         signOptions: { expiresIn: '3600s' },
       }),
     }),
+    EmailModule,
   ],
   providers: [AuthService, AuthGuard],
   controllers: [AuthController],

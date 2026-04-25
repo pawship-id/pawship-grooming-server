@@ -57,9 +57,7 @@ export class SessionService {
 
     const newSession = {
       type: dto.type,
-      groomer_id: dto.groomer_id
-        ? new Types.ObjectId(dto.groomer_id)
-        : null,
+      groomer_id: dto.groomer_id ? new Types.ObjectId(dto.groomer_id) : null,
       status: SessionStatus.NOT_STARTED,
       started_at: null,
       finished_at: null,
@@ -160,7 +158,11 @@ export class SessionService {
   // ==================== CLAIM SESSION ====================
 
   // Allow a groomer to claim an unassigned session
-  async claimSession(bookingId: ObjectId, sessionId: ObjectId, groomerId: ObjectId) {
+  async claimSession(
+    bookingId: ObjectId,
+    sessionId: ObjectId,
+    groomerId: ObjectId,
+  ) {
     const booking = await this.findBookingOrFail(bookingId);
     this.assertNotReturned(booking);
 
@@ -175,7 +177,9 @@ export class SessionService {
     const session = booking.sessions[sessionIndex];
 
     if (session.groomer_id) {
-      throw new ConflictException('Session is already claimed by another groomer');
+      throw new ConflictException(
+        'Session is already claimed by another groomer',
+      );
     }
 
     // Validate groomer's skills against session type (case-insensitive, name-based)
@@ -481,6 +485,116 @@ export class SessionService {
     try {
       const booking = await this.findBookingOrFail(bookingId);
       this.assertNotReturned(booking);
+
+      const updatedBooking = await this.bookingModel.findByIdAndUpdate(
+        bookingId,
+        { $pull: { media: { public_id: publicId } } },
+        { new: true },
+      );
+
+      if (!updatedBooking) {
+        throw new NotFoundException('Booking not found');
+      }
+
+      return updatedBooking;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Upload "other" media from a specific session — stored in booking.media[]
+  // Only admin or the groomer assigned to the session can upload
+  async uploadSessionOtherMedia(
+    bookingId: ObjectId,
+    sessionId: ObjectId,
+    file: Express.Multer.File,
+    note: string | undefined,
+    user?: { _id: ObjectId; username: string; role: string },
+  ) {
+    try {
+      const booking = await this.findBookingOrFail(bookingId);
+      this.assertNotReturned(booking);
+
+      const session = booking.sessions.find(
+        (s: any) => s._id.toString() === sessionId.toString(),
+      );
+
+      if (!session) {
+        throw new NotFoundException('Session not found');
+      }
+
+      // Authorization: admin can upload for any session;
+      // groomer can only upload for sessions assigned to them
+      if (user?.role !== 'admin') {
+        const sessionGroomerId = (session as any).groomer_id?.toString();
+        const requestUserId = user?._id?.toString();
+        if (!sessionGroomerId || sessionGroomerId !== requestUserId) {
+          throw new ForbiddenException(
+            'Hanya admin atau groomer yang mengerjakan sesi ini yang dapat mengupload foto',
+          );
+        }
+      }
+
+      const base64Image = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+
+      const uploadResult = await uploadToCloudinary(
+        base64Image,
+        generateGroomingSessionFolder(
+          booking.pet_snapshot.name,
+          MediaType.OTHER,
+        ),
+      );
+
+      const mediaItem = {
+        type: MediaType.OTHER,
+        secure_url: uploadResult.secure_url,
+        public_id: uploadResult.public_id,
+        session_id: sessionId.toString(),
+        created_by: {
+          user_id: user?._id,
+          name_snapshot: user?.username,
+        },
+        note: note || '',
+        uploaded_at: new Date(),
+      };
+
+      const updatedBooking = await this.bookingModel.findByIdAndUpdate(
+        bookingId,
+        { $push: { media: mediaItem } },
+        { new: true },
+      );
+
+      return updatedBooking;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Delete booking media with auth check:
+  // admin can delete any media; groomer can only delete media they uploaded
+  async deleteBookingMediaWithAuth(
+    bookingId: ObjectId,
+    publicId: string,
+    user?: { _id: ObjectId; username: string; role: string },
+  ) {
+    try {
+      const booking = await this.findBookingOrFail(bookingId);
+      this.assertNotReturned(booking);
+
+      if (user?.role !== 'admin') {
+        const mediaItem = booking.media?.find(
+          (m: any) => m.public_id === publicId,
+        );
+        if (!mediaItem) {
+          throw new NotFoundException('Media not found');
+        }
+        const creatorId = (mediaItem as any).created_by?.user_id?.toString();
+        if (creatorId !== user?._id?.toString()) {
+          throw new ForbiddenException(
+            'Hanya admin atau pengunggah asli yang dapat menghapus foto ini',
+          );
+        }
+      }
 
       const updatedBooking = await this.bookingModel.findByIdAndUpdate(
         bookingId,

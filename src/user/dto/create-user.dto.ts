@@ -6,25 +6,29 @@ import {
   IsOptional,
   MinLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { UserRole } from './user.dto';
 
 export class CreateUserDto {
   @IsNotEmpty({ message: 'username is required' })
   username: string;
 
+  @IsOptional()
+  @Transform(({ value }) => (value && value.trim() !== '' ? value : undefined))
   @IsEmail({}, { message: 'invalid email format' })
-  @IsNotEmpty({ message: 'email is required' })
-  email: string;
+  email?: string;
 
   @IsNotEmpty({ message: 'phone number is required' })
   phone_number: string;
 
+  @IsOptional()
   @MinLength(6, { message: 'Password must be at least 6 characters' })
-  @IsNotEmpty({ message: 'password is required' })
-  password: string;
+  password?: string;
 
   @IsOptional()
-  @IsEnum(UserRole, { message: 'role must be admin | ops | groomer | customer' })
+  @IsEnum(UserRole, {
+    message: 'role must be admin | ops | groomer | customer',
+  })
   role?: UserRole;
 
   @IsOptional()

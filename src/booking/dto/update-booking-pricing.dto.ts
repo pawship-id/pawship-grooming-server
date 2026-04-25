@@ -27,6 +27,10 @@ export class AddonPriceDto {
 
 export class UpdateBookingPricingDto {
   @IsOptional()
+  @IsMongoId({ message: 'service_id must be a valid MongoId' })
+  service_id?: string;
+
+  @IsOptional()
   @IsNumber({}, { message: 'service_price must be a number' })
   @Min(0, { message: 'service_price must be >= 0' })
   service_price?: number;

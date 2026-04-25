@@ -20,10 +20,11 @@ export class BannerService {
   }
 
   async findAll(query: GetBannersQueryDto) {
-    const { page = 1, limit = 10, is_active } = query;
+    const { page = 1, limit = 10, is_active, page_filter } = query;
 
     const filter: any = { isDeleted: false };
     if (is_active !== undefined) filter.is_active = is_active;
+    if (page_filter !== undefined) filter.page = page_filter;
 
     const skip = (page - 1) * limit;
     const total = await this.bannerModel.countDocuments(filter).exec();
@@ -71,11 +72,14 @@ export class BannerService {
     return banner;
   }
 
-  async getPublicBanners() {
+  async getPublicBanners(page?: string) {
+    const filter: any = { isDeleted: false, is_active: true };
+    if (page) filter.page = page;
+
     const banners = await this.bannerModel
-      .find({ isDeleted: false, is_active: true })
+      .find(filter)
       .select(
-        '_id banner_desktop banner_mobile add_text title subtitle text_align text_color cta order',
+        '_id banner_desktop banner_mobile add_text title subtitle text_align text_color cta title_mobile subtitle_mobile text_align_mobile text_color_mobile cta_mobile page order',
       )
       .sort({ order: 1, createdAt: -1 })
       .exec();

@@ -41,6 +41,15 @@ export class PetMembershipController {
     };
   }
 
+  @Get('export')
+  async exportAll() {
+    const data = await this.petMembershipService.exportAll();
+    return {
+      message: 'pet membership export data retrieved successfully',
+      data,
+    };
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
     const petMembership = await this.petMembershipService.findById(id);

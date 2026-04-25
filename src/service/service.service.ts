@@ -73,7 +73,9 @@ export class ServiceService {
         );
       }
       if (body.addon_ids && body.addon_ids.length > 0) {
-        serviceData.addon_ids = body.addon_ids.map((id) => new Types.ObjectId(id));
+        serviceData.addon_ids = body.addon_ids.map(
+          (id) => new Types.ObjectId(id),
+        );
       }
       if (body.available_store_ids && body.available_store_ids.length > 0) {
         serviceData.available_store_ids = body.available_store_ids.map(
@@ -88,8 +90,12 @@ export class ServiceService {
           pet_type_id: price.pet_type_id
             ? new Types.ObjectId(price.pet_type_id)
             : undefined,
-          size_id: price.size_id ? new Types.ObjectId(price.size_id) : undefined,
-          hair_id: price.hair_id ? new Types.ObjectId(price.hair_id) : undefined,
+          size_id: price.size_id
+            ? new Types.ObjectId(price.size_id)
+            : undefined,
+          hair_id: price.hair_id
+            ? new Types.ObjectId(price.hair_id)
+            : undefined,
         }));
       }
 
@@ -207,7 +213,10 @@ export class ServiceService {
       .populate('pet_types', 'name')
       .populate('hair_categories', 'name')
       .populate('avaiable_store', 'name')
-      .populate('addons', 'code name image_url price price_type prices duration')
+      .populate(
+        'addons',
+        'code name image_url price price_type prices duration',
+      )
       .populate({
         path: 'prices.pet_type_id',
         model: 'Option',
@@ -279,7 +288,9 @@ export class ServiceService {
         );
       }
       if (body.addon_ids && body.addon_ids.length > 0) {
-        updateData.addon_ids = body.addon_ids.map((id) => new Types.ObjectId(id));
+        updateData.addon_ids = body.addon_ids.map(
+          (id) => new Types.ObjectId(id),
+        );
       }
       if (body.available_store_ids && body.available_store_ids.length > 0) {
         updateData.available_store_ids = body.available_store_ids.map(
@@ -294,8 +305,12 @@ export class ServiceService {
           pet_type_id: price.pet_type_id
             ? new Types.ObjectId(price.pet_type_id)
             : undefined,
-          size_id: price.size_id ? new Types.ObjectId(price.size_id) : undefined,
-          hair_id: price.hair_id ? new Types.ObjectId(price.hair_id) : undefined,
+          size_id: price.size_id
+            ? new Types.ObjectId(price.size_id)
+            : undefined,
+          hair_id: price.hair_id
+            ? new Types.ObjectId(price.hair_id)
+            : undefined,
         }));
       }
 
@@ -524,7 +539,7 @@ export class ServiceService {
 
   // method to retrieve service based on service type and store
   async findAllForGuest(storeId?: string, service_type_id?: string) {
-    const filter: any = { isDeleted: false };
+    const filter: any = { isDeleted: false, is_active: true };
 
     // Filter by service type if provided
     if (service_type_id) {

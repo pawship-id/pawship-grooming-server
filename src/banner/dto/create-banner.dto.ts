@@ -9,6 +9,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import {
+  BannerPage,
   CtaHorizontalPosition,
   CtaVerticalPosition,
 } from '../entities/banner.entity';
@@ -59,10 +60,10 @@ export class CreateBannerDto {
   @Type(() => BannerImageDto)
   banner_desktop: BannerImageDto;
 
-  @IsNotEmpty({ message: 'banner_mobile is required' })
+  @IsOptional()
   @ValidateNested()
   @Type(() => BannerImageDto)
-  banner_mobile: BannerImageDto;
+  banner_mobile?: BannerImageDto;
 
   @IsOptional()
   @IsBoolean()
@@ -88,6 +89,35 @@ export class CreateBannerDto {
   @ValidateNested()
   @Type(() => CtaDto)
   cta?: CtaDto;
+
+  // ── Mobile-specific text overlay fields ────────────────────────────────
+  @IsOptional()
+  @IsString()
+  title_mobile?: string;
+
+  @IsOptional()
+  @IsString()
+  subtitle_mobile?: string;
+
+  @IsOptional()
+  @IsString()
+  text_align_mobile?: string;
+
+  @IsOptional()
+  @IsString()
+  text_color_mobile?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CtaDto)
+  cta_mobile?: CtaDto;
+
+  // ── Page assignment ─────────────────────────────────────────────────────
+  @IsOptional()
+  @IsEnum(BannerPage, {
+    message: `page must be one of: ${Object.values(BannerPage).join(', ')}`,
+  })
+  page?: BannerPage = BannerPage.HOME;
 
   @IsOptional()
   @IsNumber()
