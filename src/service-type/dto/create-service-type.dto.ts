@@ -1,9 +1,10 @@
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
   IsMongoId,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
 } from 'class-validator';
@@ -32,7 +33,7 @@ export class CreateServiceTypeDto {
     if (value === 'false') return false;
     return value;
   })
-  is_active?: boolean = false;
+  is_active?: boolean;
 
   @IsOptional()
   @IsBoolean()
@@ -41,10 +42,15 @@ export class CreateServiceTypeDto {
     if (value === 'false') return false;
     return value;
   })
-  show_in_homepage?: boolean = false;
+  show_in_homepage?: boolean;
 
   @IsOptional()
   @IsArray()
   @IsMongoId({ each: true })
   store_ids?: string[];
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'order must be a number' })
+  order?: number;
 }

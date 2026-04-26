@@ -23,6 +23,7 @@ import { Service, ServiceDocument } from '../service/entities/service.entity';
 import { CreatePetMembershipDto } from './dto/create-pet-membership.dto';
 import { UpdatePetMembershipDto } from './dto/update-pet-membership.dto';
 import { GetPetMembershipQueryDto } from './dto/get-pet-membership-query.dto';
+import { RenewPetMembershipDto } from './dto/renew-pet-membership.dto';
 import { BenefitUsageService } from 'src/benefit-usage/benefit-usage.service';
 
 @Injectable()
@@ -54,26 +55,28 @@ export class PetMembershipService {
       throw new BadRequestException('membership plan not found');
     }
 
-    // Block purchase if pet already has this plan and it's still active (not cancelled)
-    const existingActive = await this.petMembershipModel.findOne({
-      pet_id: new Types.ObjectId(pet_id),
-      membership_plan_id: new Types.ObjectId(membership_plan_id),
-      is_active: true,
-      isDeleted: false,
-    });
-
-    if (existingActive) {
-      throw new BadRequestException(
-        'pet already has an active membership for this plan',
-      );
-    }
-
     // Calculate dates
     const startDate = createPetMembershipDto.start_date
       ? new Date(createPetMembershipDto.start_date)
       : new Date();
     const endDate = new Date(startDate);
     endDate.setMonth(endDate.getMonth() + membership.duration_months);
+
+    // Block purchase if the new period overlaps with any existing non-cancelled membership for this plan
+    const overlapping = await this.petMembershipModel.findOne({
+      pet_id: new Types.ObjectId(pet_id),
+      membership_plan_id: new Types.ObjectId(membership_plan_id),
+      is_active: true,
+      isDeleted: false,
+      start_date: { $lt: endDate },
+      end_date: { $gt: startDate },
+    });
+
+    if (overlapping) {
+      throw new BadRequestException(
+        'membership period overlaps with an existing membership for this plan',
+      );
+    }
 
     // Create benefits snapshot dari membership dengan period reset date
     const benefitsSnapshot = membership.benefits.map((b) => {
@@ -670,7 +673,7 @@ export class PetMembershipService {
     return pet_membership;
   }
 
-  async renew(id: string): Promise<any> {
+  async renew(id: string, dto: RenewPetMembershipDto = {}): Promise<any> {
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException('invalid pet membership ID');
     }
@@ -704,10 +707,27 @@ export class PetMembershipService {
     // Snapshot the current pet-membership benefits (with final used counts) before reset
     const snapshotBefore = (existing as any).toObject().benefits_snapshot || [];
 
-    // New period: contiguous from new Date
-    const newStartDate = new Date();
-    const newEndDate = new Date();
+    // New period: use dto.start_date if provided, otherwise start from today
+    const newStartDate = dto.start_date ? new Date(dto.start_date) : new Date();
+    const newEndDate = new Date(newStartDate);
     newEndDate.setMonth(newEndDate.getMonth() + membership.duration_months);
+
+    // Block renewal if the new period overlaps with another non-cancelled membership for this plan
+    const overlapRenew = await this.petMembershipModel.findOne({
+      _id: { $ne: new Types.ObjectId(id) },
+      pet_id: existing.pet_id,
+      membership_plan_id: existing.membership_plan_id,
+      is_active: true,
+      isDeleted: false,
+      start_date: { $lt: newEndDate },
+      end_date: { $gt: newStartDate },
+    });
+
+    if (overlapRenew) {
+      throw new BadRequestException(
+        'renewal period overlaps with another membership for this plan',
+      );
+    }
 
     // Rebuild benefits snapshot fresh from membership plan (same as create)
     const resetSnapshot = membership.benefits.map((b) => ({
@@ -726,13 +746,18 @@ export class PetMembershipService {
       ),
     }));
 
+    const updateData: Record<string, unknown> = {
+      start_date: newStartDate,
+      end_date: newEndDate,
+      benefits_snapshot: resetSnapshot,
+    };
+    if (dto.purchase_price != null) {
+      updateData.purchase_price = dto.purchase_price;
+    }
+
     const updated = await this.petMembershipModel.findByIdAndUpdate(
       new Types.ObjectId(id),
-      {
-        start_date: newStartDate,
-        end_date: newEndDate,
-        benefits_snapshot: resetSnapshot,
-      },
+      updateData,
       { new: true },
     );
 

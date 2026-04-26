@@ -2970,6 +2970,10 @@ export class BookingService {
     // This ensures the usage count is fresh so can_apply is accurate
     await this.benefitUsageService.softDeleteByBookingId(id.toString());
 
+    // ── 2a-2. Release old promotion usages BEFORE re-applying ─────────────────
+    // This ensures limit checks are accurate and uncheck restores the slot
+    await this.promotionUsageService.softDeleteByBookingId(id.toString());
+
     let benefitResult: {
       applied_benefits: any[];
       total_discount: number;
@@ -3045,6 +3049,7 @@ export class BookingService {
             addonPrices: promoAddonPrices,
             travelFee: tFeeBase, // before admin travel-fee discount
             grandTotal: newOriginalTotal, // sum of all base prices before discounts
+            excludeBookingId: id.toString(), // belt-and-suspenders: already soft-deleted above
           },
         );
       } catch (err) {
@@ -3136,6 +3141,31 @@ export class BookingService {
               `[updatePricing] recordUsage failed for benefit ${applied.benefit_id}, booking=${id}: ${err}`,
             );
           }
+        }
+      }
+    }
+
+    // ── 6. Record new promotion usages ────────────────────────────────────────
+    if (promotionResult.applied_promotions.length > 0) {
+      const bDate = new Date(bookingDate);
+      const bookingIdStr = id.toString();
+      const customerId = existing.customer_id?.toString();
+      const petIdStr = existing.pet_id?.toString();
+      for (const applied of promotionResult.applied_promotions) {
+        try {
+          await this.promotionUsageService.recordUsage({
+            promotionId: applied.promotion_id.toString(),
+            bookingId: bookingIdStr,
+            bookingDate: bDate,
+            limitType: applied.limit_type,
+            usagePeriod: applied.usage_period,
+            userId: customerId,
+            petId: petIdStr,
+          });
+        } catch (err) {
+          this.logger.error(
+            `[updatePricing] recordUsage failed for promotion ${applied.promotion_id}, booking=${id}: ${err}`,
+          );
         }
       }
     }

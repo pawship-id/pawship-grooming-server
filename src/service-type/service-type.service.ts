@@ -51,7 +51,7 @@ export class ServiceTypeService {
       .populate('stores', 'code name description')
       .skip(skip)
       .limit(limit)
-      .sort({ createdAt: -1 })
+      .sort({ order: 1, createdAt: -1 })
       .exec();
 
     return {
@@ -68,8 +68,8 @@ export class ServiceTypeService {
   async findAllForHomepage() {
     return await this.serviceTypeModel
       .find({ isDeleted: false, is_active: true, show_in_homepage: true })
-      .select('title description image_url')
-      .sort({ createdAt: -1 })
+      .select('title description image_url order')
+      .sort({ order: 1, createdAt: -1 })
       .exec();
   }
 
