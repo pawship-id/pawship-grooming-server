@@ -39,6 +39,9 @@ export class ServiceType {
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Store' }], default: [] })
   store_ids: Types.ObjectId[];
 
+  @Prop({ default: 0 })
+  order: number;
+
   @Prop({ default: false })
   isDeleted: boolean;
 
