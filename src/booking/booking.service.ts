@@ -2124,6 +2124,8 @@ export class BookingService {
       created_by_role,
       customer_id,
       store_id,
+      service_id,
+      search,
     } = query;
 
     const filter: any = { isDeleted: false };
@@ -2150,6 +2152,82 @@ export class BookingService {
       filter.store_id = store_id;
     }
 
+    if (service_id) {
+      filter.service_id = service_id;
+    }
+
+    // --- SEARCH PATH ---
+    // `customer` is a Mongoose virtual (not stored in the booking document),
+    // so it cannot be queried at DB level. We fetch all bookings that match
+    // the other filters, populate the virtual, then filter & paginate in app.
+    if (search) {
+      const allBookings = await this.bookingModel
+        .find(filter)
+        .sort({ date: -1, createdAt: -1 })
+        .populate('customer', 'username email phone_number profile.full_name')
+        .populate('store', 'name')
+        .populate({
+          path: 'sessions.groomer_id',
+          select: 'username email phone_number',
+          model: 'User',
+        })
+        .exec();
+
+      const q = search.toLowerCase();
+      const searchFiltered = allBookings.filter((b: any) => {
+        const petName: string = (b.pet_snapshot?.name ?? '').toLowerCase();
+        const customer = (b as any).customer as any;
+        const username: string = (customer?.username ?? '').toLowerCase();
+        const phone: string = (customer?.phone_number ?? '').toLowerCase();
+        const fullName: string = (
+          customer?.profile?.full_name ?? ''
+        ).toLowerCase();
+        return (
+          petName.includes(q) ||
+          username.includes(q) ||
+          phone.includes(q) ||
+          fullName.includes(q)
+        );
+      });
+
+      const total = searchFiltered.length;
+      const skip = (page - 1) * limit;
+      const pagedBookings = searchFiltered.slice(skip, skip + limit);
+
+      const searchPetIds = [
+        ...new Set(
+          pagedBookings
+            .map((b) => (b as any).pet_id?.toString())
+            .filter(Boolean) as string[],
+        ),
+      ];
+      const searchMembershipsMap =
+        await this.petMembershipService.getActiveMembershipsForPets(
+          searchPetIds,
+        );
+
+      const enrichedSearchBookings = pagedBookings.map((booking) => {
+        const plain = (booking as any).toJSON
+          ? (booking as any).toJSON()
+          : (booking as any);
+        const petIdStr = plain.pet_id?.toString();
+        const bookingDate = new Date(plain.date);
+        const petMemberships = searchMembershipsMap.get(petIdStr) ?? [];
+        const activeMemberships = petMemberships.filter(
+          (pm) =>
+            bookingDate >= new Date(pm.start_date) &&
+            bookingDate <= new Date(pm.end_date),
+        );
+        plain.active_memberships = activeMemberships.map((pm) => ({
+          name: pm.name,
+        }));
+        return plain;
+      });
+
+      return { bookings: enrichedSearchBookings, total, page, limit };
+    }
+
+    // --- NORMAL PATH (no search) ---
     const skip = (page - 1) * limit;
 
     const [bookings, total] = await Promise.all([
@@ -3049,6 +3127,9 @@ export class BookingService {
             addonPrices: promoAddonPrices,
             travelFee: tFeeBase, // before admin travel-fee discount
             grandTotal: newOriginalTotal, // sum of all base prices before discounts
+            customerId: existing.customer_id?.toString(),
+            petId: existing.pet_id?.toString(),
+            bookingDate: bookingDate ? new Date(bookingDate) : new Date(),
             excludeBookingId: id.toString(), // belt-and-suspenders: already soft-deleted above
           },
         );
