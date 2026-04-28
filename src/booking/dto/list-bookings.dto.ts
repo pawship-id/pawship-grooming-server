@@ -37,4 +37,12 @@ export class ListBookingsDto {
   @IsOptional()
   @IsString()
   store_id?: string;
+
+  @IsOptional()
+  @IsString()
+  service_id?: string;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
 }

@@ -4,6 +4,7 @@ import {
   IsEnum,
   IsNotEmpty,
   IsOptional,
+  Matches,
   MinLength,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
@@ -19,6 +20,10 @@ export class CreateUserDto {
   email?: string;
 
   @IsNotEmpty({ message: 'phone number is required' })
+  @Matches(/^0\d+$/, {
+    message:
+      'Phone number must start with 0 and contain digits only (e.g. 08xxx)',
+  })
   phone_number: string;
 
   @IsOptional()

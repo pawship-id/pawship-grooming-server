@@ -10,6 +10,7 @@ import { Pet, PetDocument } from 'src/pet/entities/pet.entity';
 import { RegisterGuestDto } from './dto/register-guest.dto';
 import { CreateGuestPetDto } from './dto/create-guest-pet.dto';
 import { hashPassword } from 'src/helpers/bcrypt';
+import { capitalizeWords } from 'src/helpers/string.helper';
 import { ObjectId } from 'mongodb';
 import { UserRole } from 'src/user/dto/user.dto';
 
@@ -85,7 +86,7 @@ export class GuestService {
     const hashedPassword = await hashPassword(defaultPassword);
 
     const newUser = new this.userModel({
-      username: dto.username,
+      username: capitalizeWords(dto.username),
       email: dto.email,
       phone_number: dto.phone_number,
       password: hashedPassword,

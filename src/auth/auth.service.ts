@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { comparePassword, hashPassword } from 'src/helpers/bcrypt';
+import { capitalizeWords } from 'src/helpers/string.helper';
 import { JwtService } from '@nestjs/jwt';
 import { User, UserDocument } from 'src/user/entities/user.entity';
 import { InjectModel } from '@nestjs/mongoose';
@@ -36,7 +37,7 @@ export class AuthService {
         body.email && body.email.trim() !== '' ? body.email : undefined;
 
       const user = new this.userModel({
-        username: body.username,
+        username: capitalizeWords(body.username),
         email: normalizedEmail,
         phone_number: body.phone_number,
         password: hash,

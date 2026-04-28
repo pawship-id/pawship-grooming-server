@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   ValidateNested,
 } from 'class-validator';
 
@@ -41,6 +42,10 @@ export class RegisterGuestDto {
 
   @IsNotEmpty()
   @IsString()
+  @Matches(/^0\d+$/, {
+    message:
+      'Phone number must start with 0 and contain digits only (e.g. 08xxx)',
+  })
   phone_number: string;
 
   @ValidateNested()
