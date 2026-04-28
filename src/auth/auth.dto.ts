@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, MinLength } from 'class-validator';
+import { IsEmail, IsNotEmpty, Matches, MinLength } from 'class-validator';
 
 export class RefreshTokenDto {
   @IsNotEmpty({ message: 'refresh_token is required' })
@@ -7,11 +7,19 @@ export class RefreshTokenDto {
 
 export class CheckPhoneDto {
   @IsNotEmpty({ message: 'phone_number is required' })
+  @Matches(/^0\d+$/, {
+    message:
+      'Phone number must start with 0 and contain digits only (e.g. 08xxx)',
+  })
   phone_number: string;
 }
 
 export class SendPasswordSetupDto {
   @IsNotEmpty({ message: 'phone_number is required' })
+  @Matches(/^0\d+$/, {
+    message:
+      'Phone number must start with 0 and contain digits only (e.g. 08xxx)',
+  })
   phone_number: string;
 
   @IsNotEmpty({ message: 'email is required' })

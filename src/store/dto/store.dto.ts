@@ -5,6 +5,7 @@ import {
   isNotEmpty,
   IsNotEmpty,
   IsNumber,
+  Matches,
   Min,
   IsMongoId,
   IsBoolean,
@@ -33,7 +34,12 @@ export class LocationDto {
 }
 
 export class ContactDto {
-  @IsOptional() phone_number?: string;
+  @IsOptional()
+  @Matches(/^0\d+$/, {
+    message:
+      'Phone number must start with 0 and contain digits only (e.g. 08xxx)',
+  })
+  phone_number?: string;
   @IsOptional() whatsapp?: string;
   @IsOptional() email?: string;
 }
