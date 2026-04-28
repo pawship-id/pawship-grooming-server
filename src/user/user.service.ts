@@ -326,6 +326,18 @@ export class UserService {
     return user;
   }
 
+  async clearEmailAndPassword(id: ObjectId) {
+    const user = await this.userModel.findByIdAndUpdate(
+      id,
+      {
+        $unset: { email: '', password: '' },
+        $set: { refresh_token: null, refresh_token_expires_at: null },
+      },
+      { new: true },
+    );
+    return user;
+  }
+
   async updatePassword(id: ObjectId, password: string) {
     const hash = await hashPassword(password);
 

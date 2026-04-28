@@ -226,6 +226,20 @@ export class UserController {
     return { message: `User ${status} successfully` };
   }
 
+  @Patch('clear-email/:id')
+  @HttpCode(HttpStatus.OK)
+  async clearUserEmail(@Param('id') id: string) {
+    if (!id) throw new BadRequestException('id is required');
+    const user = await this.userService.findById(new ObjectId(id));
+    if (!user || user.isDeleted) throw new NotFoundException('data not found');
+    if (user.role !== 'customer')
+      throw new BadRequestException(
+        'Clear email is only allowed for customer role',
+      );
+    await this.userService.clearEmailAndPassword(new ObjectId(id));
+    return { message: 'Email and password cleared successfully' };
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   async deleteUser(@Param('id') id: string) {
