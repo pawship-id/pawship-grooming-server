@@ -5,6 +5,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -58,6 +59,10 @@ class GuestAddressDto {
 export class UpdateGuestAddressDto {
   @IsNotEmpty({ message: 'phone_number is required' })
   @IsString()
+  @Matches(/^0\d+$/, {
+    message:
+      'Phone number must start with 0 and contain digits only (e.g. 08xxx)',
+  })
   phone_number: string;
 
   @IsOptional()
@@ -68,4 +73,3 @@ export class UpdateGuestAddressDto {
   @Type(() => GuestAddressDto)
   address: GuestAddressDto;
 }
-

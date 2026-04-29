@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { ObjectId } from 'mongodb';
 import { Model, Types } from 'mongoose';
 import { hashPassword } from 'src/helpers/bcrypt';
+import { capitalizeWords } from 'src/helpers/string.helper';
 import { User, UserDocument } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -136,7 +137,7 @@ export class UserService {
       console.log('🔍 Create user - normalizedEmail:', normalizedEmail);
 
       const user = new this.userModel({
-        username: body.username,
+        username: capitalizeWords(body.username),
         email: normalizedEmail,
         phone_number: body.phone_number,
         password: hashedPassword,
@@ -189,7 +190,10 @@ export class UserService {
 
     for (const field of scalarFields) {
       if (body[field]) {
-        setData[`profile.${field}`] = body[field];
+        setData[`profile.${field}`] =
+          field === 'full_name'
+            ? capitalizeWords(body[field] as string)
+            : body[field];
       }
     }
 
@@ -301,6 +305,10 @@ export class UserService {
       // Normalize email: convert empty string to undefined to work with sparse index
       const normalizedEmail = email && email.trim() !== '' ? email : undefined;
 
+      if (updateData.username) {
+        updateData.username = capitalizeWords(updateData.username);
+      }
+
       const user = await this.userModel.findByIdAndUpdate(
         id,
         { $set: { ...updateData, email: normalizedEmail } },
@@ -323,6 +331,18 @@ export class UserService {
       { new: true },
     );
 
+    return user;
+  }
+
+  async clearEmailAndPassword(id: ObjectId) {
+    const user = await this.userModel.findByIdAndUpdate(
+      id,
+      {
+        $unset: { email: '', password: '' },
+        $set: { refresh_token: null, refresh_token_expires_at: null },
+      },
+      { new: true },
+    );
     return user;
   }
 

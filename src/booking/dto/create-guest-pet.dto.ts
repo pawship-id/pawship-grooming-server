@@ -1,8 +1,18 @@
-import { IsMongoId, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsMongoId,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+} from 'class-validator';
 
 export class CreateGuestPetDto {
   @IsNotEmpty()
   @IsString()
+  @Matches(/^0\d+$/, {
+    message:
+      'Phone number must start with 0 and contain digits only (e.g. 08xxx)',
+  })
   phone_number: string;
 
   @IsNotEmpty()
