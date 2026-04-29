@@ -25,6 +25,8 @@ export enum DayOfWeek {
 
 export class LocationDto {
   @IsOptional() address?: string;
+  @IsOptional() subdistrict?: string;
+  @IsOptional() district?: string;
   @IsOptional() city?: string;
   @IsOptional() province?: string;
   @IsOptional() postal_code?: string;
