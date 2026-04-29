@@ -80,6 +80,8 @@ export class Store {
   @Prop({
     type: {
       address: { type: String },
+      subdistrict: { type: String },
+      district: { type: String },
       city: { type: String },
       province: { type: String },
       postal_code: { type: String },
@@ -90,6 +92,8 @@ export class Store {
   })
   location?: {
     address?: string;
+    subdistrict?: string;
+    district?: string;
     city?: string;
     province?: string;
     postal_code?: string;
