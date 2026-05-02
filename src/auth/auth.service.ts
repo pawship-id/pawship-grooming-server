@@ -56,6 +56,12 @@ export class AuthService {
     }
   }
 
+  async registerAndLogin(body: CreateUserDto) {
+    await this.createUser(body);
+    // email and password are validated as required inside createUser for self-registration
+    return this.signIn(body.email!, body.password!);
+  }
+
   async findUserByEmail(email: string) {
     const user = await this.userModel.findOne({ email: email });
 
