@@ -33,6 +33,7 @@ import {
   PromotionSchema,
 } from 'src/promotion/entities/promotion.entity';
 import { PromotionUsageModule } from 'src/promotion-usage/promotion-usage.module';
+import { GoogleMapsDistanceService } from 'src/helpers/google-maps-distance.service';
 
 @Module({
   imports: [
@@ -58,7 +59,7 @@ import { PromotionUsageModule } from 'src/promotion-usage/promotion-usage.module
     PromotionUsageModule,
   ],
   controllers: [BookingController, SessionController],
-  providers: [BookingService, SessionService, GuestService, UserService],
+  providers: [BookingService, SessionService, GuestService, UserService, GoogleMapsDistanceService],
   exports: [BookingService],
 })
 export class BookingModule {}

@@ -39,6 +39,7 @@ import {
   PromotionUsagePeriod,
 } from 'src/promotion/dto/create-promotion.dto';
 import { PromotionUsageService } from 'src/promotion-usage/promotion-usage.service';
+import { GoogleMapsDistanceService } from 'src/helpers/google-maps-distance.service';
 import { ListBookingsDto } from './dto/list-bookings.dto';
 import {
   ListGroomerMyJobsDto,
@@ -72,6 +73,7 @@ export class BookingService {
     private readonly petMembershipService: PetMembershipService,
     private readonly benefitUsageService: BenefitUsageService,
     private readonly promotionUsageService: PromotionUsageService,
+    private readonly googleMapsDistanceService: GoogleMapsDistanceService,
   ) {}
 
   /**
@@ -1287,7 +1289,7 @@ export class BookingService {
       );
     }
 
-    const distance = this.calculateDistance(
+    const distance = await this.googleMapsDistanceService.getRouteDistanceKm(
       customerLatitude,
       customerLongitude,
       storeLatitude,
