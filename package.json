@@ -26,6 +26,7 @@
     "seed:user-pet": "ts-node -r tsconfig-paths/register src/seeding/scripts/seed-user-pet.ts"
   },
   "dependencies": {
+    "@googlemaps/google-maps-services-js": "^3.4.2",
     "@nestjs-modules/mailer": "^2.3.4",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",

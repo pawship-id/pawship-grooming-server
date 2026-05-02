@@ -26,10 +26,11 @@ export class AuthController {
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   async register(@Body() body: CreateUserDto) {
-    await this.authService.createUser(body);
+    const tokens = await this.authService.registerAndLogin(body);
 
     return {
       message: 'Successfully Created',
+      ...tokens,
     };
   }
 

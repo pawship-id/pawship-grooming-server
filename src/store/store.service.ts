@@ -24,18 +24,12 @@ export class StoreService {
 
   async create(body: CreateStoreDto) {
     try {
-      // Check if trying to set as default store
+      // If setting as default store, unset any existing default store first
       if (body.is_default_store) {
-        const existingDefaultStore = await this.storeModel.findOne({
-          is_default_store: true,
-          isDeleted: false,
-        });
-
-        if (existingDefaultStore) {
-          throw new BadRequestException(
-            'A default store already exists. Only one store can be set as default.',
-          );
-        }
+        await this.storeModel.updateMany(
+          { is_default_store: true, isDeleted: false },
+          { $set: { is_default_store: false } },
+        );
       }
 
       // Validate: if pickup/delivery is enabled, require at least 1 zone
@@ -209,25 +203,21 @@ export class StoreService {
 
   async update(id: ObjectId, body: UpdateStoreDto) {
     try {
-      // Check if trying to set as default store
+      // If setting as default store, unset any existing default store first
       if (body.is_default_store) {
-        const existingDefaultStore = await this.storeModel.findOne({
-          is_default_store: true,
-          _id: { $ne: id },
-          isDeleted: false,
-        });
-
-        if (existingDefaultStore) {
-          throw new BadRequestException(
-            'A default store already exists. Only one store can be set as default.',
-          );
-        }
+        await this.storeModel.updateMany(
+          { is_default_store: true, _id: { $ne: id }, isDeleted: false },
+          { $set: { is_default_store: false } },
+        );
       }
 
       // Validate: if pickup/delivery is enabled, require at least 1 zone
       if (body.is_pickup_delivery_available !== undefined) {
         const zones = body.pickup_delivery_zones;
-        if (body.is_pickup_delivery_available && (!zones || zones.length === 0)) {
+        if (
+          body.is_pickup_delivery_available &&
+          (!zones || zones.length === 0)
+        ) {
           // Check existing store zones if not provided in update
           const existing = await this.storeModel.findById(id).lean();
           const existingZones = (existing as any)?.pickup_delivery_zones ?? [];

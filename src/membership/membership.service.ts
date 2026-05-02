@@ -151,6 +151,16 @@ export class MembershipService {
     return Promise.all(memberships.map((m) => this.populateBenefitServices(m)));
   }
 
+  async findPublic(): Promise<Membership[]> {
+    const memberships = await this.membershipModel
+      .find({ show_on_website: true, is_active: true, isDeleted: false })
+      .sort({ display_order: 1 })
+      .populate('pet_types', 'name')
+      .exec();
+
+    return Promise.all(memberships.map((m) => this.populateBenefitServices(m)));
+  }
+
   async findById(id: string): Promise<Membership> {
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException('invalid membership ID');

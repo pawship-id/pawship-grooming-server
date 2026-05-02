@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { MembershipController } from './membership.controller';
+import { MembershipPublicController } from './membership-public.controller';
 import { MembershipService } from './membership.service';
 import { Membership, MembershipSchema } from './entities/membership.entity';
 import { Service, ServiceSchema } from 'src/service/entities/service.entity';
@@ -16,7 +17,7 @@ import { PetMembershipModule } from 'src/pet-membership/pet-membership.module';
     AuthModule,
     forwardRef(() => PetMembershipModule),
   ],
-  controllers: [MembershipController],
+  controllers: [MembershipPublicController, MembershipController],
   providers: [MembershipService],
   exports: [MembershipService],
 })
