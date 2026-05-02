@@ -108,6 +108,29 @@ export class Membership {
   })
   benefits: MembershipBenefit[];
 
+  // ── Public display fields ───────────────────────────────────────────────
+  @Prop({ default: false })
+  show_on_website: boolean;
+
+  @Prop({ default: 0 })
+  display_order: number;
+
+  @Prop()
+  badge_label?: string;
+
+  @Prop({ enum: ['best', 'premium'] })
+  badge_variant?: string;
+
+  @Prop({ default: false })
+  featured: boolean;
+
+  @Prop()
+  original_price?: number;
+
+  @Prop({ type: [String], default: [] })
+  display_benefits: string[];
+
+  // ── Soft delete ─────────────────────────────────────────────────────────
   @Prop({ default: false })
   isDeleted: boolean;
 

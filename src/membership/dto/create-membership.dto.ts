@@ -102,4 +102,40 @@ export class CreateMembershipDto {
   @IsOptional()
   @IsBoolean()
   is_active?: boolean = true;
+
+  // ── Public display fields ────────────────────────────────────────────────
+
+  @IsOptional()
+  @IsBoolean()
+  show_on_website?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'display_order must be a number' })
+  @Min(0)
+  display_order?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  badge_label?: string;
+
+  @IsOptional()
+  @IsEnum(['best', 'premium'], { message: 'badge_variant must be best or premium' })
+  badge_variant?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  featured?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'original_price must be a number' })
+  @Min(0)
+  original_price?: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  display_benefits?: string[];
 }
