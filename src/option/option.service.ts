@@ -3,7 +3,7 @@ import { CreateOptionDto } from './dto/create-option.dto';
 import { UpdateOptionDto } from './dto/update-option.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Option, OptionDocument } from './entities/option.entity';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { ObjectId } from 'mongodb';
 import { capitalizeWords, toLowerCase } from '../helpers/string.helper';
 
@@ -21,7 +21,18 @@ export class OptionService {
 
   async create(body: CreateOptionDto) {
     body.name = capitalizeWords(body.name);
-    const option = new this.optionModel(body);
+
+    // Convert pet_weight_rules petTypeId from string to ObjectId
+    const optionData: any = { ...body };
+    if (body.pet_weight_rules && body.pet_weight_rules.length > 0) {
+      optionData.pet_weight_rules = body.pet_weight_rules.map((rule) => ({
+        minWeight: rule.minWeight,
+        maxWeight: rule.maxWeight,
+        petTypeId: new Types.ObjectId(rule.petTypeId),
+      }));
+    }
+
+    const option = new this.optionModel(optionData);
 
     return await option.save();
   }
@@ -35,12 +46,18 @@ export class OptionService {
       filter.category_options = toLowerCase(category);
     }
 
-    const options = await this.optionModel.find(filter).exec();
+    const options = await this.optionModel
+      .find(filter)
+      .populate('pet_weight_rules.petTypeId', 'name')
+      .exec();
     return options;
   }
 
   async findOne(id: ObjectId) {
-    const option = await this.optionModel.findById(id).exec();
+    const option = await this.optionModel
+      .findById(id)
+      .populate('pet_weight_rules.petTypeId', 'name')
+      .exec();
     return option;
   }
 
@@ -49,11 +66,19 @@ export class OptionService {
       body.name = capitalizeWords(body.name);
     }
 
-    const option = await this.optionModel.findByIdAndUpdate(
-      id,
-      { $set: body },
-      { new: true },
-    );
+    // Convert pet_weight_rules petTypeId from string to ObjectId
+    const updateData: any = { ...body };
+    if (body.pet_weight_rules && body.pet_weight_rules.length > 0) {
+      updateData.pet_weight_rules = body.pet_weight_rules.map((rule) => ({
+        minWeight: rule.minWeight,
+        maxWeight: rule.maxWeight,
+        petTypeId: new Types.ObjectId(rule.petTypeId),
+      }));
+    }
+
+    const option = await this.optionModel
+      .findByIdAndUpdate(id, { $set: updateData }, { new: true })
+      .populate('pet_weight_rules.petTypeId', 'name');
 
     return option;
   }
