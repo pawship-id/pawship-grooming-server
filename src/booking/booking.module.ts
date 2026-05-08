@@ -24,7 +24,7 @@ import {
 } from 'src/store-daily-capacity/entities/store-daily-capacity.entity';
 import { GuestService } from './guest.service';
 import { OptionModule } from 'src/option/option.module';
-import { UserService } from 'src/user/user.service';
+import { UserModule } from 'src/user/user.module';
 import { PetMembershipModule } from 'src/pet-membership/pet-membership.module';
 import { BenefitUsageModule } from 'src/benefit-usage/benefit-usage.module';
 import { PromotionModule } from 'src/promotion/promotion.module';
@@ -53,13 +53,14 @@ import { GoogleMapsDistanceService } from 'src/helpers/google-maps-distance.serv
     CloudinaryModule,
     AuthModule,
     OptionModule,
+    UserModule,
     PetMembershipModule,
     BenefitUsageModule,
     PromotionModule,
     PromotionUsageModule,
   ],
   controllers: [BookingController, SessionController],
-  providers: [BookingService, SessionService, GuestService, UserService, GoogleMapsDistanceService],
+  providers: [BookingService, SessionService, GuestService, GoogleMapsDistanceService],
   exports: [BookingService],
 })
 export class BookingModule {}
