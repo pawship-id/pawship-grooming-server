@@ -10,13 +10,31 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { GetUsersQueryDto } from './dto/get-users-query.dto';
 import { Pet, PetDocument } from 'src/pet/entities/pet.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import {
+  PetMembership,
+  PetMembershipDocument,
+} from 'src/pet-membership/entities/pet-membership.entity';
 
 @Injectable()
 export class UserService {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(Pet.name) private readonly petModel: Model<PetDocument>,
+    @InjectModel(PetMembership.name)
+    private readonly petMembershipModel: Model<PetMembershipDocument>,
   ) {}
+
+  private computeMembershipStatus(
+    isActive: boolean,
+    startDate: Date,
+    endDate: Date,
+  ): 'active' | 'inactive' | 'expired' {
+    if (!isActive) return 'inactive';
+    const now = new Date();
+    if (startDate <= now && endDate >= now) return 'active';
+    if (endDate < now) return 'expired';
+    return 'inactive';
+  }
 
   async getUsers(query: GetUsersQueryDto) {
     const { page = 1, limit = 10, search, role, is_active } = query;
@@ -116,7 +134,54 @@ export class UserService {
         .populate('breed', 'name')
         .exec();
 
-      return { ...user.toObject(), pets };
+      const petIds = pets.map((pet) => pet._id);
+      const memberships = await this.petMembershipModel
+        .find({
+          pet_id: { $in: petIds },
+          isDeleted: false,
+        })
+        .select('pet_id membership_plan_id start_date end_date is_active')
+        .populate({ path: 'membership', select: 'name' })
+        .sort({ createdAt: -1 })
+        .exec();
+
+      const membershipsByPetId = memberships.reduce<
+        Record<
+          string,
+          Array<{
+            membership_id: string;
+            name?: string | null;
+            start_date: Date;
+            end_date: Date;
+            status: 'active' | 'inactive' | 'expired';
+          }>
+        >
+      >((acc, membership) => {
+        const petId = membership.pet_id.toString();
+        if (!acc[petId]) {
+          acc[petId] = [];
+        }
+        const membershipName = (membership as any).membership?.name ?? null;
+        acc[petId].push({
+          membership_id: membership.membership_plan_id.toString(),
+          name: membershipName,
+          start_date: membership.start_date,
+          end_date: membership.end_date,
+          status: this.computeMembershipStatus(
+            membership.is_active,
+            membership.start_date,
+            membership.end_date,
+          ),
+        });
+        return acc;
+      }, {});
+
+      const petsWithMemberships = pets.map((pet) => ({
+        ...pet.toObject(),
+        memberships: membershipsByPetId[pet._id.toString()] ?? [],
+      }));
+
+      return { ...user.toObject(), pets: petsWithMemberships };
     }
     return user;
   }

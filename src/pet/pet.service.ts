@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { CreatePetDto } from './dto/create-pet.dto';
 import { UpdatePetDto } from './dto/update-pet.dto';
 import { GetPetsQueryDto } from './dto/get-pets-query.dto';
@@ -7,16 +11,68 @@ import { Pet, PetDocument } from './entities/pet.entity';
 import { Model, Types } from 'mongoose';
 import { capitalizeWords } from 'src/helpers/string.helper';
 import { ObjectId } from 'mongodb';
+import { Option, OptionDocument } from 'src/option/entities/option.entity';
 
 @Injectable()
 export class PetService {
   constructor(
     @InjectModel(Pet.name)
     private readonly petModel: Model<PetDocument>,
+    @InjectModel(Option.name)
+    private readonly optionModel: Model<OptionDocument>,
   ) {}
+
+  private async validatePetWeightForSize(
+    petTypeId: string | Types.ObjectId,
+    weight: number,
+    sizeId: string | Types.ObjectId,
+  ): Promise<void> {
+    // Fetch the size category with its pet_weight_rules
+    const sizeOption = await this.optionModel.findById(sizeId).exec();
+
+    if (!sizeOption) {
+      throw new NotFoundException('Size category not found');
+    }
+
+    // If size has pet_weight_rules, validate that pet matches at least one rule
+    if (sizeOption.pet_weight_rules && sizeOption.pet_weight_rules.length > 0) {
+      const petTypeObjectId = new Types.ObjectId(petTypeId);
+      const matchedRule = sizeOption.pet_weight_rules.find((rule) => {
+        const ruleTypeId = new Types.ObjectId(rule.petTypeId);
+        return (
+          ruleTypeId.equals(petTypeObjectId) &&
+          weight >= rule.minWeight &&
+          weight <= rule.maxWeight
+        );
+      });
+
+      if (!matchedRule) {
+        // Get pet type name for better error message
+        const petType = await this.optionModel
+          .findById(petTypeId)
+          .select('name')
+          .exec();
+
+        const petTypeName = petType?.name || 'Pet';
+
+        throw new BadRequestException(
+          `${petTypeName} weight (${weight} kg) does not match any weight range for "${sizeOption.name}" size category`,
+        );
+      }
+    }
+  }
 
   async create(body: CreatePetDto) {
     body.name = capitalizeWords(body.name);
+
+    // Validate pet weight against size category rules if weight is provided
+    if (body.weight !== undefined && body.weight !== null) {
+      await this.validatePetWeightForSize(
+        body.pet_type_id,
+        body.weight,
+        body.size_category_id,
+      );
+    }
 
     // Convert string IDs to ObjectId
     const petData: any = {
@@ -125,6 +181,34 @@ export class PetService {
   async update(id: ObjectId, body: UpdatePetDto) {
     if (body.name) {
       body.name = capitalizeWords(body.name);
+    }
+
+    // Fetch current pet to get existing values
+    const currentPet = await this.petModel.findById(id).exec();
+    if (!currentPet) {
+      throw new NotFoundException('Pet not found');
+    }
+
+    // Determine the weight and size_category_id to validate
+    const weightToValidate = body.weight ?? currentPet.weight;
+    const sizeToValidate = body.size_category_id
+      ? new Types.ObjectId(body.size_category_id)
+      : currentPet.size_category_id;
+    const petTypeToValidate = body.pet_type_id
+      ? body.pet_type_id
+      : currentPet.pet_type_id;
+
+    // Validate pet weight against size category rules if changing weight or size
+    if (
+      (body.weight !== undefined || body.size_category_id) &&
+      weightToValidate !== undefined &&
+      weightToValidate !== null
+    ) {
+      await this.validatePetWeightForSize(
+        petTypeToValidate,
+        weightToValidate,
+        sizeToValidate,
+      );
     }
 
     // Convert string IDs to ObjectId
