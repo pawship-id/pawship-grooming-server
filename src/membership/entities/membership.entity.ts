@@ -63,6 +63,9 @@ export class MembershipBenefit {
   toObject: { virtuals: true },
 })
 export class Membership {
+  @Prop({ unique: true, sparse: true })
+  code?: string;
+
   @Prop({ required: true, unique: true })
   name: string;
 

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CounterModule } from 'src/counter/counter.module';
 import { UserService } from './user.service';
 import { UserController } from './user.controller';
 import { User, UserSchema } from './entities/user.entity';
@@ -20,6 +21,7 @@ import {
     ]),
     AuthModule,
     PetModule,
+    CounterModule,
   ],
   providers: [UserService],
   controllers: [UserController],

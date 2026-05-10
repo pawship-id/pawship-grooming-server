@@ -4,6 +4,7 @@ import {
   IsMongoId,
   IsNotEmpty,
   IsOptional,
+  IsString,
   ValidateNested,
 } from 'class-validator';
 
@@ -65,4 +66,8 @@ export class CreatePetDto {
   @IsOptional()
   @IsBoolean()
   is_active?: boolean = true;
+
+  @IsOptional()
+  @IsString()
+  code?: string;
 }

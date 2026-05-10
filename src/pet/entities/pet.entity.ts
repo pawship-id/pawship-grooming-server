@@ -22,6 +22,9 @@ export type PetDocument = HydratedDocument<Pet>;
   toObject: { virtuals: true },
 })
 export class Pet {
+  @Prop({ unique: true, sparse: true })
+  code?: string;
+
   @Prop({ required: true })
   name: string;
 

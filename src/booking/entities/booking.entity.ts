@@ -395,6 +395,10 @@ export class BookingStatusLog {
   toObject: { virtuals: true },
 })
 export class Booking {
+  /* ===== Code ===== */
+  @Prop({ unique: true, sparse: true })
+  code?: string;
+
   /* ===== Service Type ===== */
   @Prop({ type: Types.ObjectId, ref: 'ServiceType', required: true })
   service_type_id: Types.ObjectId;

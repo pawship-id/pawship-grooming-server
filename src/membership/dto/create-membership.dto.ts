@@ -138,4 +138,8 @@ export class CreateMembershipDto {
   @IsArray()
   @IsString({ each: true })
   display_benefits?: string[];
+
+  @IsOptional()
+  @IsString()
+  code?: string;
 }

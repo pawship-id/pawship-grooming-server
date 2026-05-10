@@ -235,4 +235,8 @@ export class CreateBookingDto {
     message: 'each promotion ID must be a valid MongoDB ID',
   })
   selected_promotion_ids?: string[];
+
+  @IsOptional()
+  @IsString()
+  code?: string;
 }

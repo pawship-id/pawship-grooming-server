@@ -123,6 +123,9 @@ export const UserProfileSchema = SchemaFactory.createForClass(UserProfile);
 
 @Schema({ timestamps: true })
 export class User {
+  @Prop({ unique: true, sparse: true })
+  code?: string;
+
   @Prop({ required: true })
   username: string;
 

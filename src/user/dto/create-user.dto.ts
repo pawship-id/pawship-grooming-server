@@ -4,6 +4,7 @@ import {
   IsEnum,
   IsNotEmpty,
   IsOptional,
+  IsString,
   Matches,
   MinLength,
 } from 'class-validator';
@@ -43,4 +44,8 @@ export class CreateUserDto {
   @IsOptional()
   @IsBoolean()
   is_idle?: boolean;
+
+  @IsOptional()
+  @IsString()
+  code?: string;
 }
