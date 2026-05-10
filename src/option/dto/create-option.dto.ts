@@ -42,4 +42,8 @@ export class CreateOptionDto {
   @ValidateNested({ each: true })
   @Type(() => PetWeightRuleDto)
   pet_weight_rules?: PetWeightRuleDto[];
+
+  @IsOptional()
+  @IsNumber()
+  ideal_duration?: number;
 }

@@ -47,6 +47,7 @@ import {
 } from './dto/list-groomer-bookings.dto';
 import { GetDailyUsagesDto } from './dto/get-daily-usages.dto';
 import { CounterService } from 'src/counter/counter.service';
+import { OptionService } from 'src/option/option.service';
 
 @Injectable()
 export class BookingService {
@@ -76,6 +77,7 @@ export class BookingService {
     private readonly promotionUsageService: PromotionUsageService,
     private readonly googleMapsDistanceService: GoogleMapsDistanceService,
     private readonly counterService: CounterService,
+    private readonly optionService: OptionService,
   ) {}
 
   /**
@@ -1741,6 +1743,9 @@ export class BookingService {
 
       // 10. auto-generate sessions from service.sessions array for all booking types
       if (service.sessions && service.sessions.length > 0) {
+        const sessionOptions = await this.optionService.findByNames(service.sessions);
+        const optionMap = new Map(sessionOptions.map((o: any) => [o.name, o]));
+
         (body as any).sessions = service.sessions.map((sessionType, index) => ({
           type: sessionType,
           groomer_id: null,
@@ -1750,6 +1755,7 @@ export class BookingService {
           notes: null,
           internal_note: null,
           order: index,
+          ideal_duration: optionMap.get(sessionType)?.ideal_duration ?? null,
         }));
       } else {
         (body as any).sessions = [];

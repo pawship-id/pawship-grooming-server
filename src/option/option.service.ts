@@ -91,4 +91,12 @@ export class OptionService {
 
     return option;
   }
+
+  async findByNames(names: string[]): Promise<Option[]> {
+    if (!names.length) return [];
+    return this.optionModel
+      .find({ name: { $in: names }, isDeleted: false })
+      .lean()
+      .exec() as any;
+  }
 }

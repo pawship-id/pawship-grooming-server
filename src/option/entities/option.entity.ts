@@ -40,6 +40,9 @@ export class Option {
 
   @Prop({ type: [PetWeightRuleSchema], default: [] })
   pet_weight_rules: PetWeightRule[];
+
+  @Prop({ type: Number, default: 0 })
+  ideal_duration?: number;
 }
 
 export const OptionSchema = SchemaFactory.createForClass(Option);

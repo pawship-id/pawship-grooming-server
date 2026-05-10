@@ -351,6 +351,9 @@ export class GroomingSession {
 
   @Prop({ default: 0 })
   order: number; // For session sequencing
+
+  @Prop({ type: Number, default: 0 })
+  ideal_duration?: number;
 }
 
 @Schema({ _id: false })
