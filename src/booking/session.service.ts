@@ -18,6 +18,7 @@ import {
 import { GroomingMediaDto } from './dto/grooming-media.dto';
 import { UpdateSessionDto } from './dto/update-grooming-session.dto';
 import { CreateSessionDto } from './dto/create-grooming-session.dto';
+import { ReviewSessionDto } from './dto/review-session.dto';
 
 @Injectable()
 export class SessionService {
@@ -568,6 +569,57 @@ export class SessionService {
     } catch (error) {
       throw error;
     }
+  }
+
+  // ==================== CUSTOMER REVIEW ====================
+
+  async reviewSession(
+    bookingId: ObjectId,
+    sessionId: ObjectId,
+    customerId: string,
+    dto: ReviewSessionDto,
+  ) {
+    const booking = await this.findBookingOrFail(bookingId);
+
+    if (booking.customer_id.toString() !== customerId) {
+      throw new ForbiddenException('Hanya customer booking ini yang dapat memberi review');
+    }
+
+    if (booking.booking_status !== BookingStatus.COMPLETED) {
+      throw new BadRequestException('Review hanya dapat diberikan untuk booking yang sudah selesai');
+    }
+
+    const sessionIndex = booking.sessions.findIndex(
+      (s: any) => s._id.toString() === sessionId.toString(),
+    );
+
+    if (sessionIndex === -1) {
+      throw new NotFoundException('Session not found');
+    }
+
+    const session = booking.sessions[sessionIndex];
+
+    if ((session as any).review_customer) {
+      throw new ConflictException('Sesi ini sudah pernah diberi review');
+    }
+
+    const basePath = `sessions.${sessionIndex}`;
+
+    const updatedBooking = await this.bookingModel.findByIdAndUpdate(
+      bookingId,
+      {
+        $set: {
+          [`${basePath}.review_customer`]: {
+            rating: dto.rating,
+            comment: dto.comment ?? null,
+            createdAt: new Date(),
+          },
+        },
+      },
+      { new: true },
+    );
+
+    return updatedBooking;
   }
 
   // Delete booking media with auth check:

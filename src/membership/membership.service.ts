@@ -1,6 +1,7 @@
 import {
   Injectable,
   BadRequestException,
+  ConflictException,
   NotFoundException,
   Inject,
   forwardRef,
@@ -53,6 +54,14 @@ export class MembershipService {
     //   }
     // }
 
+    const { code } = createMembershipDto;
+    if (code) {
+      const existingCode = await this.membershipModel.findOne({ code, isDeleted: false });
+      if (existingCode) {
+        throw new ConflictException('code already exists');
+      }
+    }
+
     const membership = new this.membershipModel({
       name,
       duration_months,
@@ -65,6 +74,7 @@ export class MembershipService {
         service_id: b.service_id ? new Types.ObjectId(b.service_id) : undefined,
         _id: new Types.ObjectId(),
       })),
+      code,
       ...rest,
     });
 
@@ -203,7 +213,7 @@ export class MembershipService {
       throw new BadRequestException('invalid membership ID');
     }
 
-    const { name, pet_type_ids, benefits, apply_retroactive, ...rest } =
+    const { name, pet_type_ids, benefits, apply_retroactive, code, ...rest } =
       updateMembershipDto;
 
     // Validate unique name if updating
@@ -220,6 +230,18 @@ export class MembershipService {
       }
     }
 
+    // Validate unique code if updating
+    if (code) {
+      const existingCode = await this.membershipModel.findOne({
+        code,
+        _id: { $ne: new Types.ObjectId(id) },
+        isDeleted: false,
+      });
+      if (existingCode) {
+        throw new ConflictException('code already exists');
+      }
+    }
+
     // Validation if applies_to to be filled with add-ons or services, then service_id is mandatory.
     // if (benefits) {
     //   for (const b of benefits) {
@@ -233,6 +255,7 @@ export class MembershipService {
 
     const updateData: any = { ...rest };
     if (name) updateData.name = name;
+    if (code !== undefined) updateData.code = code;
     if (pet_type_ids) {
       updateData.pet_type_ids = pet_type_ids.map(
         (pid) => new Types.ObjectId(pid),

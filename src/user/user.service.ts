@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ObjectId } from 'mongodb';
+import { CounterService } from 'src/counter/counter.service';
 import { Model, Types } from 'mongoose';
 import { hashPassword } from 'src/helpers/bcrypt';
 import { capitalizeWords } from 'src/helpers/string.helper';
@@ -22,6 +23,7 @@ export class UserService {
     @InjectModel(Pet.name) private readonly petModel: Model<PetDocument>,
     @InjectModel(PetMembership.name)
     private readonly petMembershipModel: Model<PetMembershipDocument>,
+    private readonly counterService: CounterService,
   ) {}
 
   private computeMembershipStatus(
@@ -188,6 +190,16 @@ export class UserService {
 
   async create(body: CreateUserDto) {
     try {
+      const code = body.role === 'customer' ? body.code : undefined;
+
+      // Check code uniqueness upfront for customer
+      if (code) {
+        const existing = await this.userModel.findOne({ code }).exec();
+        if (existing) {
+          throw new ConflictException('code already exists');
+        }
+      }
+
       // Hash password only if provided
       const hashedPassword = body.password
         ? await hashPassword(body.password)
@@ -215,6 +227,7 @@ export class UserService {
             : body.role === 'customer'
               ? true
               : undefined,
+        code,
       });
 
       return await user.save();

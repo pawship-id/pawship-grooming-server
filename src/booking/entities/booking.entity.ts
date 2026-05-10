@@ -313,6 +313,18 @@ export class SessionMedia {
   uploaded_at: Date;
 }
 
+@Schema({ _id: false })
+export class CustomerReview {
+  @Prop({ type: Number, required: true, min: 1, max: 5 })
+  rating: number;
+
+  @Prop({ type: String, default: null })
+  comment?: string | null;
+
+  @Prop({ type: Date, required: true })
+  createdAt: Date;
+}
+
 // Session - represents one grooming activity (bathing, styling, etc.)
 @Schema()
 export class GroomingSession {
@@ -351,6 +363,12 @@ export class GroomingSession {
 
   @Prop({ default: 0 })
   order: number; // For session sequencing
+
+  @Prop({ type: Number, default: 0 })
+  ideal_duration?: number;
+
+  @Prop({ type: CustomerReview, default: null })
+  review_customer?: CustomerReview | null;
 }
 
 @Schema({ _id: false })
@@ -395,6 +413,10 @@ export class BookingStatusLog {
   toObject: { virtuals: true },
 })
 export class Booking {
+  /* ===== Code ===== */
+  @Prop({ unique: true, sparse: true })
+  code?: string;
+
   /* ===== Service Type ===== */
   @Prop({ type: Types.ObjectId, ref: 'ServiceType', required: true })
   service_type_id: Types.ObjectId;

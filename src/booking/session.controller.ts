@@ -21,6 +21,7 @@ import {
   FinishSessionDto,
 } from './dto/update-grooming-session.dto';
 import { CreateSessionDto } from './dto/create-grooming-session.dto';
+import { ReviewSessionDto } from './dto/review-session.dto';
 import { AuthGuard } from 'src/auth/auth.guard';
 
 @Controller('bookings')
@@ -148,6 +149,31 @@ export class SessionController {
 
     return {
       message: 'Session finished successfully',
+    };
+  }
+
+  // Customer submits a review for a specific session
+  @Patch(':bookingId/session/:sessionId/review')
+  async reviewSession(
+    @Param('bookingId') bookingId: string,
+    @Param('sessionId') sessionId: string,
+    @Body() body: ReviewSessionDto,
+    @Req() request: any,
+  ) {
+    if (!bookingId) throw new BadRequestException('bookingId is required');
+    if (!sessionId) throw new BadRequestException('sessionId is required');
+
+    const _bookingId = new ObjectId(bookingId);
+    const _sessionId = new ObjectId(sessionId);
+    await this.sessionService.reviewSession(
+      _bookingId,
+      _sessionId,
+      request.user._id,
+      body,
+    );
+
+    return {
+      message: 'Review submitted successfully',
     };
   }
 

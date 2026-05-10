@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { CreatePetDto } from './dto/create-pet.dto';
 import { UpdatePetDto } from './dto/update-pet.dto';
@@ -91,9 +92,24 @@ export class PetService {
       petData.tags = body.tags.map((tag) => capitalizeWords(tag));
     }
 
+    if (body.code) {
+      const existing = await this.petModel.findOne({ code: body.code }).exec();
+      if (existing) {
+        throw new ConflictException('code already exists');
+      }
+      petData.code = body.code;
+    }
+
     const pet = new this.petModel(petData);
 
-    return await pet.save();
+    try {
+      return await pet.save();
+    } catch (error) {
+      if (error.code === 11000) {
+        throw new BadRequestException('code already exists');
+      }
+      throw error;
+    }
   }
 
   async findAll(query: GetPetsQueryDto) {
@@ -233,13 +249,19 @@ export class PetService {
       updateData.tags = body.tags.map((tag) => capitalizeWords(tag));
     }
 
-    const pet = await this.petModel.findByIdAndUpdate(
-      id,
-      { $set: updateData },
-      { new: true },
-    );
-
-    return pet;
+    try {
+      const pet = await this.petModel.findByIdAndUpdate(
+        id,
+        { $set: updateData },
+        { new: true },
+      );
+      return pet;
+    } catch (error) {
+      if (error.code === 11000) {
+        throw new BadRequestException('code already exists');
+      }
+      throw error;
+    }
   }
 
   async remove(id: ObjectId) {
