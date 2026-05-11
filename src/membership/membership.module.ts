@@ -7,6 +7,7 @@ import { Membership, MembershipSchema } from './entities/membership.entity';
 import { Service, ServiceSchema } from 'src/service/entities/service.entity';
 import { AuthModule } from 'src/auth/auth.module';
 import { PetMembershipModule } from 'src/pet-membership/pet-membership.module';
+import { CounterModule } from 'src/counter/counter.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { PetMembershipModule } from 'src/pet-membership/pet-membership.module';
     ]),
     AuthModule,
     forwardRef(() => PetMembershipModule),
+    CounterModule,
   ],
   controllers: [MembershipPublicController, MembershipController],
   providers: [MembershipService],

@@ -13,6 +13,7 @@ import { Model, Types } from 'mongoose';
 import { capitalizeWords } from 'src/helpers/string.helper';
 import { ObjectId } from 'mongodb';
 import { Option, OptionDocument } from 'src/option/entities/option.entity';
+import { CounterService } from 'src/counter/counter.service';
 
 @Injectable()
 export class PetService {
@@ -21,6 +22,7 @@ export class PetService {
     private readonly petModel: Model<PetDocument>,
     @InjectModel(Option.name)
     private readonly optionModel: Model<OptionDocument>,
+    private readonly counterService: CounterService,
   ) {}
 
   private async validatePetWeightForSize(
@@ -92,13 +94,8 @@ export class PetService {
       petData.tags = body.tags.map((tag) => capitalizeWords(tag));
     }
 
-    if (body.code) {
-      const existing = await this.petModel.findOne({ code: body.code }).exec();
-      if (existing) {
-        throw new ConflictException('code already exists');
-      }
-      petData.code = body.code;
-    }
+    const seq = await this.counterService.getNextSequence('pet');
+    petData.code = `PET-${String(seq).padStart(4, '0')}`;
 
     const pet = new this.petModel(petData);
 
@@ -227,8 +224,15 @@ export class PetService {
       );
     }
 
-    // Convert string IDs to ObjectId
-    const updateData: Record<string, unknown> = { ...body };
+    // Convert string IDs to ObjectId (exclude code — immutable after creation)
+    const { code: _code, ...bodyWithoutCode } = body as any;
+    const updateData: Record<string, unknown> = { ...bodyWithoutCode };
+
+    // Auto-generate code if pet doesn't have one yet
+    if (!currentPet.code) {
+      const seq = await this.counterService.getNextSequence('pet');
+      updateData.code = `PET-${String(seq).padStart(4, '0')}`;
+    }
 
     const idFields: (keyof typeof body)[] = [
       'pet_type_id',

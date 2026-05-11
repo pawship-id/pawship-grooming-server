@@ -1,4 +1,8 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ObjectId } from 'mongodb';
 import { CounterService } from 'src/counter/counter.service';
@@ -190,14 +194,11 @@ export class UserService {
 
   async create(body: CreateUserDto) {
     try {
-      const code = body.role === 'customer' ? body.code : undefined;
-
-      // Check code uniqueness upfront for customer
-      if (code) {
-        const existing = await this.userModel.findOne({ code }).exec();
-        if (existing) {
-          throw new ConflictException('code already exists');
-        }
+      // Auto-generate code for customer role
+      let code: string | undefined;
+      if (body.role === 'customer') {
+        const seq = await this.counterService.getNextSequence('customer');
+        code = `CUST-${String(seq).padStart(4, '0')}`;
       }
 
       // Hash password only if provided
@@ -377,14 +378,23 @@ export class UserService {
 
   async update(id: ObjectId, body: UpdateUserDto) {
     try {
-      // Exclude password from update
-      const { password, email, ...updateData } = body;
+      // Exclude password and code from update (code is auto-generated, immutable)
+      const { password, email, code: _code, ...updateData } = body;
 
       // Normalize email: convert empty string to undefined to work with sparse index
       const normalizedEmail = email && email.trim() !== '' ? email : undefined;
 
       if (updateData.username) {
         updateData.username = capitalizeWords(updateData.username);
+      }
+
+      // Auto-generate code for customer without one
+      if (body.role === 'customer' || updateData.role === 'customer') {
+        const currentUser = await this.userModel.findById(id).select('code role').lean();
+        if (currentUser?.role === 'customer' && !currentUser.code) {
+          const seq = await this.counterService.getNextSequence('customer');
+          (updateData as any).code = `CUST-${String(seq).padStart(4, '0')}`;
+        }
       }
 
       const user = await this.userModel.findByIdAndUpdate(

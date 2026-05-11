@@ -1473,10 +1473,8 @@ export class BookingService {
     body: CreateBookingDto,
     user?: { username: string; role: string },
   ) {
-    if (!(body as any).code) {
-      const seq = await this.counterService.getNextSequence('booking');
-      (body as any).code = `ODR-${String(seq).padStart(3, '0')}`;
-    }
+    const seq = await this.counterService.getNextSequence('booking');
+    (body as any).code = `ODR-${String(seq).padStart(4, '0')}`;
 
     const session = await this.connection.startSession();
     session.startTransaction();
@@ -1743,7 +1741,9 @@ export class BookingService {
 
       // 10. auto-generate sessions from service.sessions array for all booking types
       if (service.sessions && service.sessions.length > 0) {
-        const sessionOptions = await this.optionService.findByNames(service.sessions);
+        const sessionOptions = await this.optionService.findByNames(
+          service.sessions,
+        );
         const optionMap = new Map(sessionOptions.map((o: any) => [o.name, o]));
 
         (body as any).sessions = service.sessions.map((sessionType, index) => ({
