@@ -6,6 +6,7 @@ import { Option, OptionSchema } from 'src/option/entities/option.entity';
 import { Pet, PetSchema } from './entities/pet.entity';
 import { User, UserSchema } from 'src/user/entities/user.entity';
 import { AuthModule } from 'src/auth/auth.module';
+import { CounterModule } from 'src/counter/counter.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { AuthModule } from 'src/auth/auth.module';
       { name: User.name, schema: UserSchema },
     ]),
     AuthModule,
+    CounterModule,
   ],
   controllers: [PetController],
   providers: [PetService],

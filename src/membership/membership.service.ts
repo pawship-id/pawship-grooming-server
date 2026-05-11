@@ -14,6 +14,7 @@ import { UpdateMembershipDto } from './dto/update-membership.dto';
 import { GetMembershipQueryDto } from './dto/get-membership-query.dto';
 import { Service } from 'src/service/entities/service.entity';
 import { PetMembershipService } from 'src/pet-membership/pet-membership.service';
+import { CounterService } from 'src/counter/counter.service';
 
 @Injectable()
 export class MembershipService {
@@ -24,6 +25,7 @@ export class MembershipService {
     private serviceModel: Model<Service>,
     @Inject(forwardRef(() => PetMembershipService))
     private petMembershipService: PetMembershipService,
+    private readonly counterService: CounterService,
   ) {}
 
   async create(createMembershipDto: CreateMembershipDto): Promise<Membership> {
@@ -54,13 +56,8 @@ export class MembershipService {
     //   }
     // }
 
-    const { code } = createMembershipDto;
-    if (code) {
-      const existingCode = await this.membershipModel.findOne({ code, isDeleted: false });
-      if (existingCode) {
-        throw new ConflictException('code already exists');
-      }
-    }
+    const seq = await this.counterService.getNextSequence('membership');
+    const code = `MSP-${String(seq).padStart(4, '0')}`;
 
     const membership = new this.membershipModel({
       name,
@@ -213,8 +210,15 @@ export class MembershipService {
       throw new BadRequestException('invalid membership ID');
     }
 
-    const { name, pet_type_ids, benefits, apply_retroactive, code, ...rest } =
-      updateMembershipDto;
+    // Exclude code from updates — code is auto-generated and immutable
+    const {
+      name,
+      pet_type_ids,
+      benefits,
+      apply_retroactive,
+      code: _code,
+      ...rest
+    } = updateMembershipDto;
 
     // Validate unique name if updating
     if (name) {
@@ -230,18 +234,6 @@ export class MembershipService {
       }
     }
 
-    // Validate unique code if updating
-    if (code) {
-      const existingCode = await this.membershipModel.findOne({
-        code,
-        _id: { $ne: new Types.ObjectId(id) },
-        isDeleted: false,
-      });
-      if (existingCode) {
-        throw new ConflictException('code already exists');
-      }
-    }
-
     // Validation if applies_to to be filled with add-ons or services, then service_id is mandatory.
     // if (benefits) {
     //   for (const b of benefits) {
@@ -254,8 +246,17 @@ export class MembershipService {
     // }
 
     const updateData: any = { ...rest };
+
+    // Auto-generate code if membership doesn't have one yet
+    const existing = await this.membershipModel
+      .findById(new Types.ObjectId(id))
+      .select('code');
+    if (existing && !existing.code) {
+      const seq = await this.counterService.getNextSequence('membership');
+      updateData.code = `MSP-${String(seq).padStart(4, '0')}`;
+    }
+
     if (name) updateData.name = name;
-    if (code !== undefined) updateData.code = code;
     if (pet_type_ids) {
       updateData.pet_type_ids = pet_type_ids.map(
         (pid) => new Types.ObjectId(pid),
