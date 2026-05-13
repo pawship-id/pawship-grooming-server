@@ -583,9 +583,15 @@ export class Booking {
 
   @Prop({ default: null })
   deletedAt: Date;
+
+  /* ===== Analytics ===== */
+  @Prop({ type: Date, default: null, index: true })
+  completed_at: Date | null;
 }
 
 export const BookingSchema = SchemaFactory.createForClass(Booking);
+
+BookingSchema.index({ store_id: 1, completed_at: 1 });
 
 BookingSchema.virtual('customer', {
   ref: 'User',

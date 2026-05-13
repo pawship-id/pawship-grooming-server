@@ -2694,6 +2694,13 @@ export class BookingService {
         booking_status: status,
       };
 
+      // sync analytics completed_at field with completion transitions
+      if (status === BookingStatus.COMPLETED) {
+        updateData.completed_at = new Date();
+      } else if (existingBooking.booking_status === BookingStatus.COMPLETED) {
+        updateData.completed_at = null;
+      }
+
       // jika RESCHEDULED, tambahkan date dan time_range ke update
       if (status === BookingStatus.RESCHEDULED && rescheduleData) {
         updateData.date = rescheduleData.date;

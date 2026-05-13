@@ -357,6 +357,7 @@ export class SessionService {
 
       if (allSessionsComplete) {
         updateFields.booking_status = BookingStatus.COMPLETED;
+        updateFields.completed_at = new Date();
       }
 
       const updatedBooking = await this.bookingModel.findByIdAndUpdate(

@@ -21,6 +21,7 @@ import { PromotionModule } from './promotion/promotion.module';
 import { PromotionUsageModule } from './promotion-usage/promotion-usage.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { EmailModule } from './email/email.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { EmailModule } from './email/email.module';
     PromotionModule,
     PromotionUsageModule,
     EmailModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],
