@@ -32,8 +32,8 @@ export class PetSnapshotDto {
 
   @IsOptional()
   @ValidateIf((o) => o.member_type !== null)
-  @IsObject()
-  member_type?: { _id: string; name: string } | null;
+  @IsString()
+  member_type?: string | null;
 
   @IsOptional()
   @IsObject()

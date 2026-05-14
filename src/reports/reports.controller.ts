@@ -1,4 +1,5 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, MessageEvent, Query, Sse, UseGuards } from '@nestjs/common';
+import { Observable } from 'rxjs';
 import { AuthGuard } from 'src/auth/auth.guard';
 import { FinancialReportDto } from './dto/financial-report.dto';
 import { ReportsService } from './reports.service';
@@ -15,5 +16,15 @@ export class ReportsController {
       message: 'Financial report fetched successfully',
       ...result,
     };
+  }
+
+  @Sse('financial/stream')
+  streamFinancialReport(@Query() dto: FinancialReportDto): Observable<MessageEvent> {
+    return this.reportsService.streamFinancialReport(dto);
+  }
+
+  @Sse('financial/live')
+  streamLiveBookings(): Observable<MessageEvent> {
+    return this.reportsService.streamLiveBookings();
   }
 }

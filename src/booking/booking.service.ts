@@ -48,6 +48,7 @@ import {
 import { GetDailyUsagesDto } from './dto/get-daily-usages.dto';
 import { CounterService } from 'src/counter/counter.service';
 import { OptionService } from 'src/option/option.service';
+import { BookingEventsService } from 'src/booking-events/booking-events.service';
 
 @Injectable()
 export class BookingService {
@@ -78,6 +79,7 @@ export class BookingService {
     private readonly googleMapsDistanceService: GoogleMapsDistanceService,
     private readonly counterService: CounterService,
     private readonly optionService: OptionService,
+    private readonly bookingEventsService: BookingEventsService,
   ) {}
 
   /**
@@ -1485,10 +1487,59 @@ export class BookingService {
         new ObjectId(body.pet_id),
       );
 
+      // Resolve member_type: comma-separated names of all active memberships at booking time
+      const activeMemberships =
+        await this.petMembershipService.getActiveMembership(body.pet_id);
+      let memberType: string | null = null;
+      if (activeMemberships && activeMemberships.length > 0) {
+        const names = activeMemberships
+          .map((m: any) => m.membership?.name)
+          .filter(Boolean);
+        if (names.length > 0) memberType = names.join(', ');
+      }
+
       body.pet_snapshot = {
         ...pet,
         _id: pet._id.toString(),
+        member_type: memberType,
       };
+
+      // Build customer snapshot entirely from BE — never trust FE input
+      try {
+        const customerDoc = await this.userModel
+          .findById(new ObjectId(body.customer_id))
+          .select('username phone_number profile')
+          .lean();
+        if (customerDoc) {
+          let customerCategory: { _id: Types.ObjectId; name: string } | null =
+            null;
+          const catId = (customerDoc as any).profile?.customer_category_id;
+          if (catId) {
+            try {
+              const categoryOption = await this.optionService.findOne(
+                new ObjectId(catId),
+              );
+              if (categoryOption) {
+                customerCategory = {
+                  _id: categoryOption._id as Types.ObjectId,
+                  name: categoryOption.name,
+                };
+              }
+            } catch {
+              // category lookup failure is non-fatal — snapshot saved without category
+            }
+          }
+          (body as any).customer_snapshot = {
+            customer_name:
+              (customerDoc as any).profile?.full_name ||
+              (customerDoc as any).username,
+            customer_phone: (customerDoc as any).phone_number,
+            customer_category: customerCategory,
+          };
+        }
+      } catch {
+        // customer snapshot build failure is non-fatal — booking proceeds without it
+      }
 
       // 2. get service snapshot
       body.service_snapshot = (await this.serviceService.getServiceSnapshot(
@@ -1902,6 +1953,9 @@ export class BookingService {
       await session.commitTransaction();
       session.endSession();
 
+      // Emit event for real-time report updates
+      this.bookingEventsService.emit((booking[0] as any)._id.toString());
+
       // Record per-period benefit usage AFTER successful commit
       if (appliedBenefitsData.applied_benefits?.length > 0) {
         const bookingDate = new Date(body.date);
@@ -1947,12 +2001,7 @@ export class BookingService {
             `[recordPromotionUsage] Promo ${applied.code}: limitType=${limitType}, maxUsage=${maxUsage}, usagePeriod=${usagePeriod}, promotionId=${applied.promotion_id}`,
           );
 
-          if (
-            limitType !== PromotionLimitType.NONE &&
-            typeof maxUsage === 'number' &&
-            maxUsage > 0
-          ) {
-            try {
+          try {
               this.logger.log(
                 `[recordPromotionUsage] Recording usage with params: promotionId=${applied.promotion_id}, bookingId=${bookingId}, customerId=${body.customer_id}, petId=${body.pet_id}, limitType=${limitType}, usagePeriod=${usagePeriod}`,
               );
@@ -1984,11 +2033,6 @@ export class BookingService {
                 );
               }
             }
-          } else {
-            this.logger.log(
-              `[recordPromotionUsage] Skipping promo ${applied.code} - no limit configured (limitType=${limitType}, maxUsage=${maxUsage})`,
-            );
-          }
         }
       }
 
@@ -2355,9 +2399,22 @@ export class BookingService {
         new ObjectId(body.pet_id),
       );
 
+      // Resolve member_type: comma-separated names of all active memberships at update time
+      const activeMembershipsUpd = body.pet_id
+        ? await this.petMembershipService.getActiveMembership(body.pet_id)
+        : [];
+      let memberTypeUpd: string | null = null;
+      if (activeMembershipsUpd && activeMembershipsUpd.length > 0) {
+        const names = activeMembershipsUpd
+          .map((m: any) => m.membership?.name)
+          .filter(Boolean);
+        if (names.length > 0) memberTypeUpd = names.join(', ');
+      }
+
       body.pet_snapshot = {
         ...pet,
         _id: pet._id.toString(),
+        member_type: memberTypeUpd,
       };
 
       body.service_snapshot = (await this.serviceService.getServiceSnapshot(
@@ -2620,6 +2677,9 @@ export class BookingService {
 
       await session.commitTransaction();
       session.endSession();
+
+      // Emit event for real-time report updates
+      this.bookingEventsService.emit(id.toString());
 
       return updatedBooking;
     } catch (error) {

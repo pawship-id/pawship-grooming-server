@@ -137,6 +137,21 @@ export class AppliedPromotion {
   usage_period?: string; // 'lifetime' | 'daily' | 'weekly' | 'monthly'
 }
 
+@Schema({ _id: false })
+export class CustomerSnapshot {
+  @Prop({ required: true })
+  customer_name: string;
+
+  @Prop({ required: true })
+  customer_phone: string;
+
+  @Prop({
+    type: { _id: { type: Types.ObjectId }, name: { type: String } },
+    default: null,
+  })
+  customer_category?: { _id: Types.ObjectId; name: string } | null;
+}
+
 @Schema({
   toJSON: {
     virtuals: true,
@@ -178,11 +193,8 @@ export class PetSnapshot {
   @Prop()
   internal_note?: string;
 
-  @Prop({
-    type: { _id: { type: Types.ObjectId }, name: { type: String } },
-    default: null,
-  })
-  member_type?: { _id: Types.ObjectId; name: string } | null;
+  @Prop({ type: String, default: null })
+  member_type?: string | null;
 
   @Prop({
     type: { _id: { type: Types.ObjectId }, name: { type: String } },
@@ -424,6 +436,10 @@ export class Booking {
   /* ===== Owner ===== */
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   customer_id: Types.ObjectId;
+
+  /* ===== Customer Snapshot ===== */
+  @Prop({ type: CustomerSnapshot })
+  customer_snapshot?: CustomerSnapshot;
 
   /* ===== Pet ===== */
   @Prop({ type: PetSnapshot, required: true })

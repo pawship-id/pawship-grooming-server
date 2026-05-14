@@ -23,6 +23,7 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { EmailModule } from './email/email.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ReportsModule } from './reports/reports.module';
+import { BookingEventsModule } from './booking-events/booking-events.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { ReportsModule } from './reports/reports.module';
     EmailModule,
     DashboardModule,
     ReportsModule,
+    BookingEventsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
