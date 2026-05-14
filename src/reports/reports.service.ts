@@ -5,6 +5,7 @@ import { Observable, Subscriber } from 'rxjs';
 import { MessageEvent } from '@nestjs/common';
 import { Booking, BookingDocument } from 'src/booking/entities/booking.entity';
 import { FinancialReportDto } from './dto/financial-report.dto';
+import { OperationsReportDto } from './dto/operations-report.dto';
 import { BookingEventsService } from 'src/booking-events/booking-events.service';
 
 const STREAM_CHUNK_SIZE = 50;
@@ -30,7 +31,8 @@ export class ReportsService {
 
     if (dto.store_id) {
       try {
-        filter.store_id = new Types.ObjectId(dto.store_id);
+        const oid = new Types.ObjectId(dto.store_id);
+        filter.store_id = { $in: [oid, dto.store_id] };
       } catch {
         filter.store_id = dto.store_id;
       }
@@ -79,6 +81,104 @@ export class ReportsService {
               type: 'chunk',
             } as MessageEvent);
             // yield to event loop so each chunk is flushed as a separate SSE frame
+            await new Promise<void>((resolve) => setImmediate(resolve));
+          }
+          if (!cancelled) {
+            subscriber.next({
+              data: JSON.stringify({ total: bookings.length }),
+              type: 'done',
+            } as MessageEvent);
+            subscriber.complete();
+          }
+        })
+        .catch((err: Error) => {
+          if (!cancelled) {
+            subscriber.next({
+              data: JSON.stringify({ message: err.message }),
+              type: 'error',
+            } as MessageEvent);
+            subscriber.error(err);
+          }
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    });
+  }
+
+  // ─── Operations: Booking & Ops Detail ────────────────────────────────────────
+
+  private buildOperationsFilter(dto: OperationsReportDto): Record<string, any> {
+    const filter: Record<string, any> = { isDeleted: false };
+
+    if (dto.booking_status) filter.booking_status = dto.booking_status;
+
+    if (dto.date_from || dto.date_to) {
+      filter.date = {};
+      if (dto.date_from) filter.date.$gte = new Date(dto.date_from);
+      if (dto.date_to) filter.date.$lte = new Date(dto.date_to);
+    }
+
+    if (dto.store_id) {
+      try {
+        const oid = new Types.ObjectId(dto.store_id);
+        filter.store_id = { $in: [oid, dto.store_id] };
+      } catch {
+        filter.store_id = dto.store_id;
+      }
+    }
+
+    if (dto.booking_type) filter.type = dto.booking_type;
+
+    if (dto.session_status) filter['sessions.status'] = dto.session_status;
+
+    if (dto.service_type) {
+      filter['service_snapshot.service_type.title'] = {
+        $regex: new RegExp(`^${dto.service_type}$`, 'i'),
+      };
+    }
+
+    return filter;
+  }
+
+  async getOperationsReport(dto: OperationsReportDto) {
+    const filter = this.buildOperationsFilter(dto);
+    const limit = Math.min(dto.limit ?? 10000, 50000);
+
+    const bookings = await this.bookingModel
+      .find(filter)
+      .sort({ date: -1, createdAt: -1 })
+      .limit(limit)
+      .populate('customer', 'code username email phone_number')
+      .populate('store', 'code name')
+      .populate('pet', 'code')
+      .populate({
+        path: 'sessions.groomer_id',
+        select: 'username',
+        model: 'User',
+      })
+      .exec();
+
+    const plain = bookings.map((b) =>
+      (b as any).toJSON ? (b as any).toJSON() : b,
+    );
+
+    return { bookings: plain, total: plain.length };
+  }
+
+  streamOperationsReport(dto: OperationsReportDto): Observable<MessageEvent> {
+    return new Observable<MessageEvent>((subscriber: Subscriber<MessageEvent>) => {
+      let cancelled = false;
+
+      this.getOperationsReport(dto)
+        .then(async ({ bookings }) => {
+          for (let i = 0; i < bookings.length; i += STREAM_CHUNK_SIZE) {
+            if (cancelled) break;
+            subscriber.next({
+              data: JSON.stringify({ bookings: bookings.slice(i, i + STREAM_CHUNK_SIZE) }),
+              type: 'chunk',
+            } as MessageEvent);
             await new Promise<void>((resolve) => setImmediate(resolve));
           }
           if (!cancelled) {

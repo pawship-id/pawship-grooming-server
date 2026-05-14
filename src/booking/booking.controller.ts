@@ -445,7 +445,7 @@ export class BookingController {
     if (!booking || booking.isDeleted)
       throw new NotFoundException('data not found');
 
-    const { status, date, time_range, note } = body;
+    const { status, date, time_range, note, cancellation_reason } = body;
 
     const rescheduleData =
       date && time_range ? { date, time_range } : undefined;
@@ -456,6 +456,7 @@ export class BookingController {
       note,
       rescheduleData,
       request.user,
+      cancellation_reason,
     );
 
     return {

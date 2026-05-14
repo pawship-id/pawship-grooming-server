@@ -2716,6 +2716,7 @@ export class BookingService {
     note?: string,
     rescheduleData?: { date?: Date; time_range?: string },
     user?: { username: string; role: string },
+    cancellation_reason?: string,
   ) {
     try {
       // Guard: booking dengan status returned tidak bisa diubah
@@ -2765,6 +2766,11 @@ export class BookingService {
       if (status === BookingStatus.RESCHEDULED && rescheduleData) {
         updateData.date = rescheduleData.date;
         updateData.time_range = rescheduleData.time_range;
+      }
+
+      // jika CANCELLED, simpan cancellation_reason
+      if (status === BookingStatus.CANCELLED) {
+        updateData.cancellation_reason = cancellation_reason ?? null;
       }
 
       // update booking status dan tambahkan ke status logs

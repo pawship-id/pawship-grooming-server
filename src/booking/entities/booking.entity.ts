@@ -593,6 +593,10 @@ export class Booking {
   @Prop({ type: [AppliedPromotion], default: [] })
   applied_promotions: AppliedPromotion[];
 
+  /* ===== Cancellation ===== */
+  @Prop({ type: String, default: null })
+  cancellation_reason: string | null;
+
   /* ===== Soft Delete ===== */
   @Prop({ default: false })
   isDeleted: boolean;
