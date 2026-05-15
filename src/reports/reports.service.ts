@@ -835,29 +835,47 @@ export class ReportsService {
             )
           : null;
 
+      const fourteenDaysAgo = new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000);
       let pet_status: string;
       if (total_visits === 0) {
+        // Idle: registered but never booked
         pet_status = 'idle';
       } else if (
         booking?.first_booking_date &&
-        new Date(booking.first_booking_date) >=
-          new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000)
+        new Date(booking.first_booking_date) >= fourteenDaysAgo
       ) {
+        // New: first visit within last 14 days
         pet_status = 'new';
       } else if (days_since_last_visit !== null && days_since_last_visit <= 14) {
+        // Active: returning customer, last visit ≤ 14 days ago (first_booking < 14d ago implicit)
         pet_status = 'active';
-      } else if (days_since_last_visit !== null && days_since_last_visit <= 30) {
+      } else if (
+        total_visits > 1 &&
+        days_since_last_visit !== null &&
+        days_since_last_visit <= 30
+      ) {
+        // At risk: drifting, 15–30 days since last visit, more than 1 visit
         pet_status = 'at_risk';
+      } else if (
+        total_visits > 1 &&
+        days_since_last_visit !== null &&
+        days_since_last_visit > 30
+      ) {
+        // Lapsed: gone quiet, >30 days since last visit, more than 1 visit
+        pet_status = 'lapsed';
       } else {
+        // Single-visit customer beyond active window → treat as lapsed
         pet_status = 'lapsed';
       }
 
       return {
         customer_id: ow?._id?.toString() ?? '',
+        customer_code: ow?.code ?? '',
         customer_name: ow?.profile?.full_name ?? ow?.username ?? '',
         customer_phone: ow?.phone_number ?? '',
         customer_category: (ow?.profile?.customer_category_id as any)?.name ?? '',
         pet_id: p._id?.toString() ?? '',
+        pet_code: p.code ?? '',
         pet_name: p.name ?? '',
         pet_type: (p.pet_type as any)?.name ?? '',
         breed: (p.breed as any)?.name ?? '',
@@ -889,5 +907,213 @@ export class ReportsService {
       : rows;
 
     return { data: filtered, total: filtered.length };
+  }
+
+  // ─── New Customer Conversion ──────────────────────────────────────────────────
+
+  async getNewCustomerConversionReport(dto: CustomerReportDto) {
+    const today = new Date();
+
+    const bookedPetIds = await this.bookingModel.distinct('pet_id', {
+      isDeleted: false,
+      booking_status: 'completed',
+    });
+    const bookedPetSet = new Set(bookedPetIds.map((id: any) => id.toString()));
+
+    const firstBookingAgg = await this.bookingModel.aggregate([
+      { $match: { isDeleted: false, booking_status: 'completed' } },
+      { $group: { _id: '$pet_id', first_booking_date: { $min: '$date' } } },
+    ]);
+    const firstBookingMap = new Map<string, Date>(
+      firstBookingAgg.map((a: any) => [a._id.toString(), a.first_booking_date]),
+    );
+
+    const pets = await this.petModel
+      .find({ isDeleted: false })
+      .populate('pet_type')
+      .sort({ createdAt: -1 })
+      .exec();
+
+    const customerIds = [...new Set(pets.map((p) => p.customer_id.toString()))];
+    const users = await this.userModel
+      .find({ _id: { $in: customerIds } })
+      .populate({ path: 'profile.customer_category_id', model: 'Option', select: 'name' })
+      .exec();
+    const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+
+    const rows = pets.map((pet) => {
+      const p = (pet as any).toObject({ virtuals: true });
+      const owner = userMap.get(p.customer_id?.toString());
+      const ow = owner ? (owner as any).toObject({ virtuals: true }) : null;
+
+      const pet_registered_at: Date = p.createdAt;
+      const days_since_registered = Math.floor(
+        (today.getTime() - new Date(pet_registered_at).getTime()) /
+          (1000 * 60 * 60 * 24),
+      );
+
+      const first_booking_date = firstBookingMap.get(pet._id.toString()) ?? null;
+      const days_to_first_booking =
+        first_booking_date != null
+          ? Math.floor(
+              (new Date(first_booking_date).getTime() -
+                new Date(pet_registered_at).getTime()) /
+                (1000 * 60 * 60 * 24),
+            )
+          : null;
+
+      return {
+        customer_id: ow?._id?.toString() ?? '',
+        customer_code: ow?.code ?? '',
+        customer_name: ow?.profile?.full_name ?? ow?.username ?? '',
+        customer_phone: ow?.phone_number ?? '',
+        customer_category: (ow?.profile?.customer_category_id as any)?.name ?? '',
+        pet_id: p._id?.toString() ?? '',
+        pet_code: p.code ?? '',
+        pet_name: p.name ?? '',
+        pet_type: (p.pet_type as any)?.name ?? '',
+        pet_registered_at,
+        days_since_registered,
+        has_booked: bookedPetSet.has(pet._id.toString()),
+        first_booking_date,
+        days_to_first_booking,
+      };
+    });
+
+    const filtered = dto.search
+      ? (() => {
+          const s = dto.search.toLowerCase();
+          return rows.filter(
+            (r) =>
+              r.customer_name.toLowerCase().includes(s) ||
+              r.customer_phone.includes(s) ||
+              r.pet_name.toLowerCase().includes(s),
+          );
+        })()
+      : rows;
+
+    return { data: filtered, total: filtered.length };
+  }
+
+  // ─── VIP / Top Customer ───────────────────────────────────────────────────────
+
+  async getVipCustomerReport() {
+    const today = new Date();
+
+    const bookingAgg = await this.bookingModel.aggregate([
+      { $match: { isDeleted: false, booking_status: 'completed' } },
+      {
+        $group: {
+          _id: '$pet_id',
+          last_booking_date: { $max: '$date' },
+          first_booking_date: { $min: '$date' },
+          total_visits: { $sum: 1 },
+          lifetime_revenue: { $sum: { $ifNull: ['$final_total_price', 0] } },
+        },
+      },
+      { $match: { total_visits: { $gte: 1 } } },
+    ]);
+
+    if (bookingAgg.length === 0) return { data: [], total: 0 };
+
+    const bookingMap = new Map<string, any>();
+    for (const agg of bookingAgg) {
+      bookingMap.set(agg._id?.toString(), {
+        last_booking_date: agg.last_booking_date,
+        first_booking_date: agg.first_booking_date,
+        total_visits: agg.total_visits,
+        lifetime_revenue: agg.lifetime_revenue,
+      });
+    }
+
+    const petIds = bookingAgg.map((a) => a._id).filter(Boolean);
+
+    const pets = await this.petModel
+      .find({ _id: { $in: petIds }, isDeleted: false })
+      .sort({ createdAt: -1 })
+      .exec();
+
+    const customerIds = [...new Set(pets.map((p) => p.customer_id.toString()))];
+    const users = await this.userModel
+      .find({ _id: { $in: customerIds } })
+      .populate({ path: 'profile.customer_category_id', model: 'Option', select: 'name' })
+      .exec();
+    const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+
+    // Use pet._id from petModel (proper Mongoose ObjectIds) — same pattern as retention report
+    const petDocIds = pets.map((p) => p._id);
+    const memberships = await this.petMembershipModel
+      .find({ pet_id: { $in: petDocIds }, isDeleted: false })
+      .populate({ path: 'membership_plan_id', model: 'Membership', select: 'name' })
+      .sort({ start_date: -1 })
+      .exec();
+    const membershipMap = new Map<string, any>();
+    for (const m of memberships) {
+      const key = m.pet_id.toString();
+      if (membershipMap.has(key)) continue;
+      // Active = is_active tidak di-set false DAN end_date belum lewat
+      const notExpired = m.end_date ? new Date(m.end_date) >= today : false;
+      const notDeactivated = m.is_active !== false;
+      if (notExpired && notDeactivated) membershipMap.set(key, m);
+    }
+
+    const fourteenDaysAgo = new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+    const rows = pets
+      .map((pet) => {
+        const p = (pet as any).toObject({ virtuals: true });
+        const owner = userMap.get(p.customer_id?.toString());
+        const ow = owner ? (owner as any).toObject({ virtuals: true }) : null;
+        const booking = bookingMap.get(pet._id.toString());
+        const membership = membershipMap.get(pet._id.toString());
+
+        if (!booking) return null;
+
+        const last_booking_date: Date | null = booking.last_booking_date ?? null;
+        const total_visits: number = booking.total_visits ?? 0;
+        const days_since_last_visit =
+          last_booking_date != null
+            ? Math.floor(
+                (today.getTime() - new Date(last_booking_date).getTime()) /
+                  (1000 * 60 * 60 * 24),
+              )
+            : null;
+
+        let pet_status: string;
+        if (total_visits === 0) {
+          pet_status = 'idle';
+        } else if (
+          booking.first_booking_date &&
+          new Date(booking.first_booking_date) >= fourteenDaysAgo
+        ) {
+          pet_status = 'new';
+        } else if (days_since_last_visit !== null && days_since_last_visit <= 14) {
+          pet_status = 'active';
+        } else if (total_visits > 1 && days_since_last_visit !== null && days_since_last_visit <= 30) {
+          pet_status = 'at_risk';
+        } else {
+          pet_status = 'lapsed';
+        }
+
+        return {
+          customer_id: ow?._id?.toString() ?? '',
+          pet_id: p._id?.toString() ?? '',
+          customer_name: ow?.profile?.full_name ?? ow?.username ?? '',
+          customer_phone: ow?.phone_number ?? '',
+          customer_category: (ow?.profile?.customer_category_id as any)?.name ?? '',
+          pet_name: p.name ?? '',
+          membership_tier: (membership?.membership_plan_id as any)?.name ?? '',
+          total_visits,
+          lifetime_revenue: booking.lifetime_revenue ?? 0,
+          last_booking_date,
+          days_since_last_visit,
+          pet_status,
+        };
+      })
+      .filter(Boolean);
+
+    rows.sort((a: any, b: any) => b.lifetime_revenue - a.lifetime_revenue);
+
+    return { data: rows, total: rows.length };
   }
 }

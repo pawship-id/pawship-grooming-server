@@ -78,4 +78,16 @@ export class ReportsController {
     const result = await this.reportsService.getCustomerRetentionReport(dto);
     return { message: 'Customer retention report fetched successfully', ...result };
   }
+
+  @Get('customer/new-conversion')
+  async getNewCustomerConversionReport(@Query() dto: CustomerReportDto) {
+    const result = await this.reportsService.getNewCustomerConversionReport(dto);
+    return { message: 'New customer conversion report fetched successfully', ...result };
+  }
+
+  @Get('customer/vip-top-customers')
+  async getVipCustomerReport() {
+    const result = await this.reportsService.getVipCustomerReport();
+    return { message: 'VIP customer report fetched successfully', ...result };
+  }
 }
