@@ -3,6 +3,7 @@ import { Observable } from 'rxjs';
 import { AuthGuard } from 'src/auth/auth.guard';
 import { FinancialReportDto } from './dto/financial-report.dto';
 import { OperationsReportDto } from './dto/operations-report.dto';
+import { CapacityUtilisationReportDto } from './dto/capacity-utilisation-report.dto';
 import { ReportsService } from './reports.service';
 
 @Controller('reports')
@@ -43,5 +44,23 @@ export class ReportsController {
   @Sse('operations/stream')
   streamOperationsReport(@Query() dto: OperationsReportDto): Observable<MessageEvent> {
     return this.reportsService.streamOperationsReport(dto);
+  }
+
+  // ─── Capacity Utilisation ─────────────────────────────────────────────────────
+
+  @Get('capacity-utilisation')
+  async getCapacityUtilisationReport(@Query() dto: CapacityUtilisationReportDto) {
+    const result = await this.reportsService.getCapacityUtilisationReport(dto);
+    return {
+      message: 'Capacity utilisation report fetched successfully',
+      ...result,
+    };
+  }
+
+  @Sse('capacity-utilisation/stream')
+  streamCapacityUtilisationReport(
+    @Query() dto: CapacityUtilisationReportDto,
+  ): Observable<MessageEvent> {
+    return this.reportsService.streamCapacityUtilisationReport(dto);
   }
 }
