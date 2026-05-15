@@ -1850,9 +1850,9 @@ export class BookingService {
 
       // 12. get capacity by store_id and date (override or default)
       const targetDate = new Date(body.date);
-      targetDate.setHours(0, 0, 0, 0);
+      targetDate.setUTCHours(0, 0, 0, 0);
       const nextDay = new Date(targetDate);
-      nextDay.setDate(nextDay.getDate() + 1);
+      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
 
       const dailyOverride = await this.storeDailyCapacityModel
         .findOne({
@@ -2566,9 +2566,9 @@ export class BookingService {
         if (!store) throw new NotFoundException('Store not found');
 
         const targetDate = new Date(newDate);
-        targetDate.setHours(0, 0, 0, 0);
+        targetDate.setUTCHours(0, 0, 0, 0);
         const nextDay = new Date(targetDate);
-        nextDay.setDate(nextDay.getDate() + 1);
+        nextDay.setUTCDate(nextDay.getUTCDate() + 1);
 
         const dailyOverride = await this.storeDailyCapacityModel
           .findOne({
@@ -2741,6 +2741,124 @@ export class BookingService {
         }
       }
 
+      // Hitung service duration untuk keperluan update StoreDailyUsage
+      const isBookingWithUsage =
+        existingBooking.booking_status !== BookingStatus.WAITLIST &&
+        existingBooking.booking_status !== BookingStatus.CANCELLED;
+
+      let serviceDuration = 0;
+      if (
+        isBookingWithUsage &&
+        (status === BookingStatus.CANCELLED ||
+          status === BookingStatus.RESCHEDULED)
+      ) {
+        const service = await this.serviceModel.findById(
+          existingBooking.service_id,
+        );
+        serviceDuration = Number(service?.duration) || 0;
+
+        if (
+          existingBooking.service_addon_ids &&
+          existingBooking.service_addon_ids.length > 0
+        ) {
+          const addons = await this.serviceModel.find({
+            _id: { $in: existingBooking.service_addon_ids },
+          });
+          serviceDuration += addons.reduce(
+            (total, addon) => total + (Number(addon.duration) || 0),
+            0,
+          );
+        }
+
+        console.log(
+          `[updateStatus] bookingId=${id}, currentStatus=${existingBooking.booking_status}, newStatus=${status}, serviceDuration=${serviceDuration}`,
+        );
+      }
+
+      // Untuk RESCHEDULED: validasi kapasitas tanggal baru dan update StoreDailyUsage
+      if (
+        status === BookingStatus.RESCHEDULED &&
+        rescheduleData &&
+        isBookingWithUsage
+      ) {
+        const oldDate = existingBooking.date;
+        const newDate = rescheduleData.date!;
+
+        const store = await this.storeModel.findById(existingBooking.store_id);
+        if (!store) throw new NotFoundException('Store not found');
+
+        const targetDate = new Date(newDate);
+        targetDate.setUTCHours(0, 0, 0, 0);
+        const nextDay = new Date(targetDate);
+        nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+
+        const dailyOverride = await this.storeDailyCapacityModel.findOne({
+          store_id: new ObjectId(existingBooking.store_id.toString()),
+          date: { $gte: targetDate, $lt: nextDay },
+        });
+
+        const totalCapacity =
+          dailyOverride?.total_capacity_minutes ??
+          store.capacity.default_daily_capacity_minutes;
+        const overbookingLimit = store.capacity.overbooking_limit_minutes;
+        const maxAllowedCapacity = totalCapacity + overbookingLimit;
+
+        // Baca usage tanggal baru saat ini (sebelum ada perubahan)
+        const currentUsage = await this.storeDailyUsageModel.findOne({
+          store_id: new ObjectId(existingBooking.store_id.toString()),
+          date: { $gte: targetDate, $lt: nextDay },
+        });
+        const currentUsedMinutes = currentUsage?.used_minutes ?? 0;
+        const remainingMinutes = maxAllowedCapacity - currentUsedMinutes;
+
+        console.log(
+          `[updateStatus-reschedule] targetDate=${targetDate.toISOString()}, currentUsedMinutes=${currentUsedMinutes}, maxAllowedCapacity=${maxAllowedCapacity}, remainingMinutes=${remainingMinutes}, serviceDuration=${serviceDuration}`,
+        );
+
+        // Validasi: apakah sisa kapasitas cukup untuk booking ini?
+        if (serviceDuration > remainingMinutes) {
+          throw new BadRequestException(
+            `Tanggal ${new Date(newDate).toISOString().split('T')[0]} tidak memiliki kapasitas yang cukup. Sisa kapasitas ${remainingMinutes} menit, dibutuhkan ${serviceDuration} menit. Silakan pilih tanggal lain.`,
+          );
+        }
+
+        // Kapasitas cukup — kurangi usage tanggal lama, tambah usage tanggal baru (hanya jika ada durasi)
+        if (serviceDuration > 0) {
+          // Kurangi old date: pakai range query agar cocok meskipun time component berbeda
+          const oldDayStart = new Date(oldDate);
+          oldDayStart.setUTCHours(0, 0, 0, 0);
+          const oldDayEnd = new Date(oldDayStart);
+          oldDayEnd.setUTCDate(oldDayEnd.getUTCDate() + 1);
+
+          await this.storeDailyUsageModel.findOneAndUpdate(
+            {
+              store_id: new ObjectId(existingBooking.store_id.toString()),
+              date: { $gte: oldDayStart, $lt: oldDayEnd },
+            },
+            { $inc: { used_minutes: -serviceDuration } },
+          );
+
+          // Tambah new date: update record yang sudah ditemukan saat validasi (by _id)
+          // agar tidak buat record duplikat di hari yang sama dengan time berbeda
+          if (currentUsage) {
+            await this.storeDailyUsageModel.findByIdAndUpdate(
+              (currentUsage as any)._id,
+              { $inc: { used_minutes: serviceDuration } },
+            );
+          } else {
+            // Tidak ada record untuk tanggal ini — buat baru di midnight UTC
+            await this.storeDailyUsageModel.findOneAndUpdate(
+              {
+                store_id: new ObjectId(existingBooking.store_id.toString()),
+                date: targetDate,
+              },
+              { $inc: { used_minutes: serviceDuration } },
+              { upsert: true },
+            );
+          }
+        }
+      }
+
       // tambahkan log status baru
       const statusLog: BookingStatusLogDto = {
         status: status,
@@ -2782,6 +2900,21 @@ export class BookingService {
         },
         { new: true },
       );
+
+      // Kurangi StoreDailyUsage saat booking di-cancel
+      if (status === BookingStatus.CANCELLED && isBookingWithUsage && serviceDuration > 0) {
+        try {
+          await this.storeDailyUsageModel.findOneAndUpdate(
+            {
+              store_id: new ObjectId(existingBooking.store_id.toString()),
+              date: existingBooking.date,
+            },
+            { $inc: { used_minutes: -serviceDuration } },
+          );
+        } catch {
+          // Non-fatal: tidak memblokir status update
+        }
+      }
 
       // Restore benefit usage when booking is cancelled (soft-delete all usages for this booking)
       if (
@@ -3364,21 +3497,21 @@ export class BookingService {
       if (query.date) {
         // Single date filter
         const targetDate = new Date(query.date);
-        targetDate.setHours(0, 0, 0, 0);
+        targetDate.setUTCHours(0, 0, 0, 0);
         const nextDay = new Date(targetDate);
-        nextDay.setDate(nextDay.getDate() + 1);
+        nextDay.setUTCDate(nextDay.getUTCDate() + 1);
         filter.date = { $gte: targetDate, $lt: nextDay };
       } else if (query.start_date || query.end_date) {
         // Date range filter
         filter.date = {};
         if (query.start_date) {
           const startDate = new Date(query.start_date);
-          startDate.setHours(0, 0, 0, 0);
+          startDate.setUTCHours(0, 0, 0, 0);
           filter.date.$gte = startDate;
         }
         if (query.end_date) {
           const endDate = new Date(query.end_date);
-          endDate.setHours(23, 59, 59, 999);
+          endDate.setUTCHours(23, 59, 59, 999);
           filter.date.$lte = endDate;
         }
       }
@@ -3403,9 +3536,9 @@ export class BookingService {
 
           // Get capacity override for this date, if any
           const usageDate = new Date(usage.date);
-          usageDate.setHours(0, 0, 0, 0);
+          usageDate.setUTCHours(0, 0, 0, 0);
           const nextDay = new Date(usageDate);
-          nextDay.setDate(nextDay.getDate() + 1);
+          nextDay.setUTCDate(nextDay.getUTCDate() + 1);
 
           const capacityOverride = await this.storeDailyCapacityModel
             .findOne({

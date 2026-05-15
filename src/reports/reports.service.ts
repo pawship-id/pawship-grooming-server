@@ -334,8 +334,26 @@ export class ReportsService {
       ]),
     );
 
-    // 7. Build enriched rows
-    const data = usages.map((u) => {
+    // 7. Deduplikasi: jika ada beberapa record StoreDailyUsage untuk store+hari
+    //    yang sama (beda time component), gabung used_minutes-nya
+    const usageByKey = new Map<string, { store_id: typeof usages[0]['store_id']; date: Date; used_minutes: number }>();
+    for (const u of usages) {
+      const key = `${u.store_id.toString()}-${u.date.toISOString().slice(0, 10)}`;
+      const existing = usageByKey.get(key);
+      if (existing) {
+        existing.used_minutes += u.used_minutes;
+      } else {
+        usageByKey.set(key, {
+          store_id: u.store_id,
+          date: u.date,
+          used_minutes: u.used_minutes,
+        });
+      }
+    }
+    const deduplicatedUsages = Array.from(usageByKey.values());
+
+    // 8. Build enriched rows
+    const data = deduplicatedUsages.map((u) => {
       const storeId = u.store_id.toString();
       const dateStr = u.date.toISOString().slice(0, 10);
       const store = storeMap.get(storeId);
@@ -385,15 +403,22 @@ export class ReportsService {
 
   // ─── Capacity Utilisation SSE stream ─────────────────────────────────────────
 
-  private async getCapacityRowForStoreDate(storeId: string, dateStr: string) {
+  private async getCapacityRowForStoreDate(storeId: string, dateStr: string, exactDate?: Date) {
     const storeOid = new Types.ObjectId(storeId);
     const dateStart = new Date(`${dateStr}T00:00:00.000Z`);
     const dateEnd = new Date(`${dateStr}T23:59:59.999Z`);
 
-    const [usage, store, capOverride, totalBookings] = await Promise.all([
-      this.storeDailyUsageModel
+    // Try exact date match first (most reliable), fall back to day range
+    let usage = exactDate
+      ? await this.storeDailyUsageModel.findOne({ store_id: storeOid, date: exactDate }).exec()
+      : null;
+    if (!usage) {
+      usage = await this.storeDailyUsageModel
         .findOne({ store_id: storeOid, date: { $gte: dateStart, $lte: dateEnd } })
-        .exec(),
+        .exec();
+    }
+
+    const [store, capOverride, totalBookings] = await Promise.all([
       this.storeModel.findById(storeOid).select('code name capacity').exec(),
       this.storeDailyCapacityModel
         .findOne({ store_id: storeOid, date: { $gte: dateStart, $lte: dateEnd } })
@@ -405,7 +430,10 @@ export class ReportsService {
       }),
     ]);
 
-    if (!usage) return null;
+    if (!usage) {
+      console.warn(`[cap-sse] StoreDailyUsage not found for store=${storeId} date=${dateStr}`);
+      return null;
+    }
 
     const defaultCap = store?.capacity?.default_daily_capacity_minutes ?? 960;
     const overbookingLimit = store?.capacity?.overbooking_limit_minutes ?? 120;
@@ -439,72 +467,79 @@ export class ReportsService {
   ): Observable<MessageEvent> {
     return new Observable<MessageEvent>((subscriber: Subscriber<MessageEvent>) => {
       let cancelled = false;
+      // Key: "storeId-dateStr" → serialised row for change-detection
+      const lastSeen = new Map<string, string>();
 
-      // Send initial snapshot
-      this.getCapacityUtilisationReport(dto)
-        .then(({ data }) => {
+      const fetchAndPush = async (isInitial: boolean) => {
+        if (cancelled) return;
+        try {
+          const { data } = await this.getCapacityUtilisationReport(dto);
           if (cancelled) return;
-          subscriber.next({
-            data: JSON.stringify({ rows: data }),
-            type: 'snapshot',
-          } as MessageEvent);
-        })
-        .catch((err: Error) => {
-          if (!cancelled) {
+
+          if (isInitial) {
             subscriber.next({
-              data: JSON.stringify({ message: err.message }),
-              type: 'error',
+              data: JSON.stringify({ rows: data }),
+              type: 'snapshot',
             } as MessageEvent);
-            subscriber.error(err);
-          }
-        });
-
-      // Subscribe to live booking mutations
-      const sub = this.bookingEventsService.bookingMutated$.subscribe(
-        async (bookingId: string) => {
-          if (cancelled) return;
-          try {
-            const booking = await this.bookingModel
-              .findById(new Types.ObjectId(bookingId))
-              .select('store_id date')
-              .exec();
-
-            if (!booking) return;
-
-            const storeId = (booking.store_id as Types.ObjectId).toString();
-            const dateStr = (booking.date as Date).toISOString().slice(0, 10);
-
-            // Only push updates that fall within the active filter
-            if (dto.store_id) {
-              try {
-                if (new Types.ObjectId(dto.store_id).toString() !== storeId) return;
-              } catch {
-                if (dto.store_id !== storeId) return;
+            for (const row of data) {
+              lastSeen.set(`${row.store_id}-${row.date}`, JSON.stringify(row));
+            }
+          } else {
+            // Push only rows that are new or have changed values
+            for (const row of data) {
+              const key = `${row.store_id}-${row.date}`;
+              const serialised = JSON.stringify(row);
+              if (lastSeen.get(key) !== serialised) {
+                subscriber.next({
+                  data: JSON.stringify({ row }),
+                  type: 'update',
+                } as MessageEvent);
+                console.log(`[cap-sse] update sent: store=${row.store_id} date=${row.date} total_bookings=${row.total_bookings}`);
+                lastSeen.set(key, serialised);
               }
             }
-            if (dto.date_from && dateStr < dto.date_from) return;
-            if (dto.date_to && dateStr > dto.date_to) return;
-
-            // Small delay so StoreDailyUsage is committed before we re-query
-            await new Promise<void>((resolve) => setTimeout(resolve, 300));
-            if (cancelled) return;
-
-            const row = await this.getCapacityRowForStoreDate(storeId, dateStr);
-            if (row && !cancelled) {
-              subscriber.next({
-                data: JSON.stringify({ row }),
-                type: 'update',
-              } as MessageEvent);
-            }
-          } catch {
-            // non-fatal
           }
+        } catch (err) {
+          console.error('[cap-sse] fetchAndPush error:', err);
+        }
+      };
+
+      // Initial snapshot
+      fetchAndPush(true).catch((err: Error) => {
+        if (!cancelled) {
+          subscriber.next({
+            data: JSON.stringify({ message: err.message }),
+            type: 'error',
+          } as MessageEvent);
+        }
+      });
+
+      // React immediately when any booking is created / updated
+      const sub = this.bookingEventsService.bookingMutated$.subscribe(
+        async (bookingId: string) => {
+          console.log(`[cap-sse] mutation received bookingId=${bookingId} observers=${this.bookingEventsService.bookingMutated$.observers.length}`);
+          if (cancelled) return;
+          // Small delay so the write is visible to subsequent reads
+          await new Promise<void>((resolve) => setTimeout(resolve, 500));
+          fetchAndPush(false);
         },
       );
+
+      // Fallback poll — catches any events missed by the subscription
+      const pollTimer = setInterval(() => fetchAndPush(false), 15_000);
+
+      // Heartbeat — keeps the HTTP connection alive through proxies
+      const heartbeatTimer = setInterval(() => {
+        if (!cancelled) {
+          subscriber.next({ data: '{}', type: 'ping' } as MessageEvent);
+        }
+      }, 20_000);
 
       return () => {
         cancelled = true;
         sub.unsubscribe();
+        clearInterval(pollTimer);
+        clearInterval(heartbeatTimer);
       };
     });
   }

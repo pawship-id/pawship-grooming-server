@@ -21,9 +21,9 @@ export class StoreDailyCapacityService {
     // Convert string IDs to ObjectId
     const storeId = new Types.ObjectId(body.store_id);
     const targetDate = new Date(body.date);
-    targetDate.setHours(0, 0, 0, 0);
+    targetDate.setUTCHours(0, 0, 0, 0);
     const nextDay = new Date(targetDate);
-    nextDay.setDate(nextDay.getDate() + 1);
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
 
     const capacityData: any = {
       store_id: storeId,
@@ -61,9 +61,9 @@ export class StoreDailyCapacityService {
     // Filter by date if provided
     if (query?.date) {
       const targetDate = new Date(query.date);
-      targetDate.setHours(0, 0, 0, 0);
+      targetDate.setUTCHours(0, 0, 0, 0);
       const nextDay = new Date(targetDate);
-      nextDay.setDate(nextDay.getDate() + 1);
+      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
       filter.date = { $gte: targetDate, $lt: nextDay };
     }
 
