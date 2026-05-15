@@ -13,9 +13,17 @@ import {
   StoreDailyCapacityDocument,
 } from 'src/store-daily-capacity/entities/store-daily-capacity.entity';
 import { Store, StoreDocument } from 'src/store/entities/store.entity';
+import { Pet, PetDocument } from 'src/pet/entities/pet.entity';
+import {
+  PetMembership,
+  PetMembershipDocument,
+} from 'src/pet-membership/entities/pet-membership.entity';
+import { Membership, MembershipDocument } from 'src/membership/entities/membership.entity';
+import { User, UserDocument } from 'src/user/entities/user.entity';
 import { FinancialReportDto } from './dto/financial-report.dto';
 import { OperationsReportDto } from './dto/operations-report.dto';
 import { CapacityUtilisationReportDto } from './dto/capacity-utilisation-report.dto';
+import { CustomerReportDto } from './dto/customer-report.dto';
 import { BookingEventsService } from 'src/booking-events/booking-events.service';
 
 const STREAM_CHUNK_SIZE = 50;
@@ -31,6 +39,14 @@ export class ReportsService {
     private readonly storeDailyCapacityModel: Model<StoreDailyCapacityDocument>,
     @InjectModel(Store.name)
     private readonly storeModel: Model<StoreDocument>,
+    @InjectModel(Pet.name)
+    private readonly petModel: Model<PetDocument>,
+    @InjectModel(PetMembership.name)
+    private readonly petMembershipModel: Model<PetMembershipDocument>,
+    @InjectModel(Membership.name)
+    private readonly membershipModel: Model<MembershipDocument>,
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
     private readonly bookingEventsService: BookingEventsService,
   ) {}
 
@@ -575,5 +591,303 @@ export class ReportsService {
 
       return () => sub.unsubscribe();
     });
+  }
+
+  // ─── Customer & Pet Master Data ───────────────────────────────────────────────
+
+  async getCustomerMasterData(dto: CustomerReportDto) {
+    const bookedPetIds = await this.bookingModel.distinct('pet_id', { isDeleted: false });
+    const bookedPetSet = new Set(bookedPetIds.map((id: any) => id.toString()));
+
+    const lastVisitAgg = await this.bookingModel.aggregate([
+      { $match: { isDeleted: false, booking_status: 'completed' } },
+      { $group: { _id: '$pet_id', last_at: { $max: '$date' } } },
+    ]);
+    const lastVisitMap = new Map<string, Date>(
+      lastVisitAgg.map((a: any) => [a._id.toString(), a.last_at]),
+    );
+
+    const lastGroomingAgg = await this.bookingModel.aggregate([
+      {
+        $match: {
+          isDeleted: false,
+          booking_status: 'completed',
+          'service_snapshot.service_type.title': { $regex: new RegExp('^grooming$', 'i') },
+        },
+      },
+      { $group: { _id: '$pet_id', last_at: { $max: '$date' } } },
+    ]);
+    const lastGroomingMap = new Map<string, Date>(
+      lastGroomingAgg.map((a: any) => [a._id.toString(), a.last_at]),
+    );
+
+    const pets = await this.petModel
+      .find({ isDeleted: false })
+      .populate('pet_type')
+      .populate('hair')
+      .populate('size')
+      .populate('breed')
+      .sort({ createdAt: -1 })
+      .exec();
+
+    const customerIds = [...new Set(pets.map((p) => p.customer_id.toString()))];
+    const users = await this.userModel
+      .find({ _id: { $in: customerIds } })
+      .populate({ path: 'profile.customer_category_id', model: 'Option', select: 'name' })
+      .exec();
+    const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+
+    const petIds = pets.map((p) => p._id);
+    const memberships = await this.petMembershipModel
+      .find({ pet_id: { $in: petIds }, isDeleted: false })
+      .populate({ path: 'membership_plan_id', model: 'Membership', select: 'name' })
+      .sort({ start_date: -1 })
+      .exec();
+    const membershipMap = new Map<string, any>();
+    for (const m of memberships) {
+      const key = m.pet_id.toString();
+      if (!membershipMap.has(key)) membershipMap.set(key, m);
+    }
+
+    const today = new Date();
+    const rows = pets.map((pet) => {
+      const p = (pet as any).toObject({ virtuals: true });
+      const owner = userMap.get(p.customer_id?.toString());
+      const ow = owner ? (owner as any).toObject({ virtuals: true }) : null;
+      const membership = membershipMap.get(pet._id.toString());
+
+      const mainAddr =
+        ow?.profile?.addresses?.find((a: any) => a.is_main_address) ??
+        ow?.profile?.addresses?.[0] ??
+        null;
+
+      return {
+        customer_id: ow?._id?.toString() ?? '',
+        customer_code: ow?.code ?? '',
+        customer_name: ow?.profile?.full_name ?? ow?.username ?? '',
+        customer_phone: ow?.phone_number ?? '',
+        customer_email: ow?.email ?? '',
+        customer_category: (ow?.profile?.customer_category_id as any)?.name ?? '',
+        customer_tags: ow?.profile?.tags ?? [],
+        customer_address: mainAddr
+          ? [mainAddr.street, mainAddr.district, mainAddr.city, mainAddr.province]
+              .filter(Boolean)
+              .join(', ')
+          : '',
+        registered_at: ow?.createdAt ?? null,
+        pet_id: p._id?.toString() ?? '',
+        pet_code: p.code ?? '',
+        pet_name: p.name ?? '',
+        pet_type: (p.pet_type as any)?.name ?? '',
+        breed: (p.breed as any)?.name ?? '',
+        size_category: (p.size as any)?.name ?? '',
+        feather_type: (p.hair as any)?.name ?? '',
+        birthday: p.birthday ?? null,
+        weight: p.weight ?? null,
+        pet_tags: p.tags ?? [],
+        internal_note: p.internal_note ?? '',
+        membership_tier: (membership?.membership_plan_id as any)?.name ?? '',
+        membership_status: membership
+          ? new Date(membership.end_date) >= today
+            ? 'active'
+            : 'expired'
+          : '',
+        membership_start: membership?.start_date ?? null,
+        membership_expiry: membership?.end_date ?? null,
+        last_visit_at: lastVisitMap.get(pet._id.toString()) ?? null,
+        last_grooming_at: lastGroomingMap.get(pet._id.toString()) ?? null,
+        pet_registered_at: p.createdAt ?? null,
+        has_booked: bookedPetSet.has(pet._id.toString()),
+      };
+    });
+
+    const filtered = dto.search
+      ? (() => {
+          const s = dto.search.toLowerCase();
+          return rows.filter(
+            (r) =>
+              r.customer_name.toLowerCase().includes(s) ||
+              r.customer_phone.includes(s) ||
+              r.pet_name.toLowerCase().includes(s),
+          );
+        })()
+      : rows;
+
+    return { data: filtered, total: filtered.length };
+  }
+
+  // ─── Customer Retention / Insight ────────────────────────────────────────────
+
+  async getCustomerRetentionReport(dto: CustomerReportDto) {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+
+    const bookedPetIds = await this.bookingModel.distinct('pet_id', { isDeleted: false });
+    const bookedPetSet = new Set(bookedPetIds.map((id: any) => id.toString()));
+
+    const lastVisitRetAgg = await this.bookingModel.aggregate([
+      { $match: { isDeleted: false, booking_status: 'completed' } },
+      { $group: { _id: '$pet_id', last_at: { $max: '$date' } } },
+    ]);
+    const lastVisitRetMap = new Map<string, Date>(
+      lastVisitRetAgg.map((a: any) => [a._id.toString(), a.last_at]),
+    );
+
+    // Aggregate completed bookings by pet (for revenue & visit counts)
+    const bookingAgg = await this.bookingModel.aggregate([
+      { $match: { isDeleted: false, booking_status: 'completed' } },
+      {
+        $group: {
+          _id: '$pet_id',
+          first_booking_date: { $min: '$date' },
+          total_visits: { $sum: 1 },
+          total_visits_ytd: {
+            $sum: { $cond: [{ $eq: [{ $year: '$date' }, currentYear] }, 1, 0] },
+          },
+          lifetime_revenue: { $sum: { $ifNull: ['$final_total_price', 0] } },
+          lifetime_revenue_ytd: {
+            $sum: {
+              $cond: [
+                { $eq: [{ $year: '$date' }, currentYear] },
+                { $ifNull: ['$final_total_price', 0] },
+                0,
+              ],
+            },
+          },
+          service_names: { $push: '$service_snapshot.name' },
+        },
+      },
+    ]);
+
+    const bookingMap = new Map<string, any>();
+    for (const agg of bookingAgg) {
+      const petId = agg._id?.toString();
+      if (!petId) continue;
+
+      const nameCounts: Record<string, number> = {};
+      for (const name of agg.service_names ?? []) {
+        if (name) nameCounts[name] = (nameCounts[name] ?? 0) + 1;
+      }
+      const favourite_service =
+        Object.entries(nameCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
+
+      const avg_visit_interval =
+        agg.total_visits > 1
+          ? Math.round(
+              (new Date(agg.last_booking_date).getTime() -
+                new Date(agg.first_booking_date).getTime()) /
+                (1000 * 60 * 60 * 24) /
+                (agg.total_visits - 1),
+            )
+          : null;
+
+      bookingMap.set(petId, {
+        first_booking_date: agg.first_booking_date,
+        total_visits: agg.total_visits,
+        total_visits_ytd: agg.total_visits_ytd,
+        lifetime_revenue: agg.lifetime_revenue,
+        lifetime_revenue_ytd: agg.lifetime_revenue_ytd,
+        favourite_service,
+        avg_visit_interval,
+      });
+    }
+
+    const pets = await this.petModel
+      .find({ isDeleted: false })
+      .populate('breed')
+      .populate('pet_type')
+      .sort({ createdAt: -1 })
+      .exec();
+
+    const customerIds = [...new Set(pets.map((p) => p.customer_id.toString()))];
+    const users = await this.userModel
+      .find({ _id: { $in: customerIds } })
+      .populate({ path: 'profile.customer_category_id', model: 'Option', select: 'name' })
+      .exec();
+    const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+
+    const petIds = pets.map((p) => p._id);
+    const memberships = await this.petMembershipModel
+      .find({ pet_id: { $in: petIds }, isDeleted: false })
+      .populate({ path: 'membership_plan_id', model: 'Membership', select: 'name' })
+      .sort({ start_date: -1 })
+      .exec();
+    const membershipMap = new Map<string, any>();
+    for (const m of memberships) {
+      const key = m.pet_id.toString();
+      if (!membershipMap.has(key)) membershipMap.set(key, m);
+    }
+
+    const rows = pets.map((pet) => {
+      const p = (pet as any).toObject({ virtuals: true });
+      const owner = userMap.get(p.customer_id?.toString());
+      const ow = owner ? (owner as any).toObject({ virtuals: true }) : null;
+      const booking = bookingMap.get(pet._id.toString()) ?? null;
+      const membership = membershipMap.get(pet._id.toString());
+
+      const last_visit_at: Date | null = lastVisitRetMap.get(pet._id.toString()) ?? null;
+      const total_visits: number = booking?.total_visits ?? 0;
+      const days_since_last_visit =
+        last_visit_at != null
+          ? Math.floor(
+              (today.getTime() - new Date(last_visit_at).getTime()) /
+                (1000 * 60 * 60 * 24),
+            )
+          : null;
+
+      let pet_status: string;
+      if (total_visits === 0) {
+        pet_status = 'idle';
+      } else if (
+        booking?.first_booking_date &&
+        new Date(booking.first_booking_date) >=
+          new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000)
+      ) {
+        pet_status = 'new';
+      } else if (days_since_last_visit !== null && days_since_last_visit <= 14) {
+        pet_status = 'active';
+      } else if (days_since_last_visit !== null && days_since_last_visit <= 30) {
+        pet_status = 'at_risk';
+      } else {
+        pet_status = 'lapsed';
+      }
+
+      return {
+        customer_id: ow?._id?.toString() ?? '',
+        customer_name: ow?.profile?.full_name ?? ow?.username ?? '',
+        customer_phone: ow?.phone_number ?? '',
+        customer_category: (ow?.profile?.customer_category_id as any)?.name ?? '',
+        pet_id: p._id?.toString() ?? '',
+        pet_name: p.name ?? '',
+        pet_type: (p.pet_type as any)?.name ?? '',
+        breed: (p.breed as any)?.name ?? '',
+        membership_tier: (membership?.membership_plan_id as any)?.name ?? '',
+        first_booking_date: booking?.first_booking_date ?? null,
+        last_booking_date: last_visit_at,
+        days_since_last_visit,
+        total_visits,
+        total_visits_ytd: booking?.total_visits_ytd ?? 0,
+        avg_visit_interval: booking?.avg_visit_interval ?? null,
+        lifetime_revenue: booking?.lifetime_revenue ?? 0,
+        lifetime_revenue_ytd: booking?.lifetime_revenue_ytd ?? 0,
+        favourite_service: booking?.favourite_service ?? '',
+        pet_status,
+        has_booked: bookedPetSet.has(pet._id.toString()),
+      };
+    });
+
+    const filtered = dto.search
+      ? (() => {
+          const s = dto.search.toLowerCase();
+          return rows.filter(
+            (r) =>
+              r.customer_name.toLowerCase().includes(s) ||
+              r.customer_phone.includes(s) ||
+              r.pet_name.toLowerCase().includes(s),
+          );
+        })()
+      : rows;
+
+    return { data: filtered, total: filtered.length };
   }
 }

@@ -4,6 +4,7 @@ import { AuthGuard } from 'src/auth/auth.guard';
 import { FinancialReportDto } from './dto/financial-report.dto';
 import { OperationsReportDto } from './dto/operations-report.dto';
 import { CapacityUtilisationReportDto } from './dto/capacity-utilisation-report.dto';
+import { CustomerReportDto } from './dto/customer-report.dto';
 import { ReportsService } from './reports.service';
 
 @Controller('reports')
@@ -62,5 +63,19 @@ export class ReportsController {
     @Query() dto: CapacityUtilisationReportDto,
   ): Observable<MessageEvent> {
     return this.reportsService.streamCapacityUtilisationReport(dto);
+  }
+
+  // ─── Customer Reports ─────────────────────────────────────────────────────────
+
+  @Get('customer/master-data')
+  async getCustomerMasterData(@Query() dto: CustomerReportDto) {
+    const result = await this.reportsService.getCustomerMasterData(dto);
+    return { message: 'Customer master data fetched successfully', ...result };
+  }
+
+  @Get('customer/retention')
+  async getCustomerRetentionReport(@Query() dto: CustomerReportDto) {
+    const result = await this.reportsService.getCustomerRetentionReport(dto);
+    return { message: 'Customer retention report fetched successfully', ...result };
   }
 }
