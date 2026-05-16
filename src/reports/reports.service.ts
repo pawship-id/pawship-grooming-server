@@ -1680,14 +1680,27 @@ export class ReportsService {
       lastBookingAgg.map((a) => [a._id.toString(), a.last_at]),
     );
 
-    // Total benefit value used per pet_membership_id
-    const benefitAgg: { _id: Types.ObjectId; total: number }[] =
-      await this.benefitUsageModel.aggregate([
+    // Total benefit value used per pet_membership_id — sourced from Booking
+    // data (applied_benefits.amount_deducted), identical to "Total Nilai
+    // Digunakan" in the Membership Detail Report.
+    const benefitAgg: { _id: Types.ObjectId; total_amount: number }[] =
+      await this.bookingModel.aggregate([
         { $match: { isDeleted: false } },
-        { $group: { _id: '$pet_membership_id', total: { $sum: '$amount_used' } } },
+        { $unwind: '$applied_benefits' },
+        {
+          $match: {
+            'applied_benefits.pet_membership_id': { $exists: true, $ne: null },
+          },
+        },
+        {
+          $group: {
+            _id: '$applied_benefits.pet_membership_id',
+            total_amount: { $sum: '$applied_benefits.amount_deducted' },
+          },
+        },
       ]);
     const benefitUsedMap = new Map<string, number>(
-      benefitAgg.map((a) => [a._id.toString(), a.total]),
+      benefitAgg.map((a) => [a._id.toString(), a.total_amount]),
     );
 
     const rows = allMemberships.map((m) => {
