@@ -90,4 +90,18 @@ export class ReportsController {
     const result = await this.reportsService.getVipCustomerReport();
     return { message: 'VIP customer report fetched successfully', ...result };
   }
+
+  // ─── Membership Reports ───────────────────────────────────────────────────────
+
+  @Get('membership/detail')
+  async getMembershipDetailReport() {
+    const result = await this.reportsService.getMembershipDetailReport();
+    return { message: 'Membership detail report fetched successfully', ...result };
+  }
+
+  @Get('membership/expiry')
+  async getMembershipExpiryReport() {
+    const result = await this.reportsService.getMembershipExpiryReport();
+    return { message: 'Membership expiry report fetched successfully', ...result };
+  }
 }

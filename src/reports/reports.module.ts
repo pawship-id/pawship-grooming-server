@@ -22,6 +22,15 @@ import {
 } from 'src/membership/entities/membership.entity';
 import { User, UserSchema } from 'src/user/entities/user.entity';
 import { Option, OptionSchema } from 'src/option/entities/option.entity';
+import {
+  BenefitUsage,
+  BenefitUsageSchema,
+} from 'src/benefit-usage/entities/benefit-usage.entity';
+import { Service, ServiceSchema } from 'src/service/entities/service.entity';
+import {
+  MembershipLog,
+  MembershipLogSchema,
+} from 'src/pet-membership/entities/membership-log.entity';
 import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
 
@@ -38,6 +47,9 @@ import { ReportsService } from './reports.service';
       { name: Membership.name, schema: MembershipSchema },
       { name: User.name, schema: UserSchema },
       { name: Option.name, schema: OptionSchema },
+      { name: BenefitUsage.name, schema: BenefitUsageSchema },
+      { name: Service.name, schema: ServiceSchema },
+      { name: MembershipLog.name, schema: MembershipLogSchema },
     ]),
   ],
   controllers: [ReportsController],

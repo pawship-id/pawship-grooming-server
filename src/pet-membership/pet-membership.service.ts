@@ -62,19 +62,19 @@ export class PetMembershipService {
     const endDate = new Date(startDate);
     endDate.setMonth(endDate.getMonth() + membership.duration_months);
 
-    // Block purchase if the new period overlaps with any existing non-cancelled membership for this plan
-    const overlapping = await this.petMembershipModel.findOne({
-      pet_id: new Types.ObjectId(pet_id),
-      membership_plan_id: new Types.ObjectId(membership_plan_id),
-      is_active: true,
-      isDeleted: false,
-      start_date: { $lt: endDate },
-      end_date: { $gt: startDate },
-    });
+    // Block purchase if the new period overlaps with any active/pending membership (any plan).
+    // Uses merged-period logic so a chain like [active → pending] is treated as one blocked block.
+    const overlapBlock = await this.findMergedOverlap(
+      new Types.ObjectId(pet_id),
+      startDate,
+      endDate,
+    );
 
-    if (overlapping) {
+    if (overlapBlock) {
+      const availableFrom = new Date(overlapBlock.blockedUntil);
+      availableFrom.setDate(availableFrom.getDate() + 1);
       throw new BadRequestException(
-        'membership period overlaps with an existing membership for this plan',
+        `Tanggal mulai bertabrakan dengan "${overlapBlock.planName}" yang sudah ada. Membership tersedia mulai: ${availableFrom.toISOString().split('T')[0]}`,
       );
     }
 
@@ -589,11 +589,37 @@ export class PetMembershipService {
       throw new NotFoundException('pet membership not found');
     }
 
+    const newStartDate = new Date(updatePetMembershipDto.start_date);
+    const newEndDate = new Date(updatePetMembershipDto.end_date);
+
+    if (newEndDate <= newStartDate) {
+      throw new BadRequestException(
+        'Tanggal berakhir tidak boleh lebih kecil atau sama dengan tanggal mulai',
+      );
+    }
+
+    // Block edit if the new period overlaps with any other active/pending membership
+    // (any plan). Excludes the membership being edited itself.
+    const editOverlapBlock = await this.findMergedOverlap(
+      existing.pet_id,
+      newStartDate,
+      newEndDate,
+      new Types.ObjectId(id),
+    );
+
+    if (editOverlapBlock) {
+      const availableFrom = new Date(editOverlapBlock.blockedUntil);
+      availableFrom.setDate(availableFrom.getDate() + 1);
+      throw new BadRequestException(
+        `Tanggal bertabrakan dengan "${editOverlapBlock.planName}" yang sudah ada. Tersedia mulai: ${availableFrom.toISOString().split('T')[0]}`,
+      );
+    }
+
     const petMembership = await this.petMembershipModel.findByIdAndUpdate(
       new Types.ObjectId(id),
       {
-        start_date: new Date(updatePetMembershipDto.start_date),
-        end_date: new Date(updatePetMembershipDto.end_date),
+        start_date: newStartDate,
+        end_date: newEndDate,
       },
       { new: true, runValidators: true },
     );
@@ -712,20 +738,20 @@ export class PetMembershipService {
     const newEndDate = new Date(newStartDate);
     newEndDate.setMonth(newEndDate.getMonth() + membership.duration_months);
 
-    // Block renewal if the new period overlaps with another non-cancelled membership for this plan
-    const overlapRenew = await this.petMembershipModel.findOne({
-      _id: { $ne: new Types.ObjectId(id) },
-      pet_id: existing.pet_id,
-      membership_plan_id: existing.membership_plan_id,
-      is_active: true,
-      isDeleted: false,
-      start_date: { $lt: newEndDate },
-      end_date: { $gt: newStartDate },
-    });
+    // Block renewal if the new period overlaps with any active/pending membership (any plan).
+    // Excludes the membership being renewed itself; uses merged-period logic.
+    const renewOverlapBlock = await this.findMergedOverlap(
+      existing.pet_id,
+      newStartDate,
+      newEndDate,
+      new Types.ObjectId(id),
+    );
 
-    if (overlapRenew) {
+    if (renewOverlapBlock) {
+      const availableFrom = new Date(renewOverlapBlock.blockedUntil);
+      availableFrom.setDate(availableFrom.getDate() + 1);
       throw new BadRequestException(
-        'renewal period overlaps with another membership for this plan',
+        `Tanggal perpanjangan bertabrakan dengan "${renewOverlapBlock.planName}" yang sudah ada. Membership tersedia mulai: ${availableFrom.toISOString().split('T')[0]}`,
       );
     }
 
@@ -1100,6 +1126,76 @@ export class PetMembershipService {
     });
 
     return isArray ? plainDocs : plainDocs[0];
+  }
+
+  /**
+   * Fetch all active/pending memberships for a pet, merge consecutive/overlapping
+   * periods, and return the merged block that conflicts with [checkStart, checkEnd].
+   * Expired memberships (end_date <= now) are excluded.
+   */
+  private async findMergedOverlap(
+    petId: Types.ObjectId,
+    checkStart: Date,
+    checkEnd: Date,
+    excludeId?: Types.ObjectId,
+  ): Promise<{ blockedUntil: Date; planName: string } | null> {
+    const now = new Date();
+    const query: any = {
+      pet_id: petId,
+      is_active: true,
+      isDeleted: false,
+      end_date: { $gt: now }, // active or pending only (exclude expired)
+    };
+    if (excludeId) {
+      query._id = { $ne: excludeId };
+    }
+
+    const memberships = await this.petMembershipModel
+      .find(query)
+      .sort({ start_date: 1 })
+      .lean()
+      .exec() as any[];
+
+    if (!memberships.length) return null;
+
+    // Merge consecutive / overlapping periods.
+    // Periods starting within 1 day after the previous end are treated as consecutive
+    // (e.g. active ends Nov 16, pending starts Nov 17 → same block).
+    const MS_PER_DAY = 86_400_000;
+    const merged: { start: Date; end: Date; planId: Types.ObjectId }[] = [];
+    for (const m of memberships) {
+      const s = new Date(m.start_date);
+      const e = new Date(m.end_date);
+      if (merged.length === 0) {
+        merged.push({ start: s, end: e, planId: m.membership_plan_id });
+      } else {
+        const lastEnd = merged[merged.length - 1].end;
+        const isConsecutive = s.getTime() <= lastEnd.getTime() + MS_PER_DAY;
+        if (!isConsecutive) {
+          merged.push({ start: s, end: e, planId: m.membership_plan_id });
+        } else if (e > lastEnd) {
+          merged[merged.length - 1].end = e;
+        }
+      }
+    }
+
+    // Conflict if the start date falls inside a block, OR the full range overlaps it.
+    const block = merged.find((p) => {
+      const startInside = checkStart >= p.start && checkStart < p.end;
+      const rangeOverlap = checkStart < p.end && checkEnd > p.start;
+      return startInside || rangeOverlap;
+    });
+    if (!block) return null;
+
+    const plan = await this.membershipModel
+      .findById(block.planId)
+      .select('name')
+      .lean();
+
+    return {
+      blockedUntil: block.end,
+      planName: (plan as any)?.name ?? 'membership lain',
+    };
   }
 
   private computeStatus(

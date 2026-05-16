@@ -20,6 +20,16 @@ import {
 } from 'src/pet-membership/entities/pet-membership.entity';
 import { Membership, MembershipDocument } from 'src/membership/entities/membership.entity';
 import { User, UserDocument } from 'src/user/entities/user.entity';
+import {
+  BenefitUsage,
+  BenefitUsageDocument,
+} from 'src/benefit-usage/entities/benefit-usage.entity';
+import { Service, ServiceDocument } from 'src/service/entities/service.entity';
+import {
+  MembershipLog,
+  MembershipLogDocument,
+  MembershipEventType,
+} from 'src/pet-membership/entities/membership-log.entity';
 import { FinancialReportDto } from './dto/financial-report.dto';
 import { OperationsReportDto } from './dto/operations-report.dto';
 import { CapacityUtilisationReportDto } from './dto/capacity-utilisation-report.dto';
@@ -47,6 +57,12 @@ export class ReportsService {
     private readonly membershipModel: Model<MembershipDocument>,
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+    @InjectModel(BenefitUsage.name)
+    private readonly benefitUsageModel: Model<BenefitUsageDocument>,
+    @InjectModel(Service.name)
+    private readonly serviceModel: Model<ServiceDocument>,
+    @InjectModel(MembershipLog.name)
+    private readonly membershipLogModel: Model<MembershipLogDocument>,
     private readonly bookingEventsService: BookingEventsService,
   ) {}
 
@@ -1113,6 +1129,574 @@ export class ReportsService {
       .filter(Boolean);
 
     rows.sort((a: any, b: any) => b.lifetime_revenue - a.lifetime_revenue);
+
+    return { data: rows, total: rows.length };
+  }
+
+  // ─── Membership Reports ───────────────────────────────────────────────────────
+
+  // Mirrors PetMembershipService.computeStatus (the canonical source used by the
+  // /admin/users/.../memberships reference page), but returns 'menunggu' instead of
+  // 'pending' to match the membership report's status vocabulary.
+  private membershipReportStatus(
+    isActive: boolean,
+    startDate: Date | null | undefined,
+    endDate: Date | null | undefined,
+    now: Date,
+  ): 'active' | 'menunggu' | 'expired' | 'cancelled' {
+    if (!isActive) return 'cancelled';
+    if (startDate && now < new Date(startDate)) return 'menunggu';
+    if (endDate && now > new Date(endDate)) return 'expired';
+    return 'active';
+  }
+
+  async getMembershipDetailReport() {
+    const today = new Date();
+
+    // Compute current period keys for weekly and monthly benefit resets
+    const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+    const isoDate = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+    const dayNum = isoDate.getUTCDay() || 7;
+    isoDate.setUTCDate(isoDate.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(isoDate.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil(((isoDate.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+    const currentWeekKey = `${isoDate.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+
+    // Fetch all purchased/renewed logs — used for renewal count, early renewal, previous plan.
+    const allLogs = await this.membershipLogModel
+      .find({
+        isDeleted: false,
+        event_type: { $in: [MembershipEventType.PURCHASED, MembershipEventType.RENEWED] },
+      })
+      .select('pet_id membership_plan_id pet_membership_id start_date end_date createdAt')
+      .exec();
+
+    // Count total log entries and build lookup maps
+    const logCountMap = new Map<string, number>();
+    const logsByGroupMap = new Map<string, (typeof allLogs)>();
+    const allLogsByPetMap = new Map<string, (typeof allLogs)>();
+    for (const log of allLogs) {
+      const key = `${log.pet_id.toString()}::${log.membership_plan_id.toString()}`;
+      logCountMap.set(key, (logCountMap.get(key) ?? 0) + 1);
+      if (!logsByGroupMap.has(key)) logsByGroupMap.set(key, []);
+      logsByGroupMap.get(key)!.push(log);
+      const petId = log.pet_id.toString();
+      if (!allLogsByPetMap.has(petId)) allLogsByPetMap.set(petId, []);
+      allLogsByPetMap.get(petId)!.push(log);
+    }
+
+    // Plan name map for all membership_plan_ids referenced in logs (for previous_plan lookup)
+    const allLogPlanIds = [...new Set(allLogs.map((l) => l.membership_plan_id.toString()))];
+    const logPlanDocs = await this.membershipModel
+      .find({ _id: { $in: allLogPlanIds.map((id) => new Types.ObjectId(id)) } })
+      .select('name')
+      .exec();
+    const logPlanNameMap = new Map(logPlanDocs.map((p) => [p._id.toString(), (p as any).name as string]));
+
+    // Fetch ALL non-deleted PetMemberships, then keep ONE per (pet_id, membership_plan_id):
+    // a pet may show several rows as long as the plan differs, but never the same plan twice.
+    // Uses the PM's ACTUAL dates + the canonical status logic (membershipReportStatus). Logs
+    // are only supplementary (renewal count / early renewal / previous plan) — they must NOT
+    // filter which memberships appear, otherwise an active membership with no log entry would
+    // be hidden behind a logged "menunggu" one.
+    // Priority per (pet, plan): active → menunggu → expired → cancelled; tie-break: latest
+    // end_date (or, when both are menunggu, the soonest start_date).
+    const candidateMemberships = await this.petMembershipModel
+      .find({ isDeleted: false })
+      .populate({ path: 'membership_plan_id', model: 'Membership' })
+      .sort({ pet_id: 1, start_date: -1 })
+      .exec();
+
+    const statusRank = (s: string) =>
+      s === 'active' ? 0 : s === 'menunggu' ? 1 : s === 'expired' ? 2 : 3;
+
+    // One membership per (pet_id, membership_plan_id)
+    const pmGroupMap = new Map<string, (typeof candidateMemberships)[0]>();
+    for (const pm of candidateMemberships) {
+      const mObj = (pm as any).toObject({ virtuals: true });
+      const planId = (mObj.membership_plan_id as any)?._id?.toString() ?? '';
+      const key = `${pm.pet_id.toString()}::${planId}`;
+      const status = this.membershipReportStatus(
+        pm.is_active,
+        pm.start_date,
+        pm.end_date,
+        today,
+      );
+      const existing = pmGroupMap.get(key);
+      if (!existing) {
+        pmGroupMap.set(key, pm);
+        continue;
+      }
+      const exStatus = this.membershipReportStatus(
+        existing.is_active,
+        existing.start_date,
+        existing.end_date,
+        today,
+      );
+      const rank = statusRank(status);
+      const exRank = statusRank(exStatus);
+      if (rank < exRank) {
+        pmGroupMap.set(key, pm); // higher-priority status wins
+      } else if (rank === exRank) {
+        if (status === 'menunggu') {
+          // both menunggu → prefer the one starting soonest (closest start_date)
+          const pmStart = pm.start_date ? new Date(pm.start_date).getTime() : Infinity;
+          const exStart = existing.start_date ? new Date(existing.start_date).getTime() : Infinity;
+          if (pmStart < exStart) pmGroupMap.set(key, pm);
+        } else {
+          const pmEnd = pm.end_date ? new Date(pm.end_date).getTime() : 0;
+          const exEnd = existing.end_date ? new Date(existing.end_date).getTime() : 0;
+          if (pmEnd > exEnd) pmGroupMap.set(key, pm); // same status → latest end_date
+        }
+      }
+    }
+
+    // Early renewal: flag the DISPLAYED PM if any log in its (pet_id, plan) group was
+    // created during another log's active period.
+    const earlyRenewalSet = new Set<string>(); // pet_membership_id strings
+    for (const pm of pmGroupMap.values()) {
+      const mObj = (pm as any).toObject({ virtuals: true });
+      const planId = (mObj.membership_plan_id as any)?._id?.toString() ?? '';
+      const groupLogs = logsByGroupMap.get(`${pm.pet_id.toString()}::${planId}`) ?? [];
+      if (groupLogs.length <= 1) continue;
+      const hasEarlyRenewal = groupLogs.some((log) => {
+        const createdAt = (log as any).createdAt ? new Date((log as any).createdAt) : null;
+        if (!createdAt) return false;
+        return groupLogs.some(
+          (other) =>
+            other._id.toString() !== log._id.toString() &&
+            createdAt >= new Date(other.start_date) &&
+            createdAt <= new Date(other.end_date),
+        );
+      });
+      if (hasEarlyRenewal) earlyRenewalSet.add(pm._id.toString());
+    }
+
+    const allMemberships = [...pmGroupMap.values()];
+
+    // Group by pet_id to compute per-pet renewal info (across all logs, not just selected)
+    const petMembershipGroups = new Map<string, any[]>();
+    for (const m of allMemberships) {
+      const key = m.pet_id.toString();
+      if (!petMembershipGroups.has(key)) petMembershipGroups.set(key, []);
+      petMembershipGroups.get(key)!.push(m);
+    }
+
+    // Fetch pets and users
+    const petIds = [...new Set(allMemberships.map((m) => m.pet_id.toString()))];
+    const pets = await this.petModel
+      .find({ _id: { $in: petIds }, isDeleted: false })
+      .populate('pet_type')
+      .populate('breed')
+      .exec();
+    const petMap = new Map(pets.map((p) => [p._id.toString(), p]));
+
+    const customerIds = [...new Set(pets.map((p) => p.customer_id.toString()))];
+    const users = await this.userModel
+      .find({ _id: { $in: customerIds } })
+      .exec();
+    const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+
+    // Aggregate total_sessions per pet_membership_id dari BenefitUsage (unique bookings)
+    const benefitUsageAgg: { _id: Types.ObjectId; total_sessions: number }[] =
+      await this.benefitUsageModel.aggregate([
+        { $match: { isDeleted: false } },
+        {
+          $group: {
+            _id: '$pet_membership_id',
+            booking_ids: { $addToSet: '$booking_id' },
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            total_sessions: { $size: '$booking_ids' },
+          },
+        },
+      ]);
+    const totalSessionsMap = new Map<string, number>();
+    for (const agg of benefitUsageAgg) {
+      totalSessionsMap.set(agg._id.toString(), agg.total_sessions);
+    }
+
+    // Aggregate total_amount_deducted per pet_membership_id dari Booking.applied_benefits
+    // Unwind applied_benefits, filter yang punya pet_membership_id, group & sum amount_deducted
+    const amountDeductedAgg: { _id: Types.ObjectId; total_amount: number }[] =
+      await this.bookingModel.aggregate([
+        { $match: { isDeleted: false } },
+        { $unwind: '$applied_benefits' },
+        {
+          $match: {
+            'applied_benefits.pet_membership_id': { $exists: true, $ne: null },
+          },
+        },
+        {
+          $group: {
+            _id: '$applied_benefits.pet_membership_id',
+            total_amount: { $sum: '$applied_benefits.amount_deducted' },
+          },
+        },
+      ]);
+    const amountDeductedMap = new Map<string, number>();
+    for (const agg of amountDeductedAgg) {
+      amountDeductedMap.set(agg._id.toString(), agg.total_amount);
+    }
+
+    // Aggregate BenefitUsage per (pet_membership_id, benefit_id)
+    // booking_id di-deduplicate dengan $addToSet sehingga 1 booking tetap dihitung 1
+    // walaupun ada banyak record (misal: lebih dari 1 addon dalam 1 booking)
+    const benefitUsagePerBenefitAgg: {
+      _id: { pet_membership_id: Types.ObjectId; benefit_id: Types.ObjectId };
+      amount_used: number;
+    }[] = await this.benefitUsageModel.aggregate([
+      { $match: { isDeleted: false } },
+      {
+        $group: {
+          _id: {
+            pet_membership_id: '$pet_membership_id',
+            benefit_id: '$benefit_id',
+          },
+          booking_ids: { $addToSet: '$booking_id' },
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          amount_used: { $size: '$booking_ids' },
+        },
+      },
+    ]);
+    // Map: pet_membership_id -> benefit_id -> used count (unique bookings)
+    const benefitUsageByBenefitMap = new Map<string, Map<string, number>>();
+    for (const agg of benefitUsagePerBenefitAgg) {
+      const pmId = agg._id.pet_membership_id.toString();
+      const bId = agg._id.benefit_id.toString();
+      if (!benefitUsageByBenefitMap.has(pmId)) {
+        benefitUsageByBenefitMap.set(pmId, new Map());
+      }
+      benefitUsageByBenefitMap.get(pmId)!.set(bId, agg.amount_used);
+    }
+
+    // Aggregate current-period usage per (pet_membership_id, benefit_id)
+    // Monthly benefits → filter by currentMonthKey, weekly → currentWeekKey, unlimited → all records
+    const currentPeriodUsageAgg: {
+      _id: { pet_membership_id: Types.ObjectId; benefit_id: Types.ObjectId };
+      current_period_used: number;
+    }[] = await this.benefitUsageModel.aggregate([
+      { $match: { isDeleted: false } },
+      {
+        $match: {
+          $or: [
+            { benefit_period: 'monthly', period_key: currentMonthKey },
+            { benefit_period: 'weekly', period_key: currentWeekKey },
+            { benefit_period: 'unlimited' },
+          ],
+        },
+      },
+      {
+        $group: {
+          _id: {
+            pet_membership_id: '$pet_membership_id',
+            benefit_id: '$benefit_id',
+          },
+          booking_ids: { $addToSet: '$booking_id' },
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          current_period_used: { $size: '$booking_ids' },
+        },
+      },
+    ]);
+    // Map: pet_membership_id -> benefit_id -> current period used count
+    const currentPeriodUsageMap = new Map<string, Map<string, number>>();
+    for (const agg of currentPeriodUsageAgg) {
+      const pmId = agg._id.pet_membership_id.toString();
+      const bId = agg._id.benefit_id.toString();
+      if (!currentPeriodUsageMap.has(pmId)) currentPeriodUsageMap.set(pmId, new Map());
+      currentPeriodUsageMap.get(pmId)!.set(bId, agg.current_period_used);
+    }
+
+    // Collect all service_ids referenced in benefits_snapshot across all memberships
+    const allServiceIds = new Set<string>();
+    for (const m of allMemberships) {
+      const mObj = (m as any).toObject({ virtuals: true });
+      for (const b of mObj.benefits_snapshot ?? []) {
+        if (b.service_id) allServiceIds.add(b.service_id.toString());
+      }
+    }
+    const services = allServiceIds.size > 0
+      ? await this.serviceModel
+          .find({ _id: { $in: [...allServiceIds].map((id) => new Types.ObjectId(id)) } })
+          .select('name')
+          .exec()
+      : [];
+    const serviceMap = new Map(services.map((s) => [s._id.toString(), s.name]));
+
+    const rows = allMemberships.map((m) => {
+      const mObj = (m as any).toObject({ virtuals: true });
+      const plan = mObj.membership_plan_id as any;
+      const pet = petMap.get(m.pet_id.toString());
+      const pObj = pet ? (pet as any).toObject({ virtuals: true }) : null;
+      const owner = pObj ? userMap.get(pObj.customer_id?.toString()) : null;
+      const oObj = owner ? (owner as any).toObject({ virtuals: true }) : null;
+
+      // previous_plan: the plan from the log just before the current membership's log (by createdAt)
+      const petLogs = allLogsByPetMap.get(m.pet_id.toString()) ?? [];
+      const sortedPetLogs = [...petLogs].sort(
+        (a, b) => new Date((a as any).createdAt).getTime() - new Date((b as any).createdAt).getTime(),
+      );
+      const currentLogIdx = sortedPetLogs.findIndex(
+        (l) => l.pet_membership_id.toString() === m._id.toString(),
+      );
+      const prevLog = currentLogIdx > 0 ? sortedPetLogs[currentLogIdx - 1] : null;
+      const previous_plan = prevLog
+        ? (logPlanNameMap.get(prevLog.membership_plan_id.toString()) ?? null)
+        : null;
+
+      // renewal_count = total purchased+renewed log entries for this (pet_id, membership_plan_id) group
+      const logKey = `${m.pet_id.toString()}::${plan?._id?.toString() ?? ''}`;
+      const renewal_count = Math.max(0, (logCountMap.get(logKey) ?? 1) - 1);
+
+      const is_early_renewal = earlyRenewalSet.has(m._id.toString());
+
+      const endDate = m.end_date ? new Date(m.end_date) : null;
+      const startDate = m.start_date ? new Date(m.start_date) : null;
+
+      const duration_days =
+        startDate && endDate
+          ? Math.round((endDate.getTime() - startDate.getTime()) / 86400000)
+          : null;
+
+      const membership_status = this.membershipReportStatus(
+        m.is_active,
+        m.start_date,
+        m.end_date,
+        today,
+      );
+
+      const days_until_expiry =
+        membership_status === 'menunggu'
+          ? duration_days
+          : endDate
+            ? Math.round((endDate.getTime() - today.getTime()) / 86400000)
+            : null;
+
+      // Full benefits snapshot array (one item per benefit)
+      const usageForThisMembership = benefitUsageByBenefitMap.get(m._id.toString());
+      const currentPeriodForThisMembership = currentPeriodUsageMap.get(m._id.toString());
+      const benefits_snapshot = (mObj.benefits_snapshot ?? []).map((b) => {
+        const limit = b.limit ?? null;
+        const benefitId = b._id?.toString() ?? null;
+        const used = benefitId ? (usageForThisMembership?.get(benefitId) ?? 0) : 0;
+        const current_period_used = benefitId ? (currentPeriodForThisMembership?.get(benefitId) ?? 0) : 0;
+        // remaining is based on current-period usage so it reflects the period limit correctly
+        const remaining = limit !== null ? Math.max(0, limit - current_period_used) : null;
+        const serviceId = b.service_id?.toString() ?? null;
+        const name = (b.label ?? null) || (serviceId ? (serviceMap.get(serviceId) ?? null) : null);
+        return {
+          name,
+          type: b.type ?? null,
+          applies_to: b.applies_to ?? null,
+          value: b.value ?? null,
+          period: b.period ?? null,
+          limit,
+          used,
+          current_period_used,
+          remaining,
+        };
+      });
+
+      // Benefit snapshot (first benefit — kept for backward compat)
+      const b0 = benefits_snapshot[0] ?? null;
+      const benefit_1_name = b0?.name ?? null;
+      const benefit_1_type = b0?.type ?? null;
+      const benefit_1_applies_to = b0?.applies_to ?? null;
+      const benefit_1_value = b0?.value ?? null;
+      const benefit_1_limit = b0?.limit ?? null;
+      const benefit_1_used = b0?.used ?? null;
+      const benefit_1_current_period_used = b0?.current_period_used ?? null;
+      const benefit_1_remaining = b0?.remaining ?? null;
+
+      // Benefit utilisation summary
+      const membership_price = m.purchase_price ?? plan?.price ?? 0;
+      const pmId = m._id.toString();
+      const total_benefit_used_amount = amountDeductedMap.get(pmId) ?? 0;
+      const total_sessions_using_benefit = totalSessionsMap.get(pmId) ?? 0;
+      const benefit_roi =
+        membership_price > 0
+          ? Math.round((total_benefit_used_amount / membership_price) * 10000) / 100
+          : 0;
+
+      return {
+        pet_membership_id: m._id.toString(),
+        pet_id: m.pet_id.toString(),
+        pet_code: pObj?.code ?? '',
+        pet_name: pObj?.name ?? '',
+        pet_type: (pObj?.pet_type as any)?.name ?? '',
+        breed: (pObj?.breed as any)?.name ?? '',
+        customer_id: pObj?.customer_id?.toString() ?? '',
+        customer_code: oObj?.code ?? '',
+        customer_name: oObj?.profile?.full_name ?? oObj?.username ?? '',
+        customer_phone: oObj?.phone_number ?? '',
+        membership_plan_id: plan?._id?.toString() ?? '',
+        membership_code: plan?.code ?? '',
+        membership_name: plan?.name ?? '',
+        membership_price,
+        duration_days,
+        start_date: m.start_date ?? null,
+        end_date: m.end_date ?? null,
+        days_until_expiry,
+        membership_status,
+        is_early_renewal,
+        renewal_count,
+        previous_plan,
+        benefits_snapshot,
+        benefit_1_name,
+        benefit_1_type,
+        benefit_1_applies_to,
+        benefit_1_value,
+        benefit_1_limit,
+        benefit_1_used,
+        benefit_1_current_period_used,
+        benefit_1_remaining,
+        total_benefit_used_amount,
+        total_sessions_using_benefit,
+        benefit_roi,
+      };
+    });
+
+    // Sort: active → menunggu → expired → cancelled, then by end_date asc (soonest expiry first)
+    const sortRank = (s: string) =>
+      s === 'active' ? 0 : s === 'menunggu' ? 1 : s === 'expired' ? 2 : 3;
+    rows.sort((a, b) => {
+      const ra = sortRank(a.membership_status);
+      const rb = sortRank(b.membership_status);
+      if (ra !== rb) return ra - rb;
+      const da = a.end_date ? new Date(a.end_date).getTime() : 0;
+      const db = b.end_date ? new Date(b.end_date).getTime() : 0;
+      return da - db;
+    });
+
+    return { data: rows, total: rows.length };
+  }
+
+  async getMembershipExpiryReport() {
+    const today = new Date();
+
+    const allMemberships = await this.petMembershipModel
+      .find({ isDeleted: false })
+      .populate({ path: 'membership_plan_id', model: 'Membership' })
+      .sort({ end_date: 1 })
+      .exec();
+
+    const petIds = [...new Set(allMemberships.map((m) => m.pet_id.toString()))];
+    const pets = await this.petModel
+      .find({ _id: { $in: petIds }, isDeleted: false })
+      .populate('pet_type')
+      .exec();
+    const petMap = new Map(pets.map((p) => [p._id.toString(), p]));
+
+    const customerIds = [...new Set(pets.map((p) => p.customer_id.toString()))];
+    const users = await this.userModel
+      .find({ _id: { $in: customerIds } })
+      .exec();
+    const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+
+    // Last completed booking date per pet
+    const lastBookingAgg: { _id: Types.ObjectId; last_at: Date }[] =
+      await this.bookingModel.aggregate([
+        { $match: { isDeleted: false, booking_status: 'completed' } },
+        { $group: { _id: '$pet_id', last_at: { $max: '$date' } } },
+      ]);
+    const lastVisitMap = new Map<string, Date>(
+      lastBookingAgg.map((a) => [a._id.toString(), a.last_at]),
+    );
+
+    // Renewal count per pet (total memberships - 1)
+    const renewalCountAgg: { _id: Types.ObjectId; count: number }[] =
+      await this.petMembershipModel.aggregate([
+        { $match: { isDeleted: false } },
+        { $group: { _id: '$pet_id', count: { $sum: 1 } } },
+      ]);
+    const renewalCountMap = new Map<string, number>(
+      renewalCountAgg.map((a) => [a._id.toString(), Math.max(0, a.count - 1)]),
+    );
+
+    // Total benefit value used per pet_membership_id
+    const benefitAgg: { _id: Types.ObjectId; total: number }[] =
+      await this.benefitUsageModel.aggregate([
+        { $match: { isDeleted: false } },
+        { $group: { _id: '$pet_membership_id', total: { $sum: '$amount_used' } } },
+      ]);
+    const benefitUsedMap = new Map<string, number>(
+      benefitAgg.map((a) => [a._id.toString(), a.total]),
+    );
+
+    const rows = allMemberships.map((m) => {
+      const mObj = (m as any).toObject({ virtuals: true });
+      const plan = mObj.membership_plan_id as any;
+      const pet = petMap.get(m.pet_id.toString());
+      const pObj = pet ? (pet as any).toObject({ virtuals: true }) : null;
+      const owner = pObj ? userMap.get(pObj.customer_id?.toString()) : null;
+      const oObj = owner ? (owner as any).toObject({ virtuals: true }) : null;
+
+      const endDate = m.end_date ? new Date(m.end_date) : null;
+      const days_until_expiry = endDate
+        ? Math.round((endDate.getTime() - today.getTime()) / 86400000)
+        : null;
+      const status = m.is_active && endDate && endDate >= today ? 'active' : 'expired';
+
+      const last_visit_at = lastVisitMap.get(m.pet_id.toString()) ?? null;
+      const days_since_last_visit =
+        last_visit_at != null
+          ? Math.floor((today.getTime() - new Date(last_visit_at).getTime()) / 86400000)
+          : null;
+
+      let expiry_urgency: 'critical' | 'warning' | 'upcoming' | null = null;
+      if (days_until_expiry !== null && days_until_expiry >= 0) {
+        if (days_until_expiry <= 7) expiry_urgency = 'critical';
+        else if (days_until_expiry <= 14) expiry_urgency = 'warning';
+        else if (days_until_expiry <= 30) expiry_urgency = 'upcoming';
+      }
+
+      const double_risk_flag =
+        days_until_expiry !== null &&
+        days_until_expiry <= 14 &&
+        days_since_last_visit !== null &&
+        days_since_last_visit > 30;
+
+      return {
+        membership_id: m._id.toString(),
+        member_code: plan?.code ?? '',
+        pet_id: m.pet_id.toString(),
+        pet_name: pObj?.name ?? '',
+        pet_type: (pObj?.pet_type as any)?.name ?? '',
+        owner_name: oObj?.profile?.full_name ?? oObj?.username ?? '',
+        owner_phone: oObj?.phone_number ?? '',
+        plan_name: plan?.name ?? '',
+        plan_tier: plan?.badge_variant ?? '',
+        start_date: m.start_date ?? null,
+        expiry_date: m.end_date ?? null,
+        days_until_expiry,
+        expiry_urgency,
+        renewal_count: renewalCountMap.get(m.pet_id.toString()) ?? 0,
+        last_visit_at,
+        days_since_last_visit,
+        double_risk_flag,
+        total_benefit_used: benefitUsedMap.get(m._id.toString()) ?? 0,
+        status,
+      };
+    });
+
+    // Sort: active first, then by expiry date asc (soonest expiry first)
+    rows.sort((a, b) => {
+      if (a.status !== b.status) return a.status === 'active' ? -1 : 1;
+      const da = a.expiry_date ? new Date(a.expiry_date).getTime() : 0;
+      const db = b.expiry_date ? new Date(b.expiry_date).getTime() : 0;
+      return da - db;
+    });
 
     return { data: rows, total: rows.length };
   }
