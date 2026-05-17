@@ -34,6 +34,7 @@ import { FinancialReportDto } from './dto/financial-report.dto';
 import { OperationsReportDto } from './dto/operations-report.dto';
 import { CapacityUtilisationReportDto } from './dto/capacity-utilisation-report.dto';
 import { CustomerReportDto } from './dto/customer-report.dto';
+import { MembershipRevenueReportDto } from './dto/membership-revenue-report.dto';
 import { BookingEventsService } from 'src/booking-events/booking-events.service';
 
 const STREAM_CHUNK_SIZE = 50;
@@ -1785,5 +1786,351 @@ export class ReportsService {
     });
 
     return { data: filteredRows, total: filteredRows.length };
+  }
+
+  // ─── Report C: Membership Revenue & Renewal Rate ──────────────────────────────
+
+  private static readonly ID_MONTHS = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+    'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
+  ];
+
+  private monthPeriodKey(d: Date): { key: string; label: string } {
+    const y = d.getFullYear();
+    const m = d.getMonth();
+    const last = new Date(y, m + 1, 0).getDate();
+    const mon = ReportsService.ID_MONTHS[m];
+    return {
+      key: `${y}-${String(m + 1).padStart(2, '0')}`,
+      label: `${y}-${String(m + 1).padStart(2, '0')} (1 – ${last} ${mon} ${y})`,
+    };
+  }
+
+  private isoWeekPeriodKey(d: Date): { key: string; label: string } {
+    // Thursday of the ISO week decides the week-year & number.
+    const thu = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const dayNum = thu.getUTCDay() || 7;
+    thu.setUTCDate(thu.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(thu.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil(
+      ((thu.getTime() - yearStart.getTime()) / 86400000 + 1) / 7,
+    );
+    const key = `${thu.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+
+    const mon = new Date(thu);
+    mon.setUTCDate(thu.getUTCDate() - 3); // Monday
+    const sun = new Date(thu);
+    sun.setUTCDate(thu.getUTCDate() + 3); // Sunday
+
+    const M = ReportsService.ID_MONTHS;
+    const d1 = mon.getUTCDate();
+    const d2 = sun.getUTCDate();
+    const m1 = mon.getUTCMonth();
+    const m2 = sun.getUTCMonth();
+    const y1 = mon.getUTCFullYear();
+    const y2 = sun.getUTCFullYear();
+    let range: string;
+    if (y1 !== y2) {
+      range = `${d1} ${M[m1]} ${y1} – ${d2} ${M[m2]} ${y2}`;
+    } else if (m1 !== m2) {
+      range = `${d1} ${M[m1]} – ${d2} ${M[m2]} ${y2}`;
+    } else {
+      range = `${d1} – ${d2} ${M[m2]} ${y2}`;
+    }
+    return { key, label: `${key} (${range})` };
+  }
+
+  async getMembershipRevenueReport(dto: MembershipRevenueReportDto) {
+    const today = new Date();
+    const grouping = dto.period === 'week' ? 'week' : 'month';
+    const THIRTY_DAYS = 30 * 86400000;
+
+    // Default range: trailing 12 months ending today.
+    const dateTo = dto.date_to ? new Date(dto.date_to) : new Date(today);
+    const rangeEnd = new Date(dateTo);
+    rangeEnd.setHours(23, 59, 59, 999);
+    let dateFrom: Date;
+    if (dto.date_from) {
+      dateFrom = new Date(dto.date_from);
+    } else {
+      dateFrom = new Date(dateTo);
+      dateFrom.setMonth(dateFrom.getMonth() - 12);
+    }
+    dateFrom.setHours(0, 0, 0, 0);
+    const inRange = (d: Date) => d >= dateFrom && d <= rangeEnd;
+    // key → human label ("2026-W19 (4 – 10 Mei 2026)" / "2026-05 (1 – 31 Mei 2026)")
+    const periodLabels = new Map<string, string>();
+    const periodKeyOf = (d: Date): string => {
+      const { key, label } =
+        grouping === 'week'
+          ? this.isoWeekPeriodKey(d)
+          : this.monthPeriodKey(d);
+      if (!periodLabels.has(key)) periodLabels.set(key, label);
+      return key;
+    };
+
+    // Every purchase/renewal transaction. One log = one membership sold.
+    const allLogs = await this.membershipLogModel
+      .find({
+        isDeleted: false,
+        event_type: {
+          $in: [MembershipEventType.PURCHASED, MembershipEventType.RENEWED],
+        },
+      })
+      .select(
+        'pet_id membership_plan_id pet_membership_id event_date start_date end_date purchase_price createdAt',
+      )
+      .exec();
+
+    // All memberships — drives total_active (interval overlap) and
+    // expired_members (end_date in period).
+    const allPms = await this.petMembershipModel
+      .find({ isDeleted: false })
+      .select('membership_plan_id start_date end_date is_active')
+      .exec();
+
+    // Plan price / name / tier lookup (price is the revenue fallback when a
+    // log carries no purchase_price; name/tier feed the summary breakdown only).
+    const planIds = [
+      ...new Set(allLogs.map((l) => l.membership_plan_id.toString())),
+    ];
+    const planDocs = await this.membershipModel
+      .find({ _id: { $in: planIds.map((id) => new Types.ObjectId(id)) } })
+      .select('name price badge_variant')
+      .exec();
+    const planMap = new Map(
+      planDocs.map((p) => [
+        p._id.toString(),
+        {
+          name: (p as any).name as string,
+          price: (p as any).price as number,
+          tier: ((p as any).badge_variant as string) ?? '',
+        },
+      ]),
+    );
+
+    // Benefit usages within range — counted as unique bookings per period.
+    const benefitUsages = await this.benefitUsageModel
+      .find({
+        isDeleted: false,
+        booking_date: { $gte: dateFrom, $lte: rangeEnd },
+      })
+      .select('booking_id booking_date')
+      .exec();
+
+    // "Periode" basis = created_at of the membership-log transaction
+    // (fallback: event_date, then start_date).
+    const purchasedAt = (l: any): Date =>
+      l.createdAt
+        ? new Date(l.createdAt)
+        : l.event_date
+          ? new Date(l.event_date)
+          : new Date(l.start_date);
+
+    // ── Per-period accumulator — one output row per period (all plans merged) ──
+    type Cell = {
+      period: string;
+      total_active: number;
+      new_members: number;
+      renewed_members: number;
+      expired_members: number;
+      gross_revenue: number;
+      early_renewals: number;
+      late_renewals: number;
+      lapsed: number;
+      benefit_bookings: Set<string>;
+      by_plan: Map<string, number>; // plan name → memberships sold in period
+    };
+    const cells = new Map<string, Cell>();
+    const getCell = (period: string): Cell => {
+      let c = cells.get(period);
+      if (!c) {
+        c = {
+          period,
+          total_active: 0,
+          new_members: 0,
+          renewed_members: 0,
+          expired_members: 0,
+          gross_revenue: 0,
+          early_renewals: 0,
+          late_renewals: 0,
+          lapsed: 0,
+          benefit_bookings: new Set(),
+          by_plan: new Map(),
+        };
+        cells.set(period, c);
+      }
+      return c;
+    };
+
+    // Per-plan revenue/count — feeds the summary breakdown only (no longer a
+    // table dimension).
+    const summaryPlan = new Map<
+      string,
+      { plan_name: string; plan_tier: string; count: number; revenue: number }
+    >();
+
+    // Full per-pet history decides "no prior record": the first transaction
+    // chronologically (by created_at) is a new membership, the rest renewals.
+    const logsByPet = new Map<string, typeof allLogs>();
+    for (const log of allLogs) {
+      const pid = log.pet_id.toString();
+      if (!logsByPet.has(pid)) logsByPet.set(pid, []);
+      logsByPet.get(pid)!.push(log);
+    }
+
+    for (const logs of logsByPet.values()) {
+      logs.sort((a, b) => purchasedAt(a).getTime() - purchasedAt(b).getTime());
+
+      for (let i = 0; i < logs.length; i++) {
+        const log = logs[i];
+        const plan = planMap.get(log.membership_plan_id.toString());
+        const price = (log.purchase_price ?? plan?.price ?? 0) as number;
+        const boughtAt = purchasedAt(log);
+
+        // Lapsed: expired with no renewal within 30 days of expiry. Counted
+        // once the rolling 30-day window has closed, bucketed by expiry period.
+        const endDate = log.end_date ? new Date(log.end_date) : null;
+        if (endDate) {
+          const windowClose = endDate.getTime() + THIRTY_DAYS;
+          const next = logs[i + 1];
+          const renewedInWindow =
+            next != null && purchasedAt(next).getTime() <= windowClose;
+          if (
+            windowClose <= today.getTime() &&
+            !renewedInWindow &&
+            inRange(endDate)
+          ) {
+            getCell(periodKeyOf(endDate)).lapsed += 1;
+          }
+        }
+
+        // New / renewed + revenue bucketed by created_at period.
+        if (!inRange(boughtAt)) continue;
+        const cell = getCell(periodKeyOf(boughtAt));
+        if (i === 0) {
+          cell.new_members += 1;
+        } else {
+          cell.renewed_members += 1;
+          const prevEnd = logs[i - 1].end_date
+            ? new Date(logs[i - 1].end_date)
+            : null;
+          // Early: bought before previous expiry (perk). Late: on/after (none).
+          if (prevEnd && boughtAt < prevEnd) cell.early_renewals += 1;
+          else cell.late_renewals += 1;
+        }
+        cell.gross_revenue += price;
+
+        const planName = plan?.name ?? 'Unknown';
+        cell.by_plan.set(planName, (cell.by_plan.get(planName) ?? 0) + 1);
+        const e = summaryPlan.get(planName) ?? {
+          plan_name: planName,
+          plan_tier: plan?.tier ?? '',
+          count: 0,
+          revenue: 0,
+        };
+        e.count += 1;
+        e.revenue += price;
+        summaryPlan.set(planName, e);
+      }
+    }
+
+    // total_active: a membership counts toward every period its active interval
+    // overlaps (clamped to the report range). expired_members: bucketed by the
+    // period the membership's end_date falls in.
+    const STEP = 86400000;
+    for (const pm of allPms) {
+      const start = pm.start_date ? new Date(pm.start_date) : null;
+      const end = pm.end_date ? new Date(pm.end_date) : null;
+
+      if (end && inRange(end)) {
+        getCell(periodKeyOf(end)).expired_members += 1;
+      }
+
+      if (!pm.is_active || !start || !end || end < start) continue;
+      const from = start > dateFrom ? start : dateFrom;
+      const to = end < rangeEnd ? end : rangeEnd;
+      if (to < from) continue;
+      const seen = new Set<string>();
+      for (let t = from.getTime(); t <= to.getTime(); t += STEP) {
+        seen.add(periodKeyOf(new Date(t)));
+      }
+      seen.add(periodKeyOf(to)); // ensure the final partial period is included
+      for (const period of seen) {
+        getCell(period).total_active += 1;
+      }
+    }
+
+    // benefit_usage_count: unique bookings per period (by booking_date).
+    for (const u of benefitUsages) {
+      if (!u.booking_date) continue;
+      getCell(periodKeyOf(new Date(u.booking_date))).benefit_bookings.add(
+        u.booking_id.toString(),
+      );
+    }
+
+    // ── One flat row per period (matches MembershipRevenueRow) ────────────────
+    const data = [...cells.values()]
+      .sort((a, b) => (a.period < b.period ? -1 : a.period > b.period ? 1 : 0))
+      .map((c) => ({
+        period: c.period,
+        period_label: periodLabels.get(c.period) ?? c.period,
+        total_active: c.total_active,
+        new_members: c.new_members,
+        renewed_members: c.renewed_members,
+        expired_members: c.expired_members,
+        gross_revenue: c.gross_revenue,
+        benefit_usage_count: c.benefit_bookings.size,
+        by_plan_breakdown: [...c.by_plan.entries()]
+          .map(([plan_name, count]) => ({ plan_name, count }))
+          .sort(
+            (a, b) =>
+              b.count - a.count || a.plan_name.localeCompare(b.plan_name),
+          ),
+      }));
+
+    // ── Report C renewal-rate summary (extra keys; table ignores them) ────────
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    const sum = [...cells.values()].reduce(
+      (acc, c) => {
+        acc.new_memberships += c.new_members;
+        acc.renewed_memberships += c.renewed_members;
+        acc.early_renewals += c.early_renewals;
+        acc.late_renewals += c.late_renewals;
+        acc.lapsed_memberships += c.lapsed;
+        acc.membership_revenue += c.gross_revenue;
+        return acc;
+      },
+      {
+        new_memberships: 0,
+        renewed_memberships: 0,
+        early_renewals: 0,
+        late_renewals: 0,
+        lapsed_memberships: 0,
+        membership_revenue: 0,
+      },
+    );
+    const totalSold = sum.new_memberships + sum.renewed_memberships;
+    const totalDenom = sum.renewed_memberships + sum.lapsed_memberships;
+    const summaryRate =
+      totalDenom > 0 ? round2((sum.renewed_memberships / totalDenom) * 100) : 0;
+
+    return {
+      period_grouping: grouping,
+      date_from: dateFrom,
+      date_to: rangeEnd,
+      summary: {
+        ...sum,
+        renewal_rate_pct: summaryRate,
+        renewal_rate_flag: totalDenom > 0 && summaryRate < 70,
+        avg_membership_value:
+          totalSold > 0 ? Math.round(sum.membership_revenue / totalSold) : 0,
+        by_plan_breakdown: [...summaryPlan.values()].sort(
+          (a, b) => b.revenue - a.revenue,
+        ),
+      },
+      data,
+      total: data.length,
+    };
   }
 }

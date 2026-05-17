@@ -5,6 +5,7 @@ import { FinancialReportDto } from './dto/financial-report.dto';
 import { OperationsReportDto } from './dto/operations-report.dto';
 import { CapacityUtilisationReportDto } from './dto/capacity-utilisation-report.dto';
 import { CustomerReportDto } from './dto/customer-report.dto';
+import { MembershipRevenueReportDto } from './dto/membership-revenue-report.dto';
 import { ReportsService } from './reports.service';
 
 @Controller('reports')
@@ -103,5 +104,11 @@ export class ReportsController {
   async getMembershipExpiryReport() {
     const result = await this.reportsService.getMembershipExpiryReport();
     return { message: 'Membership expiry report fetched successfully', ...result };
+  }
+
+  @Get('membership/revenue')
+  async getMembershipRevenueReport(@Query() dto: MembershipRevenueReportDto) {
+    const result = await this.reportsService.getMembershipRevenueReport(dto);
+    return { message: 'Membership revenue report fetched successfully', ...result };
   }
 }
