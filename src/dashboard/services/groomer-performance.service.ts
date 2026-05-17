@@ -4,6 +4,10 @@ import { Model, Types } from 'mongoose';
 import { Booking, BookingDocument } from 'src/booking/entities/booking.entity';
 import { User, UserDocument } from 'src/user/entities/user.entity';
 import { toUtcStartOfDay } from '../utils/date-range';
+import {
+  EFFECTIVE_COMPLETED_AT_FIELD,
+  withEffectiveCompletedAt,
+} from '../utils/completed-at';
 
 export interface GroomerPerformanceItem {
   groomer_id: string;
@@ -254,8 +258,13 @@ export class GroomerPerformanceService {
           $match: {
             ...storeMatch,
             booking_status: 'completed',
-            completed_at: { $gte: today, $lt: tomorrow },
             isDeleted: { $ne: true },
+          },
+        },
+        withEffectiveCompletedAt(),
+        {
+          $match: {
+            [EFFECTIVE_COMPLETED_AT_FIELD]: { $gte: today, $lt: tomorrow },
           },
         },
         {

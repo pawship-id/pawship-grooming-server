@@ -7,6 +7,10 @@ import {
   PetMembership,
   PetMembershipDocument,
 } from 'src/pet-membership/entities/pet-membership.entity';
+import {
+  EFFECTIVE_COMPLETED_AT_FIELD,
+  withEffectiveCompletedAt,
+} from '../utils/completed-at';
 
 type Urgency = 'critical' | 'upcoming';
 type VisitTag = '1st' | '2nd';
@@ -148,8 +152,13 @@ export class NeedsActionService {
         {
           $match: {
             booking_status: 'completed',
-            completed_at: { $gte: since, $ne: null },
             isDeleted: { $ne: true },
+          },
+        },
+        withEffectiveCompletedAt(),
+        {
+          $match: {
+            [EFFECTIVE_COMPLETED_AT_FIELD]: { $gte: since },
           },
         },
         {
@@ -157,7 +166,7 @@ export class NeedsActionService {
             from: 'bookings',
             let: {
               petId: '$pet_id',
-              completedAt: '$completed_at',
+              completedAt: `$${EFFECTIVE_COMPLETED_AT_FIELD}`,
             },
             pipeline: [
               {
@@ -167,8 +176,15 @@ export class NeedsActionService {
                       { $eq: ['$pet_id', '$$petId'] },
                       { $eq: ['$booking_status', 'completed'] },
                       { $ne: ['$isDeleted', true] },
-                      { $lte: ['$completed_at', '$$completedAt'] },
                     ],
+                  },
+                },
+              },
+              withEffectiveCompletedAt(),
+              {
+                $match: {
+                  $expr: {
+                    $lte: [`$${EFFECTIVE_COMPLETED_AT_FIELD}`, '$$completedAt'],
                   },
                 },
               },
@@ -194,7 +210,7 @@ export class NeedsActionService {
           },
         },
         { $unwind: { path: '$customer', preserveNullAndEmptyArrays: true } },
-        { $sort: { completed_at: -1 } },
+        { $sort: { [EFFECTIVE_COMPLETED_AT_FIELD]: -1 } },
       ])
       .exec();
 
@@ -239,7 +255,9 @@ export class NeedsActionService {
         visit_tag: row.total_visits === 1 ? '1st' : '2nd',
         service_name: row.service_snapshot?.name ?? '-',
         groomer_name: groomerId ? (groomerById.get(groomerId) ?? null) : null,
-        completed_at: new Date(row.completed_at).toISOString(),
+        completed_at: new Date(
+          row[EFFECTIVE_COMPLETED_AT_FIELD] ?? row.completed_at,
+        ).toISOString(),
       };
     });
 

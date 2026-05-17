@@ -3,6 +3,11 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Booking, BookingDocument } from 'src/booking/entities/booking.entity';
 import { parseRange, previousRange } from '../utils/date-range';
+import {
+  EFFECTIVE_COMPLETED_AT_FIELD,
+  completedAtRangeMatch,
+  withEffectiveCompletedAt,
+} from '../utils/completed-at';
 
 export interface BookingsKpis {
   total_bookings: number;
@@ -215,14 +220,18 @@ export class BookingsMetricsService {
           $match: {
             ...storeMatch,
             booking_status: 'completed',
-            completed_at: { $gte: range.from, $lte: range.to },
             isDeleted: { $ne: true },
           },
         },
+        withEffectiveCompletedAt(),
+        { $match: completedAtRangeMatch(range.from, range.to) },
         {
           $lookup: {
             from: 'bookings',
-            let: { petId: '$pet_id', completedAt: '$completed_at' },
+            let: {
+              petId: '$pet_id',
+              completedAt: `$${EFFECTIVE_COMPLETED_AT_FIELD}`,
+            },
             pipeline: [
               {
                 $match: {
@@ -231,8 +240,15 @@ export class BookingsMetricsService {
                       { $eq: ['$pet_id', '$$petId'] },
                       { $eq: ['$booking_status', 'completed'] },
                       { $ne: ['$isDeleted', true] },
-                      { $lt: ['$completed_at', '$$completedAt'] },
                     ],
+                  },
+                },
+              },
+              withEffectiveCompletedAt(),
+              {
+                $match: {
+                  $expr: {
+                    $lt: [`$${EFFECTIVE_COMPLETED_AT_FIELD}`, '$$completedAt'],
                   },
                 },
               },

@@ -7,6 +7,7 @@ import {
   PetMembershipDocument,
 } from 'src/pet-membership/entities/pet-membership.entity';
 import { User, UserDocument } from 'src/user/entities/user.entity';
+import { resolveCompletedAt } from '../utils/completed-at';
 
 export type ActivityEventType =
   | 'booking_completed'
@@ -92,11 +93,13 @@ export class ActivityFeedService {
       const serviceName = b.service_snapshot?.name ?? 'Layanan';
       const storeId = b.store_id ? String(b.store_id) : null;
 
-      if (b.booking_status === 'completed' && b.completed_at) {
+      const completedAt =
+        b.booking_status === 'completed' ? resolveCompletedAt(b) : null;
+      if (completedAt) {
         events.push({
           id: `booking-completed-${b._id}`,
           type: 'booking_completed',
-          timestamp: new Date(b.completed_at).toISOString(),
+          timestamp: completedAt.toISOString(),
           title: `Booking selesai · ${petName}`,
           subtitle: `${customerName} · ${serviceName}`,
           store_id: storeId,

@@ -11,6 +11,11 @@ import {
   previousRange,
   toUtcStartOfDay,
 } from '../utils/date-range';
+import {
+  EFFECTIVE_COMPLETED_AT_FIELD,
+  completedAtRangeMatch,
+  withEffectiveCompletedAt,
+} from '../utils/completed-at';
 
 export interface RevenueKpis {
   gross_revenue: number;
@@ -204,10 +209,11 @@ export class RevenueService {
           $match: {
             ...storeMatch,
             booking_status: 'completed',
-            completed_at: { $gte: range.from, $lte: range.to },
             isDeleted: { $ne: true },
           },
         },
+        withEffectiveCompletedAt(),
+        { $match: completedAtRangeMatch(range.from, range.to) },
         {
           $group: {
             _id: null,
@@ -238,10 +244,11 @@ export class RevenueService {
           $match: {
             ...storeMatch,
             booking_status: 'completed',
-            completed_at: { $gte: range.from, $lte: range.to },
             isDeleted: { $ne: true },
           },
         },
+        withEffectiveCompletedAt(),
+        { $match: completedAtRangeMatch(range.from, range.to) },
         {
           $group: {
             _id: {
@@ -281,10 +288,11 @@ export class RevenueService {
           $match: {
             ...storeMatch,
             booking_status: 'completed',
-            completed_at: { $gte: range.from, $lte: range.to },
             isDeleted: { $ne: true },
           },
         },
+        withEffectiveCompletedAt(),
+        { $match: completedAtRangeMatch(range.from, range.to) },
         {
           $group: {
             _id: null,
@@ -332,10 +340,11 @@ export class RevenueService {
           $match: {
             ...storeMatch,
             booking_status: 'completed',
-            completed_at: { $gte: range.from, $lte: range.to },
             isDeleted: { $ne: true },
           },
         },
+        withEffectiveCompletedAt(),
+        { $match: completedAtRangeMatch(range.from, range.to) },
         {
           $project: {
             benefits_total: {
@@ -477,14 +486,18 @@ export class RevenueService {
           $match: {
             ...storeMatch,
             booking_status: 'completed',
-            completed_at: { $gte: start, $lte: end },
             isDeleted: { $ne: true },
           },
         },
+        withEffectiveCompletedAt(),
+        { $match: completedAtRangeMatch(start, end) },
         {
           $group: {
             _id: {
-              $dateToString: { date: '$completed_at', format: '%Y-%m-%d' },
+              $dateToString: {
+                date: `$${EFFECTIVE_COMPLETED_AT_FIELD}`,
+                format: '%Y-%m-%d',
+              },
             },
             gross: { $sum: { $ifNull: ['$original_total_price', 0] } },
             net: { $sum: { $ifNull: ['$final_total_price', 0] } },
