@@ -25,6 +25,7 @@ import { UpdatePetMembershipDto } from './dto/update-pet-membership.dto';
 import { GetPetMembershipQueryDto } from './dto/get-pet-membership-query.dto';
 import { RenewPetMembershipDto } from './dto/renew-pet-membership.dto';
 import { BenefitUsageService } from 'src/benefit-usage/benefit-usage.service';
+import { CounterService } from 'src/counter/counter.service';
 
 @Injectable()
 export class PetMembershipService {
@@ -38,6 +39,7 @@ export class PetMembershipService {
     @InjectModel(Service.name)
     private serviceModel: Model<ServiceDocument>,
     private readonly benefitUsageService: BenefitUsageService,
+    private readonly counterService: CounterService,
   ) {}
 
   async create(
@@ -104,7 +106,14 @@ export class PetMembershipService {
         ? createPetMembershipDto.purchase_price
         : membership.price;
 
+    // Auto-generated, auto-incrementing order number: ORD-MEM-0001, ORD-MEM-0002, ...
+    const seq = await this.counterService.getNextSequence(
+      'pet-membership-order',
+    );
+    const orderNumber = `ORD-MEM-${String(seq).padStart(4, '0')}`;
+
     const petMembership = new this.petMembershipModel({
+      order_number: orderNumber,
       pet_id: new Types.ObjectId(pet_id),
       membership_plan_id: new Types.ObjectId(membership_plan_id),
       start_date: startDate,
@@ -137,13 +146,14 @@ export class PetMembershipService {
     }
     const id = new Types.ObjectId(petId);
     const now = new Date();
+    const todayStart = this.startOfDayUtc(now);
     const base = { pet_id: id, isDeleted: false };
     const [active, pending, expired, cancelled] = await Promise.all([
       this.petMembershipModel.countDocuments({
         ...base,
         is_active: true,
         start_date: { $lte: now },
-        end_date: { $gte: now },
+        end_date: { $gte: todayStart },
       }),
       this.petMembershipModel.countDocuments({
         ...base,
@@ -153,7 +163,7 @@ export class PetMembershipService {
       this.petMembershipModel.countDocuments({
         ...base,
         is_active: true,
-        end_date: { $lt: now },
+        end_date: { $lt: todayStart },
       }),
       this.petMembershipModel.countDocuments({ ...base, is_active: false }),
     ]);
@@ -189,6 +199,7 @@ export class PetMembershipService {
 
   async findAll(query: GetPetMembershipQueryDto): Promise<any[]> {
     const now = new Date();
+    const todayStart = this.startOfDayUtc(now);
     const conditions: any = { isDeleted: false };
 
     if (query.status === 'cancelled') {
@@ -196,13 +207,13 @@ export class PetMembershipService {
     } else if (query.status === 'active') {
       conditions.is_active = true;
       conditions.start_date = { $lte: now };
-      conditions.end_date = { $gte: now };
+      conditions.end_date = { $gte: todayStart };
     } else if (query.status === 'pending') {
       conditions.is_active = true;
       conditions.start_date = { $gt: now };
     } else if (query.status === 'expired') {
       conditions.is_active = true;
-      conditions.end_date = { $lt: now };
+      conditions.end_date = { $lt: todayStart };
     } else {
       // default: only non-cancelled records (backward compat for other callers)
       conditions.is_active = true;
@@ -287,11 +298,12 @@ export class PetMembershipService {
     }
 
     const now = new Date();
+    const todayStart = this.startOfDayUtc(now);
     const petMembership = await this.petMembershipModel
       .find({
         pet_id: new Types.ObjectId(petId),
         start_date: { $lte: now },
-        end_date: { $gte: now },
+        end_date: { $gte: todayStart }, // inklusif sepanjang hari end_date
         isDeleted: false,
         is_active: true,
       })
@@ -715,7 +727,9 @@ export class PetMembershipService {
     }
 
     const now = new Date();
-    if (existing.end_date >= now) {
+    const todayStart = this.startOfDayUtc(now);
+    // hanya bisa diperpanjang jika sudah expired (end_date sebelum hari ini)
+    if (existing.end_date >= todayStart) {
       throw new BadRequestException(
         'membership is still active and cannot be renewed yet',
       );
@@ -877,12 +891,13 @@ export class PetMembershipService {
     newBenefits: any[],
   ): Promise<number> {
     const now = new Date();
+    const todayStart = this.startOfDayUtc(now);
 
     // Find all active + pending pet memberships for this plan
     const petMemberships = await this.petMembershipModel.find({
       membership_plan_id: new Types.ObjectId(membershipPlanId),
       is_active: true,
-      end_date: { $gte: now }, // active or pending (not expired)
+      end_date: { $gte: todayStart }, // active or pending (not expired)
       isDeleted: false,
     });
 
@@ -1131,7 +1146,7 @@ export class PetMembershipService {
   /**
    * Fetch all active/pending memberships for a pet, merge consecutive/overlapping
    * periods, and return the merged block that conflicts with [checkStart, checkEnd].
-   * Expired memberships (end_date <= now) are excluded.
+   * Expired memberships (end_date sebelum hari ini) are excluded.
    */
   private async findMergedOverlap(
     petId: Types.ObjectId,
@@ -1140,11 +1155,12 @@ export class PetMembershipService {
     excludeId?: Types.ObjectId,
   ): Promise<{ blockedUntil: Date; planName: string } | null> {
     const now = new Date();
+    const todayStart = this.startOfDayUtc(now);
     const query: any = {
       pet_id: petId,
       is_active: true,
       isDeleted: false,
-      end_date: { $gt: now }, // active or pending only (exclude expired)
+      end_date: { $gte: todayStart }, // active or pending only (exclude expired)
     };
     if (excludeId) {
       query._id = { $ne: excludeId };
@@ -1198,6 +1214,18 @@ export class PetMembershipService {
     };
   }
 
+  /**
+   * Awal hari (00:00:00.000) dalam UTC. Dipakai untuk membandingkan end_date
+   * berbasis tanggal-kalender: membership tetap aktif sepanjang hari end_date,
+   * baru "expired" mulai hari berikutnya. Pakai UTC karena start_date/end_date
+   * disimpan pada 00:00 UTC (FE mengirim ISO dari input tanggal).
+   */
+  private startOfDayUtc(d: Date): Date {
+    const x = new Date(d);
+    x.setUTCHours(0, 0, 0, 0);
+    return x;
+  }
+
   private computeStatus(
     isActive: boolean,
     startDate: Date,
@@ -1205,8 +1233,10 @@ export class PetMembershipService {
   ): 'active' | 'expired' | 'pending' | 'cancelled' {
     if (!isActive) return 'cancelled';
     const now = new Date();
+    const todayStart = this.startOfDayUtc(now);
     if (now < new Date(startDate)) return 'pending';
-    if (now > new Date(endDate)) return 'expired';
+    // expired hanya jika end_date sudah lewat sebelum hari ini (inklusif sepanjang hari end_date)
+    if (new Date(endDate) < todayStart) return 'expired';
     return 'active';
   }
 

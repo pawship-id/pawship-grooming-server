@@ -21,6 +21,7 @@ import { BenefitUsageService } from 'src/benefit-usage/benefit-usage.service';
 import { BookingStatus, GroomingType, SessionStatus } from './dto/booking.dto';
 import { Store, StoreDocument } from 'src/store/entities/store.entity';
 import { Service, ServiceDocument } from 'src/service/entities/service.entity';
+import { toUtcStartOfDay } from 'src/dashboard/utils/date-range';
 import { User, UserDocument } from 'src/user/entities/user.entity';
 import {
   StoreDailyUsage,
@@ -2275,7 +2276,7 @@ export class BookingService {
         const activeMemberships = petMemberships.filter(
           (pm) =>
             bookingDate >= new Date(pm.start_date) &&
-            bookingDate <= new Date(pm.end_date),
+            toUtcStartOfDay(bookingDate) <= new Date(pm.end_date),
         );
         plain.active_memberships = activeMemberships.map((pm) => ({
           name: pm.name,

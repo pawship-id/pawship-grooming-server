@@ -25,6 +25,7 @@ import {
   BenefitUsageDocument,
 } from 'src/benefit-usage/entities/benefit-usage.entity';
 import { Service, ServiceDocument } from 'src/service/entities/service.entity';
+import { toUtcStartOfDay } from 'src/dashboard/utils/date-range';
 import {
   MembershipLog,
   MembershipLogDocument,
@@ -705,7 +706,7 @@ export class ReportsService {
         internal_note: p.internal_note ?? '',
         membership_tier: (membership?.membership_plan_id as any)?.name ?? '',
         membership_status: membership
-          ? new Date(membership.end_date) >= today
+          ? new Date(membership.end_date) >= toUtcStartOfDay(today)
             ? 'active'
             : 'expired'
           : '',
@@ -1069,7 +1070,10 @@ export class ReportsService {
       const key = m.pet_id.toString();
       if (membershipMap.has(key)) continue;
       // Active = is_active tidak di-set false DAN end_date belum lewat
-      const notExpired = m.end_date ? new Date(m.end_date) >= today : false;
+      // (inklusif sepanjang hari end_date — konsisten dengan status pet membership)
+      const notExpired = m.end_date
+        ? new Date(m.end_date) >= toUtcStartOfDay(today)
+        : false;
       const notDeactivated = m.is_active !== false;
       if (notExpired && notDeactivated) membershipMap.set(key, m);
     }
@@ -1147,7 +1151,9 @@ export class ReportsService {
   ): 'active' | 'menunggu' | 'expired' | 'cancelled' {
     if (!isActive) return 'cancelled';
     if (startDate && now < new Date(startDate)) return 'menunggu';
-    if (endDate && now > new Date(endDate)) return 'expired';
+    // expired hanya jika end_date sudah lewat sebelum hari ini
+    // (inklusif sepanjang hari end_date — mirror PetMembershipService.computeStatus)
+    if (endDate && new Date(endDate) < toUtcStartOfDay(now)) return 'expired';
     return 'active';
   }
 
@@ -1184,6 +1190,21 @@ export class ReportsService {
       const petId = log.pet_id.toString();
       if (!allLogsByPetMap.has(petId)) allLogsByPetMap.set(petId, []);
       allLogsByPetMap.get(petId)!.push(log);
+    }
+
+    // Cancelled logs reduce the renewal count by 1 each, per (pet_id, membership_plan_id)
+    // group — a cancelled purchase/renewal no longer counts as a completed renewal.
+    const cancelledLogs = await this.membershipLogModel
+      .find({
+        isDeleted: false,
+        event_type: MembershipEventType.CANCELLED,
+      })
+      .select('pet_id membership_plan_id')
+      .exec();
+    const cancelledCountMap = new Map<string, number>();
+    for (const log of cancelledLogs) {
+      const key = `${log.pet_id.toString()}::${log.membership_plan_id.toString()}`;
+      cancelledCountMap.set(key, (cancelledCountMap.get(key) ?? 0) + 1);
     }
 
     // Plan name map for all membership_plan_ids referenced in logs (for previous_plan lookup)
@@ -1456,9 +1477,14 @@ export class ReportsService {
         ? (logPlanNameMap.get(prevLog.membership_plan_id.toString()) ?? null)
         : null;
 
-      // renewal_count = total purchased+renewed log entries for this (pet_id, membership_plan_id) group
+      // renewal_count = (total purchased+renewed log entries - 1) for this
+      // (pet_id, membership_plan_id) group, minus 1 for every cancelled log.
       const logKey = `${m.pet_id.toString()}::${plan?._id?.toString() ?? ''}`;
-      const renewal_count = Math.max(0, (logCountMap.get(logKey) ?? 1) - 1);
+      const cancelledCount = cancelledCountMap.get(logKey) ?? 0;
+      const renewal_count = Math.max(
+        0,
+        (logCountMap.get(logKey) ?? 1) - 1 - cancelledCount,
+      );
 
       const is_early_renewal = earlyRenewalSet.has(m._id.toString());
 
@@ -1541,6 +1567,7 @@ export class ReportsService {
         customer_code: oObj?.code ?? '',
         customer_name: oObj?.profile?.full_name ?? oObj?.username ?? '',
         customer_phone: oObj?.phone_number ?? '',
+        order_number: m.order_number ?? '',
         membership_plan_id: plan?._id?.toString() ?? '',
         membership_code: plan?.code ?? '',
         membership_name: plan?.name ?? '',
@@ -1565,19 +1592,15 @@ export class ReportsService {
         total_benefit_used_amount,
         total_sessions_using_benefit,
         benefit_roi,
+        created_at: (m as any).createdAt ?? null,
       };
     });
 
-    // Sort: active → menunggu → expired → cancelled, then by end_date asc (soonest expiry first)
-    const sortRank = (s: string) =>
-      s === 'active' ? 0 : s === 'menunggu' ? 1 : s === 'expired' ? 2 : 3;
+    // Sort: newest first by createdAt (descending)
     rows.sort((a, b) => {
-      const ra = sortRank(a.membership_status);
-      const rb = sortRank(b.membership_status);
-      if (ra !== rb) return ra - rb;
-      const da = a.end_date ? new Date(a.end_date).getTime() : 0;
-      const db = b.end_date ? new Date(b.end_date).getTime() : 0;
-      return da - db;
+      const da = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const db = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return db - da;
     });
 
     return { data: rows, total: rows.length };
@@ -1716,7 +1739,10 @@ export class ReportsService {
       const days_until_expiry = endDate
         ? Math.round((endDate.getTime() - today.getTime()) / 86400000)
         : null;
-      const status = m.is_active && endDate && endDate >= today ? 'active' : 'expired';
+      const status =
+        m.is_active && endDate && endDate >= toUtcStartOfDay(today)
+          ? 'active'
+          : 'expired';
 
       const last_visit_at = lastVisitMap.get(m.pet_id.toString()) ?? null;
       const days_since_last_visit =
@@ -1748,6 +1774,7 @@ export class ReportsService {
 
       return {
         membership_id: m._id.toString(),
+        order_number: m.order_number ?? '',
         member_code: plan?.code ?? '',
         pet_id: m.pet_id.toString(),
         pet_code: pObj?.code ?? '',

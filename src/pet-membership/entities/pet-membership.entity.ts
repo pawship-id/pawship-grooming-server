@@ -58,6 +58,9 @@ export class PetMembershipBenefit {
   toObject: { virtuals: true },
 })
 export class PetMembership {
+  @Prop({ unique: true, sparse: true, index: true })
+  order_number: string;
+
   @Prop({ type: Types.ObjectId, ref: 'Pet', required: true, index: true })
   pet_id: Types.ObjectId;
 

@@ -17,6 +17,7 @@ import { AuthModule } from 'src/auth/auth.module';
 import { PetMembershipController } from './pet-membership.controller';
 import { Service, ServiceSchema } from 'src/service/entities/service.entity';
 import { BenefitUsageModule } from 'src/benefit-usage/benefit-usage.module';
+import { CounterModule } from 'src/counter/counter.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { BenefitUsageModule } from 'src/benefit-usage/benefit-usage.module';
     ]),
     AuthModule,
     BenefitUsageModule,
+    CounterModule,
   ],
   controllers: [PetMembershipController],
   providers: [PetMembershipService],
