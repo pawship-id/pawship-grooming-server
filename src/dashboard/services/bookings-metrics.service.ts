@@ -191,7 +191,7 @@ export class BookingsMetricsService {
         {
           $match: {
             ...storeMatch,
-            createdAt: { $gte: range.from, $lte: range.to },
+            date: { $gte: range.from, $lte: range.to },
             isDeleted: { $ne: true },
           },
         },
@@ -297,7 +297,7 @@ export class BookingsMetricsService {
         {
           $match: {
             ...storeMatch,
-            createdAt: { $gte: range.from, $lte: range.to },
+            date: { $gte: range.from, $lte: range.to },
             isDeleted: { $ne: true },
           },
         },
@@ -321,7 +321,7 @@ export class BookingsMetricsService {
         {
           $match: {
             ...storeMatch,
-            createdAt: { $gte: range.from, $lte: range.to },
+            date: { $gte: range.from, $lte: range.to },
             isDeleted: { $ne: true },
           },
         },
