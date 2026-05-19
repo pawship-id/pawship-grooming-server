@@ -2,6 +2,7 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/mongoose';
 import { Model, Types, Connection } from 'mongoose';
@@ -28,7 +29,30 @@ import { BenefitUsageService } from 'src/benefit-usage/benefit-usage.service';
 import { CounterService } from 'src/counter/counter.service';
 
 @Injectable()
-export class PetMembershipService {
+export class PetMembershipService implements OnModuleInit {
+  /**
+   * order_number dulunya punya unique index. Sekarang order_number sengaja
+   * boleh duplicate untuk kombinasi pet_id + membership_plan_id yang sama
+   * (rangkaian renewal). autoIndex Mongoose tidak otomatis menghapus index
+   * unique lama, jadi kita drop manual di sini agar insert duplicate tidak
+   * ditolak di level database.
+   */
+  async onModuleInit(): Promise<void> {
+    try {
+      const indexes = await this.petMembershipModel.collection.indexes();
+      const legacyUniqueIndex = indexes.find(
+        (idx) => idx.unique && idx.key && idx.key.order_number !== undefined,
+      );
+      if (legacyUniqueIndex?.name) {
+        await this.petMembershipModel.collection.dropIndex(
+          legacyUniqueIndex.name,
+        );
+      }
+    } catch {
+      // Index belum ada / collection belum dibuat — aman diabaikan.
+    }
+  }
+
   constructor(
     @InjectModel(PetMembership.name)
     private petMembershipModel: Model<PetMembershipDocument>,
@@ -106,11 +130,34 @@ export class PetMembershipService {
         ? createPetMembershipDto.purchase_price
         : membership.price;
 
-    // Auto-generated, auto-incrementing order number: ORD-MEM-0001, ORD-MEM-0002, ...
-    const seq = await this.counterService.getNextSequence(
-      'pet-membership-order',
-    );
-    const orderNumber = `ORD-MEM-${String(seq).padStart(4, '0')}`;
+    // Cek apakah pet ini pernah membeli membership plan yang SAMA sebelumnya.
+    // Pencarian berdasarkan kombinasi pet_id + membership_plan_id.
+    // Jika sudah pernah, gunakan kembali order_number dari pembelian sebelumnya
+    // karena dianggap rangkaian renewal dari membership yang sama. order_number
+    // boleh duplicate khusus untuk kombinasi pet_id + membership_plan_id ini.
+    const previousMembership = await this.petMembershipModel
+      .findOne({
+        pet_id: new Types.ObjectId(pet_id),
+        membership_plan_id: new Types.ObjectId(membership_plan_id),
+        order_number: { $ne: null },
+      })
+      .sort({ createdAt: 1 })
+      .select('order_number')
+      .lean()
+      .exec();
+
+    let orderNumber: string;
+    if (previousMembership?.order_number) {
+      // Pet + membership plan sama → pakai ulang order_number lama
+      orderNumber = previousMembership.order_number;
+    } else {
+      // Belum pernah membeli plan ini → generate order_number baru
+      // (auto-incrementing): ORD-MEM-0001, ORD-MEM-0002, ...
+      const seq = await this.counterService.getNextSequence(
+        'pet-membership-order',
+      );
+      orderNumber = `ORD-MEM-${String(seq).padStart(4, '0')}`;
+    }
 
     const petMembership = new this.petMembershipModel({
       order_number: orderNumber,

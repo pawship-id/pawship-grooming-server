@@ -1178,12 +1178,45 @@ export class ReportsService {
       .select('pet_id membership_plan_id pet_membership_id start_date end_date createdAt')
       .exec();
 
+    // Grouping baru: berdasarkan order_number. Satu rangkaian initial purchase +
+    // renewal memakai order_number yang sama, jadi seluruh histori-nya tergabung
+    // dalam satu group/report. MembershipLog tidak menyimpan order_number, jadi
+    // dipetakan via pet_membership_id -> order_number.
+    const pmOrderDocs = await this.petMembershipModel
+      .find()
+      .select('order_number')
+      .lean()
+      .exec();
+    const pmOrderMap = new Map<string, string>();
+    for (const pm of pmOrderDocs) {
+      pmOrderMap.set(pm._id.toString(), ((pm as any).order_number ?? '') as string);
+    }
+
+    // Group key = order_number bila ada. Fallback ke pet_id::membership_plan_id
+    // untuk data lama yang belum punya order_number, supaya chain lama tidak
+    // ikut tergabung ke satu grup "kosong". Prefix ord:/pp: mencegah tabrakan
+    // antara nilai order_number dan string "petId::planId".
+    const groupKey = (
+      orderNumber: string,
+      petId: string,
+      planId: string,
+    ): string =>
+      orderNumber && orderNumber.length > 0
+        ? `ord:${orderNumber}`
+        : `pp:${petId}::${planId}`;
+    const orderKeyForLog = (log: (typeof allLogs)[number]): string =>
+      groupKey(
+        pmOrderMap.get(log.pet_membership_id.toString()) ?? '',
+        log.pet_id.toString(),
+        log.membership_plan_id.toString(),
+      );
+
     // Count total log entries and build lookup maps
     const logCountMap = new Map<string, number>();
     const logsByGroupMap = new Map<string, (typeof allLogs)>();
     const allLogsByPetMap = new Map<string, (typeof allLogs)>();
     for (const log of allLogs) {
-      const key = `${log.pet_id.toString()}::${log.membership_plan_id.toString()}`;
+      const key = orderKeyForLog(log);
       logCountMap.set(key, (logCountMap.get(key) ?? 0) + 1);
       if (!logsByGroupMap.has(key)) logsByGroupMap.set(key, []);
       logsByGroupMap.get(key)!.push(log);
@@ -1199,11 +1232,11 @@ export class ReportsService {
         isDeleted: false,
         event_type: MembershipEventType.CANCELLED,
       })
-      .select('pet_id membership_plan_id')
+      .select('pet_id membership_plan_id pet_membership_id')
       .exec();
     const cancelledCountMap = new Map<string, number>();
     for (const log of cancelledLogs) {
-      const key = `${log.pet_id.toString()}::${log.membership_plan_id.toString()}`;
+      const key = orderKeyForLog(log as unknown as (typeof allLogs)[number]);
       cancelledCountMap.set(key, (cancelledCountMap.get(key) ?? 0) + 1);
     }
 
@@ -1215,14 +1248,15 @@ export class ReportsService {
       .exec();
     const logPlanNameMap = new Map(logPlanDocs.map((p) => [p._id.toString(), (p as any).name as string]));
 
-    // Fetch ALL non-deleted PetMemberships, then keep ONE per (pet_id, membership_plan_id):
-    // a pet may show several rows as long as the plan differs, but never the same plan twice.
+    // Fetch ALL non-deleted PetMemberships, then keep ONE per order_number:
+    // the whole initial-purchase + renewal chain (same order_number) collapses
+    // into a single representative row.
     // Uses the PM's ACTUAL dates + the canonical status logic (membershipReportStatus). Logs
     // are only supplementary (renewal count / early renewal / previous plan) — they must NOT
     // filter which memberships appear, otherwise an active membership with no log entry would
     // be hidden behind a logged "menunggu" one.
-    // Priority per (pet, plan): active → menunggu → expired → cancelled; tie-break: latest
-    // end_date (or, when both are menunggu, the soonest start_date).
+    // Priority per order_number group: active → menunggu → expired → cancelled; tie-break:
+    // latest end_date (or, when both are menunggu, the soonest start_date).
     const candidateMemberships = await this.petMembershipModel
       .find({ isDeleted: false })
       .populate({ path: 'membership_plan_id', model: 'Membership' })
@@ -1232,12 +1266,16 @@ export class ReportsService {
     const statusRank = (s: string) =>
       s === 'active' ? 0 : s === 'menunggu' ? 1 : s === 'expired' ? 2 : 3;
 
-    // One membership per (pet_id, membership_plan_id)
+    // One membership per order_number (rangkaian purchase + renewal jadi 1 row)
     const pmGroupMap = new Map<string, (typeof candidateMemberships)[0]>();
     for (const pm of candidateMemberships) {
       const mObj = (pm as any).toObject({ virtuals: true });
       const planId = (mObj.membership_plan_id as any)?._id?.toString() ?? '';
-      const key = `${pm.pet_id.toString()}::${planId}`;
+      const key = groupKey(
+        (pm as any).order_number ?? '',
+        pm.pet_id.toString(),
+        planId,
+      );
       const status = this.membershipReportStatus(
         pm.is_active,
         pm.start_date,
@@ -1273,13 +1311,16 @@ export class ReportsService {
       }
     }
 
-    // Early renewal: flag the DISPLAYED PM if any log in its (pet_id, plan) group was
-    // created during another log's active period.
+    // Early renewal: flag the DISPLAYED PM if any log in its order_number group
+    // was created during another log's active period.
     const earlyRenewalSet = new Set<string>(); // pet_membership_id strings
     for (const pm of pmGroupMap.values()) {
       const mObj = (pm as any).toObject({ virtuals: true });
       const planId = (mObj.membership_plan_id as any)?._id?.toString() ?? '';
-      const groupLogs = logsByGroupMap.get(`${pm.pet_id.toString()}::${planId}`) ?? [];
+      const groupLogs =
+        logsByGroupMap.get(
+          groupKey((pm as any).order_number ?? '', pm.pet_id.toString(), planId),
+        ) ?? [];
       if (groupLogs.length <= 1) continue;
       const hasEarlyRenewal = groupLogs.some((log) => {
         const createdAt = (log as any).createdAt ? new Date((log as any).createdAt) : null;
@@ -1478,8 +1519,12 @@ export class ReportsService {
         : null;
 
       // renewal_count = (total purchased+renewed log entries - 1) for this
-      // (pet_id, membership_plan_id) group, minus 1 for every cancelled log.
-      const logKey = `${m.pet_id.toString()}::${plan?._id?.toString() ?? ''}`;
+      // order_number group, minus 1 for every cancelled log.
+      const logKey = groupKey(
+        (m as any).order_number ?? '',
+        m.pet_id.toString(),
+        plan?._id?.toString() ?? '',
+      );
       const cancelledCount = cancelledCountMap.get(logKey) ?? 0;
       const renewal_count = Math.max(
         0,

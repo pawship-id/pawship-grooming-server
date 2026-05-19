@@ -58,7 +58,9 @@ export class PetMembershipBenefit {
   toObject: { virtuals: true },
 })
 export class PetMembership {
-  @Prop({ unique: true, sparse: true, index: true })
+  // NOT unique: order_number sengaja boleh duplicate untuk kombinasi
+  // pet_id + membership_plan_id yang sama (rangkaian renewal membership yang sama).
+  @Prop({ sparse: true, index: true })
   order_number: string;
 
   @Prop({ type: Types.ObjectId, ref: 'Pet', required: true, index: true })
