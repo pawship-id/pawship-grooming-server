@@ -2869,6 +2869,14 @@ export class BookingService {
           `Status updated to ${status} by ${user?.username || 'unknown'} (${user?.role || 'unknown'})`,
       };
 
+      // simpan snapshot tanggal lama & baru di status log saat RESCHEDULED
+      if (status === BookingStatus.RESCHEDULED && rescheduleData) {
+        statusLog.previous_date = existingBooking.date;
+        statusLog.previous_time_range = existingBooking.time_range;
+        statusLog.new_date = rescheduleData.date;
+        statusLog.new_time_range = rescheduleData.time_range;
+      }
+
       // prepare update data
       const updateData: any = {
         booking_status: status,

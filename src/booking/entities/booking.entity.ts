@@ -393,6 +393,19 @@ export class BookingStatusLog {
 
   @Prop()
   note?: string;
+
+  /* ===== Reschedule snapshot (hanya diisi saat status = RESCHEDULED) ===== */
+  @Prop()
+  previous_date?: Date;
+
+  @Prop()
+  previous_time_range?: string;
+
+  @Prop()
+  new_date?: Date;
+
+  @Prop()
+  new_time_range?: string;
 }
 
 @Schema({

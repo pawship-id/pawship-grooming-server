@@ -118,6 +118,20 @@ export class BookingStatusLogDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  @IsOptional()
+  previous_date?: Date;
+
+  @IsOptional()
+  @IsString()
+  previous_time_range?: string;
+
+  @IsOptional()
+  new_date?: Date;
+
+  @IsOptional()
+  @IsString()
+  new_time_range?: string;
 }
 
 export class CreateBookingDto {
