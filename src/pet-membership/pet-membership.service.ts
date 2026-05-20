@@ -711,6 +711,7 @@ export class PetMembershipService implements OnModuleInit {
       start_date: existing.start_date,
       end_date: existing.end_date,
       benefits_snapshot_before: snapshotBefore,
+      cancelled_at: new Date(),
     });
 
     return petMembership!;
@@ -998,6 +999,7 @@ export class PetMembershipService implements OnModuleInit {
     benefits_snapshot_before?: any[];
     purchase_price?: number;
     note?: string;
+    cancelled_at?: Date;
   }): Promise<void> {
     await this.membershipLogModel.create({
       ...data,

@@ -60,6 +60,9 @@ export class MembershipLog {
   @Prop()
   purchase_price?: number;
 
+  @Prop({ default: null })
+  cancelled_at?: Date;
+
   @Prop({
     type: [
       {

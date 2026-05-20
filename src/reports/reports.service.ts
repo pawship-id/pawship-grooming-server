@@ -1200,12 +1200,24 @@ export class ReportsService {
         isDeleted: false,
         event_type: MembershipEventType.CANCELLED,
       })
-      .select('pet_id')
+      .select('pet_id pet_membership_id event_date')
       .exec();
     const cancelledByPetMap = new Map<string, number>();
+    // Earliest cancellation event_date per pet_membership_id — dipakai untuk
+    // memotong periode aktif PM saat early-renewal check (PM yang sudah
+    // dibatalkan tidak lagi "menghalangi" purchase/renew berikutnya).
+    const cancelDateByPmMap = new Map<string, Date>();
     for (const log of cancelledLogs) {
       const petId = log.pet_id.toString();
       cancelledByPetMap.set(petId, (cancelledByPetMap.get(petId) ?? 0) + 1);
+      const pmId = log.pet_membership_id?.toString();
+      const evDate = (log as any).event_date
+        ? new Date((log as any).event_date)
+        : null;
+      if (pmId && evDate) {
+        const existing = cancelDateByPmMap.get(pmId);
+        if (!existing || evDate < existing) cancelDateByPmMap.set(pmId, evDate);
+      }
     }
 
     // Plan name map for all membership_plan_ids referenced in logs (for previous_plan lookup)
@@ -1224,22 +1236,33 @@ export class ReportsService {
       .sort({ createdAt: -1 })
       .exec();
 
-    // is_early_renewal: flag PM bila ada salah satu log-nya yang dibuat saat
-    // log lain (PM yang sama) masih dalam periode aktif.
-    const earlyRenewalSet = new Set<string>();
-    for (const [pmId, pmLogs] of logsByPmMap.entries()) {
-      if (pmLogs.length <= 1) continue;
-      const hasEarlyRenewal = pmLogs.some((log) => {
+    // is_early_renewal per PET (lintas semua plan): pet pernah purchase/renew
+    // membership sementara ada membership lain dari pet yang sama masih dalam
+    // periode aktif. Membership yang sudah dibatalkan TIDAK dihitung sebagai
+    // "aktif" — periode aktifnya dipotong di tanggal cancellation. Jadi kalau
+    // purchase/renew terjadi SEBELUM cancellation (saat lawan benar-benar
+    // masih aktif), tetap dihitung sebagai early renewal.
+    // Flag berlaku untuk SEMUA row pet ini.
+    const earlyRenewalPetSet = new Set<string>();
+    for (const [petId, petLogs] of allLogsByPetMap.entries()) {
+      if (petLogs.length <= 1) continue;
+      const hasEarlyRenewal = petLogs.some((log) => {
         const createdAt = (log as any).createdAt ? new Date((log as any).createdAt) : null;
         if (!createdAt) return false;
-        return pmLogs.some(
-          (other) =>
-            other._id.toString() !== log._id.toString() &&
-            createdAt >= new Date(other.start_date) &&
-            createdAt <= new Date(other.end_date),
-        );
+        return petLogs.some((other) => {
+          if (other._id.toString() === log._id.toString()) return false;
+          const otherStart = new Date(other.start_date);
+          const otherEnd = new Date(other.end_date);
+          const cancelDate = cancelDateByPmMap.get(
+            other.pet_membership_id.toString(),
+          );
+          // Jika PM lain pernah dibatalkan, periode aktifnya berhenti di tanggal cancel.
+          const effectiveEnd =
+            cancelDate && cancelDate < otherEnd ? cancelDate : otherEnd;
+          return createdAt >= otherStart && createdAt <= effectiveEnd;
+        });
       });
-      if (hasEarlyRenewal) earlyRenewalSet.add(pmId);
+      if (hasEarlyRenewal) earlyRenewalPetSet.add(petId);
     }
 
     // Fetch pets and users
@@ -1424,7 +1447,7 @@ export class ReportsService {
         (petLogCountMap.get(petKey) ?? 1) - 1 - cancelledCount,
       );
 
-      const is_early_renewal = earlyRenewalSet.has(m._id.toString());
+      const is_early_renewal = earlyRenewalPetSet.has(m.pet_id.toString());
 
       const endDate = m.end_date ? new Date(m.end_date) : null;
       const startDate = m.start_date ? new Date(m.start_date) : null;
@@ -1531,6 +1554,7 @@ export class ReportsService {
         total_sessions_using_benefit,
         benefit_roi,
         created_at: (m as any).createdAt ?? null,
+        cancelled_at: cancelDateByPmMap.get(m._id.toString()) ?? null,
       };
     });
 
