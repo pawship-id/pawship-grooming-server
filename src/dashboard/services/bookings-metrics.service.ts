@@ -3,24 +3,20 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Booking, BookingDocument } from 'src/booking/entities/booking.entity';
 import { parseRange, previousRange } from '../utils/date-range';
-import {
-  EFFECTIVE_COMPLETED_AT_FIELD,
-  completedAtRangeMatch,
-  withEffectiveCompletedAt,
-} from '../utils/completed-at';
 
 export interface BookingsKpis {
   total_bookings: number;
-  new_pets_served: number;
+  new_pets: number;
   returning_pets: number;
-  repeat_booking_rate_pct: number;
   cancellation_rate_pct: number;
+  reschedule_rate_pct: number;
   completed: number;
   cancelled: number;
-  no_shows: number;
+  rescheduled: number;
   delta: {
     total_bookings_pct: number | null;
-    new_pets_served_pct: number | null;
+    new_pets_pct: number | null;
+    returning_pets_pct: number | null;
   };
 }
 
@@ -81,15 +77,13 @@ export class BookingsMetricsService {
         this.aggregateByDay(range, storeMatch),
       ]);
 
-    const repeatDenom = current.newPets + current.returningPets;
-    const repeatRate =
-      repeatDenom > 0
-        ? round2((current.returningPets / repeatDenom) * 100)
-        : 0;
-
     const cancellationRate =
       current.total > 0
         ? round2((current.cancelled / current.total) * 100)
+        : 0;
+    const rescheduleRate =
+      current.total > 0
+        ? round2((current.rescheduled / current.total) * 100)
         : 0;
 
     return {
@@ -99,16 +93,20 @@ export class BookingsMetricsService {
       },
       kpis: {
         total_bookings: current.total,
-        new_pets_served: current.newPets,
+        new_pets: current.newPets,
         returning_pets: current.returningPets,
-        repeat_booking_rate_pct: repeatRate,
         cancellation_rate_pct: cancellationRate,
+        reschedule_rate_pct: rescheduleRate,
         completed: current.completed,
         cancelled: current.cancelled,
-        no_shows: 0, // Schema tidak punya BookingStatus.no_show — placeholder per spek
+        rescheduled: current.rescheduled,
         delta: {
           total_bookings_pct: pctDelta(current.total, previous.total),
-          new_pets_served_pct: pctDelta(current.newPets, previous.newPets),
+          new_pets_pct: pctDelta(current.newPets, previous.newPets),
+          returning_pets_pct: pctDelta(
+            current.returningPets,
+            previous.returningPets,
+          ),
         },
       },
       by_status: byStatus,
@@ -149,7 +147,7 @@ export class BookingsMetricsService {
     storeMatch: Record<string, any>,
   ): Promise<BookingsByDayBucket[]> {
     // $dayOfWeek: 1=Sunday..7=Saturday → remap to 0=Mon..6=Sun
-    const labels = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+    const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const rows = await this.bookingModel
       .aggregate([
         {
@@ -213,6 +211,11 @@ export class BookingsMetricsService {
                 $cond: [{ $eq: ['$booking_status', 'cancelled'] }, 1, 0],
               },
             },
+            rescheduled: {
+              $sum: {
+                $cond: [{ $eq: ['$booking_status', 'rescheduled'] }, 1, 0],
+              },
+            },
           },
         },
       ])
@@ -225,58 +228,23 @@ export class BookingsMetricsService {
             ...storeMatch,
             booking_status: 'completed',
             isDeleted: { $ne: true },
-          },
-        },
-        withEffectiveCompletedAt(),
-        { $match: completedAtRangeMatch(range.from, range.to) },
-        {
-          $lookup: {
-            from: 'bookings',
-            let: {
-              petId: '$pet_id',
-              completedAt: `$${EFFECTIVE_COMPLETED_AT_FIELD}`,
-            },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ['$pet_id', '$$petId'] },
-                      { $eq: ['$booking_status', 'completed'] },
-                      { $ne: ['$isDeleted', true] },
-                    ],
-                  },
-                },
-              },
-              withEffectiveCompletedAt(),
-              {
-                $match: {
-                  $expr: {
-                    $lt: [`$${EFFECTIVE_COMPLETED_AT_FIELD}`, '$$completedAt'],
-                  },
-                },
-              },
-              { $limit: 1 },
-              { $count: 'prior' },
-            ],
-            as: 'prior_completed',
+            date: { $gte: range.from, $lte: range.to },
           },
         },
         {
-          $addFields: {
-            prior_count: {
-              $ifNull: [{ $arrayElemAt: ['$prior_completed.prior', 0] }, 0],
-            },
+          $group: {
+            _id: '$pet_id',
+            completed_count: { $sum: 1 },
           },
         },
         {
           $group: {
             _id: null,
             new_pets: {
-              $sum: { $cond: [{ $eq: ['$prior_count', 0] }, 1, 0] },
+              $sum: { $cond: [{ $eq: ['$completed_count', 1] }, 1, 0] },
             },
             returning_pets: {
-              $sum: { $cond: [{ $gt: ['$prior_count', 0] }, 1, 0] },
+              $sum: { $cond: [{ $gt: ['$completed_count', 1] }, 1, 0] },
             },
           },
         },
@@ -287,6 +255,7 @@ export class BookingsMetricsService {
       total: counts?.total ?? 0,
       completed: counts?.completed ?? 0,
       cancelled: counts?.cancelled ?? 0,
+      rescheduled: counts?.rescheduled ?? 0,
       newPets: newPetsRow?.new_pets ?? 0,
       returningPets: newPetsRow?.returning_pets ?? 0,
     };
