@@ -7,6 +7,10 @@ export class DashboardQueryDto {
 
   @IsOptional()
   @IsString()
+  service_type?: string;
+
+  @IsOptional()
+  @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, {
     message: 'from must be in YYYY-MM-DD format',
   })

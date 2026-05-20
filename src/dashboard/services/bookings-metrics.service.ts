@@ -52,6 +52,7 @@ export interface BookingsResponse {
 
 interface BookingsQueryArgs {
   storeId?: string;
+  serviceType?: string;
   from?: string;
   to?: string;
 }
@@ -65,7 +66,10 @@ export class BookingsMetricsService {
   async getBookings(args: BookingsQueryArgs): Promise<BookingsResponse> {
     const range = parseRange(args.from, args.to);
     const prevRange = previousRange(range);
-    const storeMatch = buildStoreMatch(args.storeId);
+    const storeMatch = {
+      ...buildStoreMatch(args.storeId),
+      ...buildServiceTypeMatch(args.serviceType),
+    };
 
     const [
       current,
@@ -401,6 +405,16 @@ function buildStoreMatch(storeId?: string): Record<string, any> {
   if (!storeId || storeId === 'all') return {};
   if (!Types.ObjectId.isValid(storeId)) return {};
   return { store_id: new Types.ObjectId(storeId) };
+}
+
+function buildServiceTypeMatch(
+  serviceType?: string,
+): Record<string, any> {
+  if (!serviceType || serviceType === 'all') return {};
+  // Match the snapshot title — same field the by_service_type breakdown
+  // groups on, so the filtered totals always line up with what the user
+  // sees in that chart, even if a service-type was later renamed.
+  return { 'service_snapshot.service_type.title': serviceType };
 }
 
 function parseStartHour(timeRange: unknown): number | null {

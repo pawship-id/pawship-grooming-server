@@ -60,6 +60,7 @@ export class DashboardController {
     this.assertAdmin(req);
     const data = await this.bookingsMetricsService.getBookings({
       storeId: query.store_id,
+      serviceType: query.service_type,
       from: query.from,
       to: query.to,
     });
