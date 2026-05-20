@@ -201,7 +201,11 @@ export class BookingsMetricsService {
             total: { $sum: 1 },
             completed: {
               $sum: {
-                $cond: [{ $eq: ['$booking_status', 'completed'] }, 1, 0],
+                $cond: [
+                  { $in: ['$booking_status', ['completed', 'returned']] },
+                  1,
+                  0,
+                ],
               },
             },
             cancelled: {
