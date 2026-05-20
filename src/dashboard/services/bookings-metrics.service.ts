@@ -405,7 +405,9 @@ function buildStoreMatch(storeId?: string): Record<string, any> {
 
 function parseStartHour(timeRange: unknown): number | null {
   if (typeof timeRange !== 'string') return null;
-  const match = /^(\d{1,2}):/.exec(timeRange.trim());
+  // Sessions disimpan dengan '.' sebagai pemisah (mis. "09.00 - 12.00"),
+  // tapi input form awal & beberapa data lama bisa pakai ':'. Terima keduanya.
+  const match = /^(\d{1,2})[.:]/.exec(timeRange.trim());
   if (!match) return null;
   const hour = Number(match[1]);
   if (Number.isNaN(hour) || hour < 0 || hour > 23) return null;

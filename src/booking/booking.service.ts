@@ -2878,8 +2878,14 @@ export class BookingService {
       }
 
       // prepare update data
+      // Saat reschedule, persist booking_status sebagai CONFIRMED.
+      // Status log tetap mencatat 'rescheduled' agar tracing/analytics
+      // reschedule (via status_logs.previous_date) tidak hilang.
       const updateData: any = {
-        booking_status: status,
+        booking_status:
+          status === BookingStatus.RESCHEDULED
+            ? BookingStatus.CONFIRMED
+            : status,
       };
 
       // sync analytics completed_at field with completion transitions
