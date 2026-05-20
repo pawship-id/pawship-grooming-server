@@ -36,7 +36,15 @@ export interface RevenueKpis {
 
 export interface RevenueByServiceTypeItem {
   service_type: string;
-  net_revenue: number;
+  revenue: number;
+  pct_of_total: number;
+  order_count: number;
+}
+
+export interface RevenueByGroomingServiceItem {
+  service_id: string | null;
+  service_name: string;
+  revenue: number;
   pct_of_total: number;
   order_count: number;
 }
@@ -53,7 +61,7 @@ export type LayananCategory =
 export interface RevenueByLayananCategoryItem {
   category: LayananCategory;
   label: string;
-  net_revenue: number;
+  revenue: number;
   pct_of_total: number;
 }
 
@@ -80,7 +88,7 @@ export interface RevenueTrendPoint {
 export interface RevenueResponse {
   range: { from: string; to: string };
   kpis: RevenueKpis;
-  by_service_type_grooming: RevenueByServiceTypeItem[];
+  by_grooming_service: RevenueByGroomingServiceItem[];
   by_layanan_category: RevenueByLayananCategoryItem[];
   discount_breakdown: DiscountBreakdown;
   membership: MembershipRevenue;
@@ -134,21 +142,11 @@ export class RevenueService {
       this.aggregateTrend7d(storeMatch),
     ]);
 
-    // 2B grooming-only: filter rows where title mentions "grooming"
-    const groomingTotal = byServiceTypeAll
-      .filter((r) => titleMentions(r.service_type, 'grooming'))
-      .reduce((acc, r) => acc + r.net_revenue, 0);
-
-    const byServiceTypeGrooming: RevenueByServiceTypeItem[] = byServiceTypeAll
-      .filter((r) => titleMentions(r.service_type, 'grooming'))
-      .map((r) => ({
-        service_type: r.service_type,
-        net_revenue: r.net_revenue,
-        pct_of_total:
-          groomingTotal > 0 ? round2((r.net_revenue / groomingTotal) * 100) : 0,
-        order_count: r.order_count,
-      }))
-      .sort((a, b) => b.net_revenue - a.net_revenue);
+    // 2B grooming-only: breakdown per individual grooming service
+    const byGroomingService = await this.aggregateGroomingServices(
+      range,
+      storeMatch,
+    );
 
     // 2C layanan category: bucket all titles into 6 + addon/pickup standalone
     const byLayananCategory = this.bucketByCategory(byServiceTypeAll, byPickup);
@@ -213,7 +211,7 @@ export class RevenueService {
         to: range.to.toISOString(),
       },
       kpis,
-      by_service_type_grooming: byServiceTypeGrooming,
+      by_grooming_service: byGroomingService,
       by_layanan_category: byLayananCategory,
       discount_breakdown: discountBreakdown,
       membership,
@@ -281,6 +279,48 @@ export class RevenueService {
     };
   }
 
+  private async aggregateGroomingServices(
+    range: { from: Date; to: Date },
+    storeMatch: Record<string, any>,
+  ): Promise<RevenueByGroomingServiceItem[]> {
+    const rows = await this.bookingModel
+      .aggregate([
+        {
+          $match: {
+            ...storeMatch,
+            booking_status: { $nin: EXCLUDED_REVENUE_STATUSES },
+            isDeleted: { $ne: true },
+            date: { $gte: range.from, $lte: range.to },
+            'service_snapshot.service_type.title': { $regex: /grooming/i },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              service_id: '$service_snapshot._id',
+              service_name: {
+                $ifNull: ['$service_snapshot.name', 'Tidak diketahui'],
+              },
+            },
+            revenue: { $sum: { $ifNull: ['$service_snapshot.price', 0] } },
+            order_count: { $sum: 1 },
+          },
+        },
+        { $sort: { revenue: -1 } },
+      ])
+      .exec();
+
+    const total = rows.reduce((acc, r) => acc + (r.revenue ?? 0), 0);
+
+    return rows.map((r) => ({
+      service_id: r._id?.service_id ? String(r._id.service_id) : null,
+      service_name: String(r._id?.service_name ?? 'Tidak diketahui'),
+      revenue: r.revenue ?? 0,
+      order_count: r.order_count ?? 0,
+      pct_of_total: total > 0 ? round2((r.revenue / total) * 100) : 0,
+    }));
+  }
+
   private async aggregateByServiceType(
     range: { from: Date; to: Date },
     storeMatch: Record<string, any>,
@@ -303,24 +343,19 @@ export class RevenueService {
                 'Tidak diketahui',
               ],
             },
-            net_revenue: {
-              $sum: {
-                $subtract: [
-                  { $ifNull: ['$original_total_price', 0] },
-                  { $ifNull: ['$total_discount', 0] },
-                ],
-              },
+            revenue: {
+              $sum: { $ifNull: ['$service_snapshot.price', 0] },
             },
             order_count: { $sum: 1 },
           },
         },
-        { $sort: { net_revenue: -1 } },
+        { $sort: { revenue: -1 } },
       ])
       .exec();
 
     return rows.map((r) => ({
       service_type: String(r._id),
-      net_revenue: r.net_revenue ?? 0,
+      revenue: r.revenue ?? 0,
       pct_of_total: 0, // computed by callers for their scope
       order_count: r.order_count ?? 0,
     }));
@@ -467,7 +502,7 @@ export class RevenueService {
 
     for (const row of byServiceTypeAll) {
       const cat = classifyTitle(row.service_type);
-      buckets[cat] += row.net_revenue;
+      buckets[cat] += row.revenue;
     }
 
     const total = Object.values(buckets).reduce((a, b) => a + b, 0);
@@ -485,10 +520,10 @@ export class RevenueService {
       .map((cat) => ({
         category: cat,
         label: CATEGORY_LABEL[cat],
-        net_revenue: buckets[cat],
+        revenue: buckets[cat],
         pct_of_total: total > 0 ? round2((buckets[cat] / total) * 100) : 0,
       }))
-      .filter((item) => item.net_revenue > 0 || item.category !== 'other');
+      .filter((item) => item.revenue > 0 || item.category !== 'other');
   }
 
   private async aggregateMembership(range: {
@@ -580,10 +615,6 @@ function buildStoreMatch(storeId?: string): Record<string, any> {
   if (!storeId || storeId === 'all') return {};
   if (!Types.ObjectId.isValid(storeId)) return {};
   return { store_id: new Types.ObjectId(storeId) };
-}
-
-function titleMentions(title: string, keyword: string): boolean {
-  return title.toLowerCase().includes(keyword);
 }
 
 function classifyTitle(title: string): LayananCategory {
