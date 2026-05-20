@@ -89,10 +89,12 @@ export class PetMembershipService implements OnModuleInit {
     const endDate = new Date(startDate);
     endDate.setMonth(endDate.getMonth() + membership.duration_months);
 
-    // Block purchase if the new period overlaps with any active/pending membership (any plan).
+    // Block purchase only if the new period overlaps with an active/pending membership
+    // of the SAME plan. Different plans pada pet yang sama tetap diperbolehkan overlap.
     // Uses merged-period logic so a chain like [active → pending] is treated as one blocked block.
     const overlapBlock = await this.findMergedOverlap(
       new Types.ObjectId(pet_id),
+      new Types.ObjectId(membership_plan_id),
       startDate,
       endDate,
     );
@@ -636,10 +638,11 @@ export class PetMembershipService implements OnModuleInit {
       );
     }
 
-    // Block edit if the new period overlaps with any other active/pending membership
-    // (any plan). Excludes the membership being edited itself.
+    // Block edit only if the new period overlaps with another active/pending membership
+    // of the SAME plan. Excludes the membership being edited itself.
     const editOverlapBlock = await this.findMergedOverlap(
       existing.pet_id,
+      existing.membership_plan_id,
       newStartDate,
       newEndDate,
       new Types.ObjectId(id),
@@ -778,10 +781,11 @@ export class PetMembershipService implements OnModuleInit {
     const newEndDate = new Date(newStartDate);
     newEndDate.setMonth(newEndDate.getMonth() + membership.duration_months);
 
-    // Block renewal if the new period overlaps with any active/pending membership (any plan).
-    // Excludes the membership being renewed itself; uses merged-period logic.
+    // Block renewal only if the new period overlaps with another active/pending membership
+    // of the SAME plan. Excludes the membership being renewed itself; uses merged-period logic.
     const renewOverlapBlock = await this.findMergedOverlap(
       existing.pet_id,
+      existing.membership_plan_id,
       newStartDate,
       newEndDate,
       new Types.ObjectId(id),
@@ -1170,12 +1174,15 @@ export class PetMembershipService implements OnModuleInit {
   }
 
   /**
-   * Fetch all active/pending memberships for a pet, merge consecutive/overlapping
-   * periods, and return the merged block that conflicts with [checkStart, checkEnd].
+   * Fetch all active/pending memberships for a pet **dengan plan yang sama**,
+   * merge consecutive/overlapping periods, dan kembalikan blok yang konflik
+   * dengan [checkStart, checkEnd]. Membership dengan plan berbeda diabaikan
+   * sehingga pet boleh punya beberapa plan berbeda dalam periode yang overlap.
    * Expired memberships (end_date sebelum hari ini) are excluded.
    */
   private async findMergedOverlap(
     petId: Types.ObjectId,
+    membershipPlanId: Types.ObjectId,
     checkStart: Date,
     checkEnd: Date,
     excludeId?: Types.ObjectId,
@@ -1184,6 +1191,7 @@ export class PetMembershipService implements OnModuleInit {
     const todayStart = this.startOfDayUtc(now);
     const query: any = {
       pet_id: petId,
+      membership_plan_id: membershipPlanId,
       is_active: true,
       isDeleted: false,
       end_date: { $gte: todayStart }, // active or pending only (exclude expired)
