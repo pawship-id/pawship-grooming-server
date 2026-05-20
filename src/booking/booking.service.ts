@@ -2877,15 +2877,8 @@ export class BookingService {
         statusLog.new_time_range = rescheduleData.time_range;
       }
 
-      // prepare update data
-      // Saat reschedule, persist booking_status sebagai CONFIRMED.
-      // Status log tetap mencatat 'rescheduled' agar tracing/analytics
-      // reschedule (via status_logs.previous_date) tidak hilang.
       const updateData: any = {
-        booking_status:
-          status === BookingStatus.RESCHEDULED
-            ? BookingStatus.CONFIRMED
-            : status,
+        booking_status: status,
       };
 
       // sync analytics completed_at field with completion transitions
