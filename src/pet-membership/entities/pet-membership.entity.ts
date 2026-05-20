@@ -58,8 +58,10 @@ export class PetMembershipBenefit {
   toObject: { virtuals: true },
 })
 export class PetMembership {
-  // NOT unique: order_number sengaja boleh duplicate untuk kombinasi
-  // pet_id + membership_plan_id yang sama (rangkaian renewal membership yang sama).
+  // order_number digenerate dari counter global, sehingga setiap pembelian
+  // membership selalu mendapat kode unik. DB-level unique constraint tidak
+  // dipasang untuk menghindari konflik dengan data legacy yang sempat
+  // mengizinkan duplikasi.
   @Prop({ sparse: true, index: true })
   order_number: string;
 
