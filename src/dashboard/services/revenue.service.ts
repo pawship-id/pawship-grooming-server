@@ -11,15 +11,17 @@ import {
   previousRange,
   toUtcStartOfDay,
 } from '../utils/date-range';
-import {
-  EFFECTIVE_COMPLETED_AT_FIELD,
-  completedAtRangeMatch,
-  withEffectiveCompletedAt,
-} from '../utils/completed-at';
+
+const EXCLUDED_REVENUE_STATUSES = ['cancelled', 'rescheduled'];
+const COMPLETED_ORDER_STATUSES = ['completed', 'returned'];
 
 export interface RevenueKpis {
   gross_revenue: number;
+  gross_revenue_confirmed: number;
+  gross_revenue_pending: number;
   net_revenue: number;
+  net_revenue_confirmed: number;
+  net_revenue_pending: number;
   total_discount: number;
   discount_leakage_pct: number;
   total_orders: number;
@@ -163,24 +165,44 @@ export class RevenueService {
         current.gross > 0 ? round2((totalAttributed / current.gross) * 100) : 0,
     };
 
+    const currentNet = current.gross - current.discount;
+    const previousNet = previous.gross - previous.discount;
+    const currentNetCompleted =
+      current.gross_completed - current.discount_completed;
+    const previousNetCompleted =
+      previous.gross_completed - previous.discount_completed;
+
     const kpis: RevenueKpis = {
       gross_revenue: current.gross,
-      net_revenue: current.net,
+      gross_revenue_confirmed: current.gross_completed,
+      gross_revenue_pending: current.gross - current.gross_completed,
+      net_revenue: currentNet,
+      net_revenue_confirmed: currentNetCompleted,
+      net_revenue_pending: currentNet - currentNetCompleted,
       total_discount: current.discount,
       discount_leakage_pct:
         current.gross > 0
           ? round2((current.discount / current.gross) * 100)
           : 0,
-      total_orders: current.orders,
+      total_orders: current.orders_completed,
       avg_order_value:
-        current.orders > 0 ? Math.round(current.net / current.orders) : 0,
+        current.orders_completed > 0
+          ? Math.round(currentNetCompleted / current.orders_completed)
+          : 0,
       delta: {
         gross_revenue_pct: pctDelta(current.gross, previous.gross),
-        net_revenue_pct: pctDelta(current.net, previous.net),
-        total_orders_pct: pctDelta(current.orders, previous.orders),
+        net_revenue_pct: pctDelta(currentNet, previousNet),
+        total_orders_pct: pctDelta(
+          current.orders_completed,
+          previous.orders_completed,
+        ),
         avg_order_value_pct: pctDelta(
-          current.orders > 0 ? current.net / current.orders : 0,
-          previous.orders > 0 ? previous.net / previous.orders : 0,
+          current.orders_completed > 0
+            ? currentNetCompleted / current.orders_completed
+            : 0,
+          previous.orders_completed > 0
+            ? previousNetCompleted / previous.orders_completed
+            : 0,
         ),
       },
     };
@@ -208,19 +230,43 @@ export class RevenueService {
         {
           $match: {
             ...storeMatch,
-            booking_status: 'completed',
+            booking_status: { $nin: EXCLUDED_REVENUE_STATUSES },
             isDeleted: { $ne: true },
+            date: { $gte: range.from, $lte: range.to },
           },
         },
-        withEffectiveCompletedAt(),
-        { $match: completedAtRangeMatch(range.from, range.to) },
         {
           $group: {
             _id: null,
             gross: { $sum: { $ifNull: ['$original_total_price', 0] } },
-            net: { $sum: { $ifNull: ['$final_total_price', 0] } },
             discount: { $sum: { $ifNull: ['$total_discount', 0] } },
-            orders: { $sum: 1 },
+            gross_completed: {
+              $sum: {
+                $cond: [
+                  { $in: ['$booking_status', COMPLETED_ORDER_STATUSES] },
+                  { $ifNull: ['$original_total_price', 0] },
+                  0,
+                ],
+              },
+            },
+            discount_completed: {
+              $sum: {
+                $cond: [
+                  { $in: ['$booking_status', COMPLETED_ORDER_STATUSES] },
+                  { $ifNull: ['$total_discount', 0] },
+                  0,
+                ],
+              },
+            },
+            orders_completed: {
+              $sum: {
+                $cond: [
+                  { $in: ['$booking_status', COMPLETED_ORDER_STATUSES] },
+                  1,
+                  0,
+                ],
+              },
+            },
           },
         },
       ])
@@ -228,9 +274,10 @@ export class RevenueService {
 
     return {
       gross: row?.gross ?? 0,
-      net: row?.net ?? 0,
       discount: row?.discount ?? 0,
-      orders: row?.orders ?? 0,
+      gross_completed: row?.gross_completed ?? 0,
+      discount_completed: row?.discount_completed ?? 0,
+      orders_completed: row?.orders_completed ?? 0,
     };
   }
 
@@ -243,12 +290,11 @@ export class RevenueService {
         {
           $match: {
             ...storeMatch,
-            booking_status: 'completed',
+            booking_status: { $nin: EXCLUDED_REVENUE_STATUSES },
             isDeleted: { $ne: true },
+            date: { $gte: range.from, $lte: range.to },
           },
         },
-        withEffectiveCompletedAt(),
-        { $match: completedAtRangeMatch(range.from, range.to) },
         {
           $group: {
             _id: {
@@ -257,7 +303,14 @@ export class RevenueService {
                 'Tidak diketahui',
               ],
             },
-            net_revenue: { $sum: { $ifNull: ['$final_total_price', 0] } },
+            net_revenue: {
+              $sum: {
+                $subtract: [
+                  { $ifNull: ['$original_total_price', 0] },
+                  { $ifNull: ['$total_discount', 0] },
+                ],
+              },
+            },
             order_count: { $sum: 1 },
           },
         },
@@ -287,12 +340,11 @@ export class RevenueService {
         {
           $match: {
             ...storeMatch,
-            booking_status: 'completed',
+            booking_status: { $nin: EXCLUDED_REVENUE_STATUSES },
             isDeleted: { $ne: true },
+            date: { $gte: range.from, $lte: range.to },
           },
         },
-        withEffectiveCompletedAt(),
-        { $match: completedAtRangeMatch(range.from, range.to) },
         {
           $group: {
             _id: null,
@@ -339,12 +391,11 @@ export class RevenueService {
         {
           $match: {
             ...storeMatch,
-            booking_status: 'completed',
+            booking_status: { $nin: EXCLUDED_REVENUE_STATUSES },
             isDeleted: { $ne: true },
+            date: { $gte: range.from, $lte: range.to },
           },
         },
-        withEffectiveCompletedAt(),
-        { $match: completedAtRangeMatch(range.from, range.to) },
         {
           $project: {
             benefits_total: {
@@ -485,22 +536,18 @@ export class RevenueService {
         {
           $match: {
             ...storeMatch,
-            booking_status: 'completed',
+            booking_status: { $nin: EXCLUDED_REVENUE_STATUSES },
             isDeleted: { $ne: true },
+            date: { $gte: start, $lte: end },
           },
         },
-        withEffectiveCompletedAt(),
-        { $match: completedAtRangeMatch(start, end) },
         {
           $group: {
             _id: {
-              $dateToString: {
-                date: `$${EFFECTIVE_COMPLETED_AT_FIELD}`,
-                format: '%Y-%m-%d',
-              },
+              $dateToString: { date: '$date', format: '%Y-%m-%d' },
             },
             gross: { $sum: { $ifNull: ['$original_total_price', 0] } },
-            net: { $sum: { $ifNull: ['$final_total_price', 0] } },
+            discount: { $sum: { $ifNull: ['$total_discount', 0] } },
           },
         },
       ])
@@ -508,7 +555,9 @@ export class RevenueService {
 
     const byDay = new Map<string, { gross: number; net: number }>();
     for (const r of rows) {
-      byDay.set(r._id, { gross: r.gross ?? 0, net: r.net ?? 0 });
+      const gross = r.gross ?? 0;
+      const discount = r.discount ?? 0;
+      byDay.set(r._id, { gross, net: gross - discount });
     }
 
     const result: RevenueTrendPoint[] = [];
