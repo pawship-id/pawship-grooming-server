@@ -626,6 +626,13 @@ export const BookingSchema = SchemaFactory.createForClass(Booking);
 
 BookingSchema.index({ store_id: 1, completed_at: 1 });
 
+// Index untuk query reschedule berdasarkan tanggal asal (previous_date) di status_logs
+BookingSchema.index({
+  'status_logs.status': 1,
+  'status_logs.previous_date': 1,
+  store_id: 1,
+});
+
 BookingSchema.virtual('customer', {
   ref: 'User',
   localField: 'customer_id',

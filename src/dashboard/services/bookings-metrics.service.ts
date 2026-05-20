@@ -67,23 +67,31 @@ export class BookingsMetricsService {
     const prevRange = previousRange(range);
     const storeMatch = buildStoreMatch(args.storeId);
 
-    const [current, previous, byStatus, byServiceType, peakHour, byDay] =
-      await Promise.all([
-        this.aggregateKpis(range, storeMatch),
-        this.aggregateKpis(prevRange, storeMatch),
-        this.aggregateByStatus(range, storeMatch),
-        this.aggregateByServiceType(range, storeMatch),
-        this.aggregatePeakHour(range, storeMatch),
-        this.aggregateByDay(range, storeMatch),
-      ]);
+    const [
+      current,
+      previous,
+      byStatus,
+      byServiceType,
+      peakHour,
+      byDay,
+      reschedule,
+    ] = await Promise.all([
+      this.aggregateKpis(range, storeMatch),
+      this.aggregateKpis(prevRange, storeMatch),
+      this.aggregateByStatus(range, storeMatch),
+      this.aggregateByServiceType(range, storeMatch),
+      this.aggregatePeakHour(range, storeMatch),
+      this.aggregateByDay(range, storeMatch),
+      this.aggregateRescheduleMetrics(range, storeMatch),
+    ]);
 
     const cancellationRate =
       current.total > 0
         ? round2((current.cancelled / current.total) * 100)
         : 0;
     const rescheduleRate =
-      current.total > 0
-        ? round2((current.rescheduled / current.total) * 100)
+      reschedule.adjustedTotal > 0
+        ? round2((reschedule.rescheduled / reschedule.adjustedTotal) * 100)
         : 0;
 
     return {
@@ -99,7 +107,7 @@ export class BookingsMetricsService {
         reschedule_rate_pct: rescheduleRate,
         completed: current.completed,
         cancelled: current.cancelled,
-        rescheduled: current.rescheduled,
+        rescheduled: reschedule.rescheduled,
         delta: {
           total_bookings_pct: pctDelta(current.total, previous.total),
           new_pets_pct: pctDelta(current.newPets, previous.newPets),
@@ -258,6 +266,75 @@ export class BookingsMetricsService {
       rescheduled: counts?.rescheduled ?? 0,
       newPets: newPetsRow?.new_pets ?? 0,
       returningPets: newPetsRow?.returning_pets ?? 0,
+    };
+  }
+
+  /**
+   * Hitung kartu Reschedule berdasarkan previous_date di status_logs.
+   *
+   * - `rescheduled`: jumlah booking (dedup) yang originalnya dijadwalkan di
+   *   periode filter (previous_date di range) DAN setelah reschedule sudah
+   *   tidak berada di periode tersebut (current date di luar range). Booking
+   *   yang dipindahkan ke tanggal lain tapi tetap di dalam periode (intra-range
+   *   move) tidak dihitung.
+   *
+   * - `adjustedTotal`: pembagi untuk rate. Booking dianggap "milik periode ini"
+   *   jika date saat ini di range ATAU pernah punya previous_date di range
+   *   (union, dedup). Sehingga reschedule_rate_pct tetap semantik konsisten
+   *   meski booking sudah pindah keluar dari periode.
+   */
+  private async aggregateRescheduleMetrics(
+    range: { from: Date; to: Date },
+    storeMatch: Record<string, any>,
+  ): Promise<{ rescheduled: number; adjustedTotal: number }> {
+    const previousDateInRange = {
+      status_logs: {
+        $elemMatch: {
+          status: 'rescheduled',
+          previous_date: { $gte: range.from, $lte: range.to },
+        },
+      },
+    };
+
+    const dateOutsideRange = {
+      $or: [
+        { date: { $lt: range.from } },
+        { date: { $gt: range.to } },
+      ],
+    };
+
+    const [row] = await this.bookingModel
+      .aggregate([
+        {
+          $match: {
+            ...storeMatch,
+            isDeleted: { $ne: true },
+            $or: [
+              { date: { $gte: range.from, $lte: range.to } },
+              previousDateInRange,
+            ],
+          },
+        },
+        {
+          $facet: {
+            adjusted_total: [{ $count: 'count' }],
+            rescheduled: [
+              {
+                $match: {
+                  ...previousDateInRange,
+                  ...dateOutsideRange,
+                },
+              },
+              { $count: 'count' },
+            ],
+          },
+        },
+      ])
+      .exec();
+
+    return {
+      rescheduled: row?.rescheduled?.[0]?.count ?? 0,
+      adjustedTotal: row?.adjusted_total?.[0]?.count ?? 0,
     };
   }
 
