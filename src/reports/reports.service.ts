@@ -1570,83 +1570,63 @@ export class ReportsService {
 
   async getMembershipExpiryReport() {
     const today = new Date();
+    const startOfToday = toUtcStartOfDay(today);
+    const horizon = new Date(startOfToday);
+    horizon.setUTCDate(horizon.getUTCDate() + 30);
+    horizon.setUTCHours(23, 59, 59, 999);
 
-    // Fetch purchased/renewed logs — drives the (pet_id, membership_plan_id)
-    // grouping and the per-group renewal count, mirroring the detail report.
-    const allLogs = await this.membershipLogModel
+    // Only memberships whose end_date falls within today..today+30d.
+    const expiringMemberships = await this.petMembershipModel
+      .find({
+        isDeleted: false,
+        end_date: { $gte: startOfToday, $lte: horizon },
+      })
+      .populate({ path: 'membership_plan_id', model: 'Membership' })
+      .exec();
+
+    if (expiringMemberships.length === 0) {
+      return { data: [], total: 0 };
+    }
+
+    // renewal_count — formula sama dengan Membership Detail Report:
+    //   max(0, (purchased+renewed events per pet lintas semua plan) - 1 - cancelled events per pet)
+    const petIdsForLogs = expiringMemberships.map((m) => m.pet_id);
+
+    const purchasedLogs = await this.membershipLogModel
       .find({
         isDeleted: false,
         event_type: {
           $in: [MembershipEventType.PURCHASED, MembershipEventType.RENEWED],
         },
+        pet_id: { $in: petIdsForLogs },
       })
-      .select('pet_id membership_plan_id pet_membership_id start_date end_date createdAt')
+      .select('pet_id')
       .exec();
 
-    const logCountMap = new Map<string, number>();
-    for (const log of allLogs) {
-      const key = `${log.pet_id.toString()}::${log.membership_plan_id.toString()}`;
-      logCountMap.set(key, (logCountMap.get(key) ?? 0) + 1);
+    const petLogCountMap = new Map<string, number>();
+    for (const log of purchasedLogs) {
+      const petId = log.pet_id.toString();
+      petLogCountMap.set(petId, (petLogCountMap.get(petId) ?? 0) + 1);
     }
 
-    // Keep ONE PetMembership per (pet_id, membership_plan_id). A pet may show
-    // several rows as long as the plan differs, but never the same plan twice.
-    // Priority per (pet, plan): active → menunggu → expired → cancelled;
-    // tie-break: latest end_date (or, when both menunggu, soonest start_date).
-    const candidateMemberships = await this.petMembershipModel
-      .find({ isDeleted: false })
-      .populate({ path: 'membership_plan_id', model: 'Membership' })
-      .sort({ pet_id: 1, start_date: -1 })
+    const cancelledLogs = await this.membershipLogModel
+      .find({
+        isDeleted: false,
+        event_type: MembershipEventType.CANCELLED,
+        pet_id: { $in: petIdsForLogs },
+      })
+      .select('pet_id')
       .exec();
 
-    const statusRank = (s: string) =>
-      s === 'active' ? 0 : s === 'menunggu' ? 1 : s === 'expired' ? 2 : 3;
-
-    const pmGroupMap = new Map<string, (typeof candidateMemberships)[0]>();
-    for (const pm of candidateMemberships) {
-      const mObj = (pm as any).toObject({ virtuals: true });
-      const planId = (mObj.membership_plan_id as any)?._id?.toString() ?? '';
-      const key = `${pm.pet_id.toString()}::${planId}`;
-      const status = this.membershipReportStatus(
-        pm.is_active,
-        pm.start_date,
-        pm.end_date,
-        today,
-      );
-      const existing = pmGroupMap.get(key);
-      if (!existing) {
-        pmGroupMap.set(key, pm);
-        continue;
-      }
-      const exStatus = this.membershipReportStatus(
-        existing.is_active,
-        existing.start_date,
-        existing.end_date,
-        today,
-      );
-      const rank = statusRank(status);
-      const exRank = statusRank(exStatus);
-      if (rank < exRank) {
-        pmGroupMap.set(key, pm); // higher-priority status wins
-      } else if (rank === exRank) {
-        if (status === 'menunggu') {
-          const pmStart = pm.start_date ? new Date(pm.start_date).getTime() : Infinity;
-          const exStart = existing.start_date ? new Date(existing.start_date).getTime() : Infinity;
-          if (pmStart < exStart) pmGroupMap.set(key, pm);
-        } else {
-          const pmEnd = pm.end_date ? new Date(pm.end_date).getTime() : 0;
-          const exEnd = existing.end_date ? new Date(existing.end_date).getTime() : 0;
-          if (pmEnd > exEnd) pmGroupMap.set(key, pm); // same status → latest end_date
-        }
-      }
+    const cancelledByPetMap = new Map<string, number>();
+    for (const log of cancelledLogs) {
+      const petId = log.pet_id.toString();
+      cancelledByPetMap.set(petId, (cancelledByPetMap.get(petId) ?? 0) + 1);
     }
 
-    const allMemberships = [...pmGroupMap.values()];
-
-    const petIds = [...new Set(allMemberships.map((m) => m.pet_id.toString()))];
+    const petIds = [...new Set(expiringMemberships.map((m) => m.pet_id.toString()))];
     const pets = await this.petModel
       .find({ _id: { $in: petIds }, isDeleted: false })
-      .populate('pet_type')
       .exec();
     const petMap = new Map(pets.map((p) => [p._id.toString(), p]));
 
@@ -1656,20 +1636,39 @@ export class ReportsService {
       .exec();
     const userMap = new Map(users.map((u) => [u._id.toString(), u]));
 
-    // Last completed booking date per pet
-    const lastBookingAgg: { _id: Types.ObjectId; last_at: Date }[] =
+    // last_visit_at = booking dengan `date` paling baru per pet_id, dibatasi
+    // hanya pada booking yang sudah benar-benar dilayani (booking_status
+    // 'completed' atau 'returned'). Booking yang dibatalkan / belum jalan
+    // tidak dihitung sebagai kunjungan.
+    //
+    // Tidak memfilter pet_id di $match (mengikuti pattern getCustomerRetention
+    // & getCustomerMasterData) — sebagian booking lama menyimpan pet_id
+    // sebagai string sehingga `{ $in: <ObjectId[]> }` dapat melewatkan match.
+    // Pencocokan dilakukan setelah aggregation lewat .toString() pada map key.
+    const lastVisitAgg: { _id: unknown; last_at: Date }[] =
       await this.bookingModel.aggregate([
-        { $match: { isDeleted: false, booking_status: 'completed' } },
+        {
+          $match: {
+            isDeleted: { $ne: true },
+            booking_status: { $in: ['completed', 'returned'] },
+          },
+        },
         { $group: { _id: '$pet_id', last_at: { $max: '$date' } } },
       ]);
     const lastVisitMap = new Map<string, Date>(
-      lastBookingAgg.map((a) => [a._id.toString(), a.last_at]),
+      lastVisitAgg.map((a) => [String(a._id), a.last_at]),
     );
 
-    // Total benefit value used per pet_membership_id — sourced from Booking
-    // data (applied_benefits.amount_deducted), identical to "Total Nilai
-    // Digunakan" in the Membership Detail Report.
-    const benefitAgg: { _id: Types.ObjectId; total_amount: number }[] =
+    // total_benefit_used = SUM(Booking.applied_benefits.amount_deducted) per
+    // pet_membership_id. Sumber data disamakan dengan kolom "Total Nilai
+    // Digunakan" di Membership Detail Report (lihat amountDeductedAgg di
+    // getMembershipDetailReport) supaya angka konsisten antar laporan.
+    //
+    // Tidak memfilter pet_membership_id di $match — sebagian booking lama
+    // menyimpan pet_membership_id sebagai string sehingga `{ $in: <ObjectId[]> }`
+    // melewatkan match. Pencocokan dilakukan setelah aggregation lewat
+    // .toString() pada map key (pola sama dengan lastVisitAgg di atas).
+    const benefitAgg: { _id: unknown; total_amount: number }[] =
       await this.bookingModel.aggregate([
         { $match: { isDeleted: false } },
         { $unwind: '$applied_benefits' },
@@ -1686,10 +1685,10 @@ export class ReportsService {
         },
       ]);
     const benefitUsedMap = new Map<string, number>(
-      benefitAgg.map((a) => [a._id.toString(), a.total_amount]),
+      benefitAgg.map((a) => [String(a._id), a.total_amount]),
     );
 
-    const rows = allMemberships.map((m) => {
+    const rows = expiringMemberships.map((m) => {
       const mObj = (m as any).toObject({ virtuals: true });
       const plan = mObj.membership_plan_id as any;
       const pet = petMap.get(m.pet_id.toString());
@@ -1698,13 +1697,15 @@ export class ReportsService {
       const oObj = owner ? (owner as any).toObject({ virtuals: true }) : null;
 
       const endDate = m.end_date ? new Date(m.end_date) : null;
+      // Hitung selisih hari kalender, bukan jam — normalisasi ke UTC midnight
+      // supaya jam berjalan tidak menggeser hasil (mis. expiry besok jam 00 UTC
+      // dari "sekarang" sore = 9 jam = 0.4 hari → Math.round-nya 0, harusnya 1).
       const days_until_expiry = endDate
-        ? Math.round((endDate.getTime() - today.getTime()) / 86400000)
-        : null;
-      const status =
-        m.is_active && endDate && endDate >= toUtcStartOfDay(today)
-          ? 'active'
-          : 'expired';
+        ? Math.floor(
+            (toUtcStartOfDay(endDate).getTime() - startOfToday.getTime()) /
+              86400000,
+          )
+        : 0;
 
       const last_visit_at = lastVisitMap.get(m.pet_id.toString()) ?? null;
       const days_since_last_visit =
@@ -1712,43 +1713,29 @@ export class ReportsService {
           ? Math.floor((today.getTime() - new Date(last_visit_at).getTime()) / 86400000)
           : null;
 
-      // Urgensi tier (colour coding + outreach priority):
-      //   ≤ 7 (incl. already-expired) → critical
-      //   8–14                        → warning
-      //   15–30                       → upcoming
-      let expiry_urgency: 'critical' | 'warning' | 'upcoming' | null = null;
-      if (days_until_expiry !== null) {
-        if (days_until_expiry <= 7) expiry_urgency = 'critical';
-        else if (days_until_expiry <= 14) expiry_urgency = 'warning';
-        else if (days_until_expiry <= 30) expiry_urgency = 'upcoming';
-      }
+      let expiry_urgency: 'critical' | 'warning' | 'upcoming';
+      if (days_until_expiry <= 7) expiry_urgency = 'critical';
+      else if (days_until_expiry <= 14) expiry_urgency = 'warning';
+      else expiry_urgency = 'upcoming';
 
       const double_risk_flag =
-        days_until_expiry !== null &&
         days_until_expiry <= 14 &&
         days_since_last_visit !== null &&
         days_since_last_visit > 30;
 
-      // renewal_count = purchased+renewed log entries for this
-      // (pet_id, membership_plan_id) group, minus the initial purchase
-      const logKey = `${m.pet_id.toString()}::${plan?._id?.toString() ?? ''}`;
-      const renewal_count = Math.max(0, (logCountMap.get(logKey) ?? 1) - 1);
+      const petKey = m.pet_id.toString();
+      const cancelledCount = cancelledByPetMap.get(petKey) ?? 0;
+      const renewal_count = Math.max(
+        0,
+        (petLogCountMap.get(petKey) ?? 1) - 1 - cancelledCount,
+      );
 
       return {
-        membership_id: m._id.toString(),
-        order_number: m.order_number ?? '',
-        member_code: plan?.code ?? '',
-        pet_id: m.pet_id.toString(),
-        pet_code: pObj?.code ?? '',
+        customer_name: oObj?.profile?.full_name ?? oObj?.username ?? '',
+        customer_phone: oObj?.phone_number ?? '',
         pet_name: pObj?.name ?? '',
-        pet_type: (pObj?.pet_type as any)?.name ?? '',
-        customer_code: oObj?.code ?? '',
-        owner_name: oObj?.profile?.full_name ?? oObj?.username ?? '',
-        owner_phone: oObj?.phone_number ?? '',
-        plan_name: plan?.name ?? '',
-        plan_tier: plan?.badge_variant ?? '',
-        start_date: m.start_date ?? null,
-        expiry_date: m.end_date ?? null,
+        membership_name: plan?.name ?? '',
+        end_date: m.end_date ?? null,
         days_until_expiry,
         expiry_urgency,
         renewal_count,
@@ -1756,25 +1743,12 @@ export class ReportsService {
         days_since_last_visit,
         double_risk_flag,
         total_benefit_used: benefitUsedMap.get(m._id.toString()) ?? 0,
-        status,
       };
     });
 
-    // Only keep memberships expiring in ≤ 30 days, including ones already past
-    // their expiry date (negative days_until_expiry).
-    const filteredRows = rows.filter(
-      (r) => r.days_until_expiry !== null && r.days_until_expiry <= 30,
-    );
+    rows.sort((a, b) => a.days_until_expiry - b.days_until_expiry);
 
-    // Sort: active first, then by expiry date asc (soonest expiry first)
-    filteredRows.sort((a, b) => {
-      if (a.status !== b.status) return a.status === 'active' ? -1 : 1;
-      const da = a.expiry_date ? new Date(a.expiry_date).getTime() : 0;
-      const db = b.expiry_date ? new Date(b.expiry_date).getTime() : 0;
-      return da - db;
-    });
-
-    return { data: filteredRows, total: filteredRows.length };
+    return { data: rows, total: rows.length };
   }
 
   // ─── Report C: Membership Revenue & Renewal Rate ──────────────────────────────
