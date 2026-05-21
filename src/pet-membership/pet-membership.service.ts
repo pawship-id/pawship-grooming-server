@@ -146,6 +146,7 @@ export class PetMembershipService implements OnModuleInit {
       membership_plan_id: new Types.ObjectId(membership_plan_id),
       start_date: startDate,
       end_date: endDate,
+      base_price: membership.price,
       purchase_price: purchasePrice,
       purchase_note: createPetMembershipDto.purchase_note || undefined,
       benefits_snapshot: benefitsSnapshot,
@@ -821,10 +822,10 @@ export class PetMembershipService implements OnModuleInit {
       start_date: newStartDate,
       end_date: newEndDate,
       benefits_snapshot: resetSnapshot,
+      base_price: membership.price,
+      purchase_price:
+        dto.purchase_price != null ? dto.purchase_price : membership.price,
     };
-    if (dto.purchase_price != null) {
-      updateData.purchase_price = dto.purchase_price;
-    }
 
     const updated = await this.petMembershipModel.findByIdAndUpdate(
       new Types.ObjectId(id),

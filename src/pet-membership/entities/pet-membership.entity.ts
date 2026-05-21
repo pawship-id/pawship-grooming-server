@@ -101,6 +101,9 @@ export class PetMembership {
   benefits_snapshot: PetMembershipBenefit[];
 
   @Prop()
+  base_price: number;
+
+  @Prop()
   purchase_price: number;
 
   @Prop()

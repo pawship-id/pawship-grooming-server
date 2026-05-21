@@ -1508,13 +1508,14 @@ export class ReportsService {
       const benefit_1_remaining = b0?.remaining ?? null;
 
       // Benefit utilisation summary
-      const membership_price = m.purchase_price ?? plan?.price ?? 0;
+      const membership_price = (m as any).base_price ?? plan?.price ?? 0;
+      const actual_price = m.purchase_price ?? membership_price;
       const pmId = m._id.toString();
       const total_benefit_used_amount = amountDeductedMap.get(pmId) ?? 0;
       const total_sessions_using_benefit = totalSessionsMap.get(pmId) ?? 0;
       const benefit_roi =
-        membership_price > 0
-          ? Math.round((total_benefit_used_amount / membership_price) * 10000) / 100
+        actual_price > 0
+          ? Math.round((total_benefit_used_amount / actual_price) * 10000) / 100
           : 0;
 
       return {
@@ -1533,6 +1534,7 @@ export class ReportsService {
         membership_code: plan?.code ?? '',
         membership_name: plan?.name ?? '',
         membership_price,
+        actual_price,
         duration_days,
         start_date: m.start_date ?? null,
         end_date: m.end_date ?? null,
@@ -1867,6 +1869,29 @@ export class ReportsService {
       ]),
     );
 
+    // Revenue diambil dari PetMembership.purchase_price (harga aktual yang
+    // dibayar saat beli/perpanjang), bukan dari log.purchase_price (yang
+    // belum tentu di-set di log perpanjangan). pmId → purchase_price.
+    const pmIds = [
+      ...new Set(
+        allLogs
+          .filter((l) => l.pet_membership_id)
+          .map((l) => l.pet_membership_id.toString()),
+      ),
+    ];
+    const pmDocs = pmIds.length
+      ? await this.petMembershipModel
+          .find({ _id: { $in: pmIds.map((id) => new Types.ObjectId(id)) } })
+          .select('purchase_price')
+          .exec()
+      : [];
+    const pmPriceMap = new Map(
+      pmDocs.map((pm) => [
+        (pm as any)._id.toString(),
+        (pm as any).purchase_price as number | undefined,
+      ]),
+    );
+
     // "Periode" basis = created_at of the membership-log transaction
     // (fallback: event_date, then start_date).
     const purchasedAt = (l: any): Date =>
@@ -1928,7 +1953,11 @@ export class ReportsService {
       for (let i = 0; i < logs.length; i++) {
         const log = logs[i];
         const plan = planMap.get(log.membership_plan_id.toString());
-        const price = (log.purchase_price ?? plan?.price ?? 0) as number;
+        const pmId = log.pet_membership_id?.toString();
+        const price = (pmPriceMap.get(pmId ?? '') ??
+          log.purchase_price ??
+          plan?.price ??
+          0) as number;
         const boughtAt = purchasedAt(log);
 
         // Lapsed: expired with no renewal within 30 days of expiry. Counted
@@ -2174,7 +2203,8 @@ export class ReportsService {
 
       const pet_name = pmObj ? (petMap.get(pmObj.pet_id.toString()) ?? '') : '';
       const membership_name = plan?.name ?? '';
-      const membership_price = (pmObj?.purchase_price ?? plan?.price ?? 0) as number;
+      const membership_price = (pmObj?.base_price ?? plan?.price ?? 0) as number;
+      const actual_price = (pmObj?.purchase_price ?? membership_price) as number;
 
       const snapshot = (pmObj?.benefits_snapshot ?? []) as Array<{
         _id?: Types.ObjectId;
@@ -2224,9 +2254,12 @@ export class ReportsService {
         : (matchedBenefit?.label ?? '');
 
       const cumulative_used = cumulativeMap.get(pmId) ?? 0;
+      // Rumus: cumulative_used / actual_price * 100. actual_price = purchase_price
+      // dengan fallback ke base_price/plan.price untuk record lama yang
+      // belum punya purchase_price.
       const benefit_vs_price_pct =
-        membership_price > 0
-          ? Math.round((cumulative_used / membership_price) * 10000) / 100
+        actual_price > 0
+          ? Math.round((cumulative_used / actual_price) * 10000) / 100
           : 0;
 
       // booking_id → booking.code (human-readable reference).
@@ -2247,6 +2280,7 @@ export class ReportsService {
         benefit_index,
         cumulative_used,
         membership_price,
+        actual_price,
         benefit_vs_price_pct,
       };
     });
