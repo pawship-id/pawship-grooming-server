@@ -21,6 +21,7 @@ import { BenefitUsageService } from 'src/benefit-usage/benefit-usage.service';
 import { BookingStatus, GroomingType, SessionStatus } from './dto/booking.dto';
 import { Store, StoreDocument } from 'src/store/entities/store.entity';
 import { Service, ServiceDocument } from 'src/service/entities/service.entity';
+import { toUtcStartOfDay } from 'src/dashboard/utils/date-range';
 import { User, UserDocument } from 'src/user/entities/user.entity';
 import {
   StoreDailyUsage,
@@ -48,6 +49,24 @@ import {
 import { GetDailyUsagesDto } from './dto/get-daily-usages.dto';
 import { CounterService } from 'src/counter/counter.service';
 import { OptionService } from 'src/option/option.service';
+import { BookingEventsService } from 'src/booking-events/booking-events.service';
+
+// Open Jobs status priority — arrived first, then in-progress, then confirmed.
+// Lower = higher priority. Other statuses fall to default (99) and follow the
+// secondary sort (booking date asc, createdAt desc).
+const OPEN_JOBS_STATUS_PRIORITY: Record<string, number> = {
+  [BookingStatus.ARRIVED]: 1,
+  [BookingStatus.IN_PROGRESS]: 2,
+  [BookingStatus.CONFIRMED]: 3,
+};
+
+// YYYY-MM-DD in the server's local timezone.
+function toYMD(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 @Injectable()
 export class BookingService {
@@ -78,6 +97,7 @@ export class BookingService {
     private readonly googleMapsDistanceService: GoogleMapsDistanceService,
     private readonly counterService: CounterService,
     private readonly optionService: OptionService,
+    private readonly bookingEventsService: BookingEventsService,
   ) {}
 
   /**
@@ -1485,10 +1505,59 @@ export class BookingService {
         new ObjectId(body.pet_id),
       );
 
+      // Resolve member_type: comma-separated names of all active memberships at booking time
+      const activeMemberships =
+        await this.petMembershipService.getActiveMembership(body.pet_id);
+      let memberType: string | null = null;
+      if (activeMemberships && activeMemberships.length > 0) {
+        const names = activeMemberships
+          .map((m: any) => m.membership?.name)
+          .filter(Boolean);
+        if (names.length > 0) memberType = names.join(', ');
+      }
+
       body.pet_snapshot = {
         ...pet,
         _id: pet._id.toString(),
+        member_type: memberType,
       };
+
+      // Build customer snapshot entirely from BE — never trust FE input
+      try {
+        const customerDoc = await this.userModel
+          .findById(new ObjectId(body.customer_id))
+          .select('username phone_number profile')
+          .lean();
+        if (customerDoc) {
+          let customerCategory: { _id: Types.ObjectId; name: string } | null =
+            null;
+          const catId = (customerDoc as any).profile?.customer_category_id;
+          if (catId) {
+            try {
+              const categoryOption = await this.optionService.findOne(
+                new ObjectId(catId),
+              );
+              if (categoryOption) {
+                customerCategory = {
+                  _id: categoryOption._id as Types.ObjectId,
+                  name: categoryOption.name,
+                };
+              }
+            } catch {
+              // category lookup failure is non-fatal — snapshot saved without category
+            }
+          }
+          (body as any).customer_snapshot = {
+            customer_name:
+              (customerDoc as any).profile?.full_name ||
+              (customerDoc as any).username,
+            customer_phone: (customerDoc as any).phone_number,
+            customer_category: customerCategory,
+          };
+        }
+      } catch {
+        // customer snapshot build failure is non-fatal — booking proceeds without it
+      }
 
       // 2. get service snapshot
       body.service_snapshot = (await this.serviceService.getServiceSnapshot(
@@ -1799,9 +1868,9 @@ export class BookingService {
 
       // 12. get capacity by store_id and date (override or default)
       const targetDate = new Date(body.date);
-      targetDate.setHours(0, 0, 0, 0);
+      targetDate.setUTCHours(0, 0, 0, 0);
       const nextDay = new Date(targetDate);
-      nextDay.setDate(nextDay.getDate() + 1);
+      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
 
       const dailyOverride = await this.storeDailyCapacityModel
         .findOne({
@@ -1902,6 +1971,9 @@ export class BookingService {
       await session.commitTransaction();
       session.endSession();
 
+      // Emit event for real-time report updates
+      this.bookingEventsService.emit((booking[0] as any)._id.toString());
+
       // Record per-period benefit usage AFTER successful commit
       if (appliedBenefitsData.applied_benefits?.length > 0) {
         const bookingDate = new Date(body.date);
@@ -1947,12 +2019,7 @@ export class BookingService {
             `[recordPromotionUsage] Promo ${applied.code}: limitType=${limitType}, maxUsage=${maxUsage}, usagePeriod=${usagePeriod}, promotionId=${applied.promotion_id}`,
           );
 
-          if (
-            limitType !== PromotionLimitType.NONE &&
-            typeof maxUsage === 'number' &&
-            maxUsage > 0
-          ) {
-            try {
+          try {
               this.logger.log(
                 `[recordPromotionUsage] Recording usage with params: promotionId=${applied.promotion_id}, bookingId=${bookingId}, customerId=${body.customer_id}, petId=${body.pet_id}, limitType=${limitType}, usagePeriod=${usagePeriod}`,
               );
@@ -1984,11 +2051,6 @@ export class BookingService {
                 );
               }
             }
-          } else {
-            this.logger.log(
-              `[recordPromotionUsage] Skipping promo ${applied.code} - no limit configured (limitType=${limitType}, maxUsage=${maxUsage})`,
-            );
-          }
         }
       }
 
@@ -2058,54 +2120,88 @@ export class BookingService {
 
   /**
    * Get bookings with at least one unassigned session (groomer_id is null)
-   * Only returns confirmed/arrived bookings.
-   * Filters by groomer's store placement and matches sessions by skill name
-   * (case-insensitive, name-based — IDs are not compared).
+   * Defaults to today's bookings, scoped to the groomer's branch.
+   * Sorted by status priority (arrived → in progress → confirmed) then by
+   * nearest booking time. Reuses `findOpenJobs()` so the urgent dashboard
+   * can call into the same query with different date/scope inputs.
    */
   async getGroomerOpenJobs(
     groomerId: ObjectId,
     query: ListGroomerOpenJobsDto = {},
   ) {
-    const { page = 1, limit = 20 } = query;
+    const { page = 1, limit = 20, date_from, date_to, store_id, scope } = query;
 
-    // Look up groomer's placement (store) and skills
-    const groomer = await this.userModel
-      .findById(groomerId)
-      .select('profile.placement profile.groomer_skills')
-      .lean();
-    const groomerStoreId = groomer?.profile?.placement;
-    const groomerSkills: string[] = groomer?.profile?.groomer_skills || [];
-
-    const filter: any = {
-      isDeleted: false,
-      booking_status: {
-        $in: [
-          BookingStatus.CONFIRMED,
-          BookingStatus.ARRIVED,
-          BookingStatus.IN_PROGRESS,
-        ],
-      },
-    };
-
-    // Filter by groomer's store if they have a placement.
-    // store_id in some bookings may be stored as a string (not ObjectId),
-    // so we match against both the ObjectId and its string representation.
-    if (groomerStoreId) {
-      filter.store_id = {
-        $in: [groomerStoreId, groomerStoreId.toString()],
-      };
+    // Default to today's date unless the caller opts out via `scope=all|urgent`.
+    const skipDateDefault = scope === 'all' || scope === 'urgent';
+    let effectiveDateFrom = date_from;
+    let effectiveDateTo = date_to;
+    if (!effectiveDateFrom && !effectiveDateTo && !skipDateDefault) {
+      const today = toYMD(new Date());
+      effectiveDateFrom = today;
+      effectiveDateTo = today;
     }
 
-    // Build session $elemMatch: unclaimed + matching groomer's skills (by name, case-insensitive)
-    const elemMatchFilter: any = { groomer_id: null };
-    if (groomerSkills.length > 0) {
-      const skillsRegex = groomerSkills.map(
-        (skill) =>
-          new RegExp(`^${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
-      );
-      elemMatchFilter.type = { $in: skillsRegex };
+    return this.findOpenJobs({
+      groomerId,
+      page,
+      limit,
+      date_from: effectiveDateFrom,
+      date_to: effectiveDateTo,
+      store_id_override: store_id,
+    });
+  }
+
+  /**
+   * Reusable open-jobs query — exposed for callers like the urgent dashboard.
+   * Encapsulates: branch scoping (groomer placement wins; admin/no-placement
+   * falls back to `store_id_override` if provided), skill matching, status
+   * filter (confirmed/arrived/in progress), date filter, and status-priority
+   * sort.
+   */
+  async findOpenJobs(args: {
+    groomerId?: ObjectId;
+    page?: number;
+    limit?: number;
+    date_from?: string;
+    date_to?: string;
+    store_id_override?: string;
+    booking_statuses?: BookingStatus[];
+    match_skills?: boolean;
+  }) {
+    const {
+      groomerId,
+      page = 1,
+      limit = 20,
+      date_from,
+      date_to,
+      store_id_override,
+      booking_statuses,
+      match_skills = true,
+    } = args;
+
+    // Look up groomer's placement (store) and skills if a groomerId is given.
+    let groomerStoreId: any = undefined;
+    let groomerSkills: string[] = [];
+    if (groomerId) {
+      const groomer = await this.userModel
+        .findById(groomerId)
+        .select('profile.placement profile.groomer_skills')
+        .lean();
+      groomerStoreId = groomer?.profile?.placement;
+      groomerSkills = groomer?.profile?.groomer_skills || [];
     }
-    filter.sessions = { $elemMatch: elemMatchFilter };
+
+    // Branch scoping: groomer placement always wins. If no placement (e.g.
+    // super-admin / unscoped caller), honour the explicit override.
+    const effectiveStoreId = groomerStoreId ?? store_id_override;
+
+    const filter = this.buildOpenJobsFilter({
+      store_id: effectiveStoreId,
+      groomer_skills: match_skills ? groomerSkills : [],
+      date_from,
+      date_to,
+      booking_statuses,
+    });
 
     const skip = (page - 1) * limit;
 
@@ -2126,7 +2222,73 @@ export class BookingService {
       this.bookingModel.countDocuments(filter),
     ]);
 
-    return { bookings, total, page, limit };
+    // Status-priority sort: arrived → in progress → confirmed.
+    // Tie-break preserves the date-asc / createdAt-desc order from the DB.
+    const sorted = [...bookings].sort((a, b) => {
+      const pa = OPEN_JOBS_STATUS_PRIORITY[a.booking_status] ?? 99;
+      const pb = OPEN_JOBS_STATUS_PRIORITY[b.booking_status] ?? 99;
+      return pa - pb;
+    });
+
+    return { bookings: sorted, total, page, limit };
+  }
+
+  /**
+   * Build a MongoDB filter for "open jobs" (bookings that have at least one
+   * unclaimed session). Pure / stateless — safe to call from other services.
+   */
+  buildOpenJobsFilter(args: {
+    store_id?: any;
+    groomer_skills?: string[];
+    date_from?: string;
+    date_to?: string;
+    booking_statuses?: BookingStatus[];
+  }) {
+    const {
+      store_id,
+      groomer_skills = [],
+      date_from,
+      date_to,
+      booking_statuses,
+    } = args;
+
+    const filter: any = {
+      isDeleted: false,
+      booking_status: {
+        $in: booking_statuses ?? [
+          BookingStatus.CONFIRMED,
+          BookingStatus.ARRIVED,
+          BookingStatus.IN_PROGRESS,
+        ],
+      },
+    };
+
+    // store_id in some bookings is stored as a string (not ObjectId), so match
+    // against both the ObjectId and its string representation.
+    if (store_id) {
+      filter.store_id = {
+        $in: [store_id, store_id.toString()],
+      };
+    }
+
+    if (date_from || date_to) {
+      filter.date = {};
+      if (date_from) filter.date.$gte = new Date(`${date_from}T00:00:00.000Z`);
+      if (date_to) filter.date.$lte = new Date(`${date_to}T23:59:59.999Z`);
+    }
+
+    // Session $elemMatch: unclaimed + matching groomer's skills (by name, ci)
+    const elemMatchFilter: any = { groomer_id: null };
+    if (groomer_skills.length > 0) {
+      const skillsRegex = groomer_skills.map(
+        (skill) =>
+          new RegExp(`^${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+      );
+      elemMatchFilter.type = { $in: skillsRegex };
+    }
+    filter.sessions = { $elemMatch: elemMatchFilter };
+
+    return filter;
   }
 
   async findAll(query: ListBookingsDto = {}) {
@@ -2146,7 +2308,15 @@ export class BookingService {
     const filter: any = { isDeleted: false };
 
     if (status) {
-      filter.booking_status = status;
+      const statuses = status
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (statuses.length > 1) {
+        filter.booking_status = { $in: statuses };
+      } else if (statuses.length === 1) {
+        filter.booking_status = statuses[0];
+      }
     }
 
     if (date_from || date_to) {
@@ -2231,7 +2401,7 @@ export class BookingService {
         const activeMemberships = petMemberships.filter(
           (pm) =>
             bookingDate >= new Date(pm.start_date) &&
-            bookingDate <= new Date(pm.end_date),
+            toUtcStartOfDay(bookingDate) <= new Date(pm.end_date),
         );
         plain.active_memberships = activeMemberships.map((pm) => ({
           name: pm.name,
@@ -2355,9 +2525,22 @@ export class BookingService {
         new ObjectId(body.pet_id),
       );
 
+      // Resolve member_type: comma-separated names of all active memberships at update time
+      const activeMembershipsUpd = body.pet_id
+        ? await this.petMembershipService.getActiveMembership(body.pet_id)
+        : [];
+      let memberTypeUpd: string | null = null;
+      if (activeMembershipsUpd && activeMembershipsUpd.length > 0) {
+        const names = activeMembershipsUpd
+          .map((m: any) => m.membership?.name)
+          .filter(Boolean);
+        if (names.length > 0) memberTypeUpd = names.join(', ');
+      }
+
       body.pet_snapshot = {
         ...pet,
         _id: pet._id.toString(),
+        member_type: memberTypeUpd,
       };
 
       body.service_snapshot = (await this.serviceService.getServiceSnapshot(
@@ -2509,9 +2692,9 @@ export class BookingService {
         if (!store) throw new NotFoundException('Store not found');
 
         const targetDate = new Date(newDate);
-        targetDate.setHours(0, 0, 0, 0);
+        targetDate.setUTCHours(0, 0, 0, 0);
         const nextDay = new Date(targetDate);
-        nextDay.setDate(nextDay.getDate() + 1);
+        nextDay.setUTCDate(nextDay.getUTCDate() + 1);
 
         const dailyOverride = await this.storeDailyCapacityModel
           .findOne({
@@ -2621,6 +2804,9 @@ export class BookingService {
       await session.commitTransaction();
       session.endSession();
 
+      // Emit event for real-time report updates
+      this.bookingEventsService.emit(id.toString());
+
       return updatedBooking;
     } catch (error) {
       await session.abortTransaction();
@@ -2650,12 +2836,25 @@ export class BookingService {
     return booking;
   }
 
+  async updateBroughtItemsNote(id: ObjectId, brought_items_note?: string) {
+    const booking = await this.bookingModel.findByIdAndUpdate(
+      id,
+      {
+        $set: { brought_items_note: brought_items_note ?? '' },
+      },
+      { new: true },
+    );
+
+    return booking;
+  }
+
   async updateStatus(
     id: ObjectId,
     status: BookingStatus,
     note?: string,
     rescheduleData?: { date?: Date; time_range?: string },
     user?: { username: string; role: string },
+    cancellation_reason?: string,
   ) {
     try {
       // Guard: booking dengan status returned tidak bisa diubah
@@ -2680,6 +2879,124 @@ export class BookingService {
         }
       }
 
+      // Hitung service duration untuk keperluan update StoreDailyUsage
+      const isBookingWithUsage =
+        existingBooking.booking_status !== BookingStatus.WAITLIST &&
+        existingBooking.booking_status !== BookingStatus.CANCELLED;
+
+      let serviceDuration = 0;
+      if (
+        isBookingWithUsage &&
+        (status === BookingStatus.CANCELLED ||
+          status === BookingStatus.RESCHEDULED)
+      ) {
+        const service = await this.serviceModel.findById(
+          existingBooking.service_id,
+        );
+        serviceDuration = Number(service?.duration) || 0;
+
+        if (
+          existingBooking.service_addon_ids &&
+          existingBooking.service_addon_ids.length > 0
+        ) {
+          const addons = await this.serviceModel.find({
+            _id: { $in: existingBooking.service_addon_ids },
+          });
+          serviceDuration += addons.reduce(
+            (total, addon) => total + (Number(addon.duration) || 0),
+            0,
+          );
+        }
+
+        console.log(
+          `[updateStatus] bookingId=${id}, currentStatus=${existingBooking.booking_status}, newStatus=${status}, serviceDuration=${serviceDuration}`,
+        );
+      }
+
+      // Untuk RESCHEDULED: validasi kapasitas tanggal baru dan update StoreDailyUsage
+      if (
+        status === BookingStatus.RESCHEDULED &&
+        rescheduleData &&
+        isBookingWithUsage
+      ) {
+        const oldDate = existingBooking.date;
+        const newDate = rescheduleData.date!;
+
+        const store = await this.storeModel.findById(existingBooking.store_id);
+        if (!store) throw new NotFoundException('Store not found');
+
+        const targetDate = new Date(newDate);
+        targetDate.setUTCHours(0, 0, 0, 0);
+        const nextDay = new Date(targetDate);
+        nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+
+        const dailyOverride = await this.storeDailyCapacityModel.findOne({
+          store_id: new ObjectId(existingBooking.store_id.toString()),
+          date: { $gte: targetDate, $lt: nextDay },
+        });
+
+        const totalCapacity =
+          dailyOverride?.total_capacity_minutes ??
+          store.capacity.default_daily_capacity_minutes;
+        const overbookingLimit = store.capacity.overbooking_limit_minutes;
+        const maxAllowedCapacity = totalCapacity + overbookingLimit;
+
+        // Baca usage tanggal baru saat ini (sebelum ada perubahan)
+        const currentUsage = await this.storeDailyUsageModel.findOne({
+          store_id: new ObjectId(existingBooking.store_id.toString()),
+          date: { $gte: targetDate, $lt: nextDay },
+        });
+        const currentUsedMinutes = currentUsage?.used_minutes ?? 0;
+        const remainingMinutes = maxAllowedCapacity - currentUsedMinutes;
+
+        console.log(
+          `[updateStatus-reschedule] targetDate=${targetDate.toISOString()}, currentUsedMinutes=${currentUsedMinutes}, maxAllowedCapacity=${maxAllowedCapacity}, remainingMinutes=${remainingMinutes}, serviceDuration=${serviceDuration}`,
+        );
+
+        // Validasi: apakah sisa kapasitas cukup untuk booking ini?
+        if (serviceDuration > remainingMinutes) {
+          throw new BadRequestException(
+            `Tanggal ${new Date(newDate).toISOString().split('T')[0]} tidak memiliki kapasitas yang cukup. Sisa kapasitas ${remainingMinutes} menit, dibutuhkan ${serviceDuration} menit. Silakan pilih tanggal lain.`,
+          );
+        }
+
+        // Kapasitas cukup — kurangi usage tanggal lama, tambah usage tanggal baru (hanya jika ada durasi)
+        if (serviceDuration > 0) {
+          // Kurangi old date: pakai range query agar cocok meskipun time component berbeda
+          const oldDayStart = new Date(oldDate);
+          oldDayStart.setUTCHours(0, 0, 0, 0);
+          const oldDayEnd = new Date(oldDayStart);
+          oldDayEnd.setUTCDate(oldDayEnd.getUTCDate() + 1);
+
+          await this.storeDailyUsageModel.findOneAndUpdate(
+            {
+              store_id: new ObjectId(existingBooking.store_id.toString()),
+              date: { $gte: oldDayStart, $lt: oldDayEnd },
+            },
+            { $inc: { used_minutes: -serviceDuration } },
+          );
+
+          // Tambah new date: update record yang sudah ditemukan saat validasi (by _id)
+          // agar tidak buat record duplikat di hari yang sama dengan time berbeda
+          if (currentUsage) {
+            await this.storeDailyUsageModel.findByIdAndUpdate(
+              (currentUsage as any)._id,
+              { $inc: { used_minutes: serviceDuration } },
+            );
+          } else {
+            // Tidak ada record untuk tanggal ini — buat baru di midnight UTC
+            await this.storeDailyUsageModel.findOneAndUpdate(
+              {
+                store_id: new ObjectId(existingBooking.store_id.toString()),
+                date: targetDate,
+              },
+              { $inc: { used_minutes: serviceDuration } },
+              { upsert: true },
+            );
+          }
+        }
+      }
+
       // tambahkan log status baru
       const statusLog: BookingStatusLogDto = {
         status: status,
@@ -2689,15 +3006,34 @@ export class BookingService {
           `Status updated to ${status} by ${user?.username || 'unknown'} (${user?.role || 'unknown'})`,
       };
 
-      // prepare update data
+      // simpan snapshot tanggal lama & baru di status log saat RESCHEDULED
+      if (status === BookingStatus.RESCHEDULED && rescheduleData) {
+        statusLog.previous_date = existingBooking.date;
+        statusLog.previous_time_range = existingBooking.time_range;
+        statusLog.new_date = rescheduleData.date;
+        statusLog.new_time_range = rescheduleData.time_range;
+      }
+
       const updateData: any = {
         booking_status: status,
       };
+
+      // sync analytics completed_at field with completion transitions
+      if (status === BookingStatus.COMPLETED) {
+        updateData.completed_at = new Date();
+      } else if (existingBooking.booking_status === BookingStatus.COMPLETED) {
+        updateData.completed_at = null;
+      }
 
       // jika RESCHEDULED, tambahkan date dan time_range ke update
       if (status === BookingStatus.RESCHEDULED && rescheduleData) {
         updateData.date = rescheduleData.date;
         updateData.time_range = rescheduleData.time_range;
+      }
+
+      // jika CANCELLED, simpan cancellation_reason
+      if (status === BookingStatus.CANCELLED) {
+        updateData.cancellation_reason = cancellation_reason ?? null;
       }
 
       // update booking status dan tambahkan ke status logs
@@ -2709,6 +3045,21 @@ export class BookingService {
         },
         { new: true },
       );
+
+      // Kurangi StoreDailyUsage saat booking di-cancel
+      if (status === BookingStatus.CANCELLED && isBookingWithUsage && serviceDuration > 0) {
+        try {
+          await this.storeDailyUsageModel.findOneAndUpdate(
+            {
+              store_id: new ObjectId(existingBooking.store_id.toString()),
+              date: existingBooking.date,
+            },
+            { $inc: { used_minutes: -serviceDuration } },
+          );
+        } catch {
+          // Non-fatal: tidak memblokir status update
+        }
+      }
 
       // Restore benefit usage when booking is cancelled (soft-delete all usages for this booking)
       if (
@@ -3291,21 +3642,21 @@ export class BookingService {
       if (query.date) {
         // Single date filter
         const targetDate = new Date(query.date);
-        targetDate.setHours(0, 0, 0, 0);
+        targetDate.setUTCHours(0, 0, 0, 0);
         const nextDay = new Date(targetDate);
-        nextDay.setDate(nextDay.getDate() + 1);
+        nextDay.setUTCDate(nextDay.getUTCDate() + 1);
         filter.date = { $gte: targetDate, $lt: nextDay };
       } else if (query.start_date || query.end_date) {
         // Date range filter
         filter.date = {};
         if (query.start_date) {
           const startDate = new Date(query.start_date);
-          startDate.setHours(0, 0, 0, 0);
+          startDate.setUTCHours(0, 0, 0, 0);
           filter.date.$gte = startDate;
         }
         if (query.end_date) {
           const endDate = new Date(query.end_date);
-          endDate.setHours(23, 59, 59, 999);
+          endDate.setUTCHours(23, 59, 59, 999);
           filter.date.$lte = endDate;
         }
       }
@@ -3330,9 +3681,9 @@ export class BookingService {
 
           // Get capacity override for this date, if any
           const usageDate = new Date(usage.date);
-          usageDate.setHours(0, 0, 0, 0);
+          usageDate.setUTCHours(0, 0, 0, 0);
           const nextDay = new Date(usageDate);
-          nextDay.setDate(nextDay.getDate() + 1);
+          nextDay.setUTCDate(nextDay.getUTCDate() + 1);
 
           const capacityOverride = await this.storeDailyCapacityModel
             .findOne({

@@ -34,7 +34,7 @@ export class StoreDailyCapacityController {
     if (!storeId) throw new BadRequestException('store_id is required');
 
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    today.setUTCHours(0, 0, 0, 0);
 
     const capacities = await this.storeDailyCapacityService.findAll({
       store_id: storeId,
@@ -44,14 +44,14 @@ export class StoreDailyCapacityController {
     const closedDates = capacities
       .filter((c) => {
         const d = new Date(c.date);
-        d.setHours(0, 0, 0, 0);
+        d.setUTCHours(0, 0, 0, 0);
         return d >= today && c.total_capacity_minutes === 0;
       })
       .map((c) => {
         const d = new Date(c.date);
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(d.getUTCDate()).padStart(2, '0');
         return `${y}-${m}-${day}`;
       });
 

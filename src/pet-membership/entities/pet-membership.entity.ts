@@ -58,6 +58,13 @@ export class PetMembershipBenefit {
   toObject: { virtuals: true },
 })
 export class PetMembership {
+  // order_number digenerate dari counter global, sehingga setiap pembelian
+  // membership selalu mendapat kode unik. DB-level unique constraint tidak
+  // dipasang untuk menghindari konflik dengan data legacy yang sempat
+  // mengizinkan duplikasi.
+  @Prop({ sparse: true, index: true })
+  order_number: string;
+
   @Prop({ type: Types.ObjectId, ref: 'Pet', required: true, index: true })
   pet_id: Types.ObjectId;
 
@@ -92,6 +99,9 @@ export class PetMembership {
     default: [],
   })
   benefits_snapshot: PetMembershipBenefit[];
+
+  @Prop()
+  base_price: number;
 
   @Prop()
   purchase_price: number;

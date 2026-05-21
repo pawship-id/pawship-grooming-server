@@ -14,4 +14,8 @@ export class UpdateBookingStatusDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  @IsOptional()
+  @IsString()
+  cancellation_reason?: string;
 }

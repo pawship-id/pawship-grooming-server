@@ -32,8 +32,8 @@ export class PetSnapshotDto {
 
   @IsOptional()
   @ValidateIf((o) => o.member_type !== null)
-  @IsObject()
-  member_type?: { _id: string; name: string } | null;
+  @IsString()
+  member_type?: string | null;
 
   @IsOptional()
   @IsObject()
@@ -118,6 +118,20 @@ export class BookingStatusLogDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  @IsOptional()
+  previous_date?: Date;
+
+  @IsOptional()
+  @IsString()
+  previous_time_range?: string;
+
+  @IsOptional()
+  new_date?: Date;
+
+  @IsOptional()
+  @IsString()
+  new_time_range?: string;
 }
 
 export class CreateBookingDto {
@@ -201,6 +215,10 @@ export class CreateBookingDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  @IsOptional()
+  @IsString()
+  brought_items_note?: string;
 
   @IsOptional()
   @IsString()

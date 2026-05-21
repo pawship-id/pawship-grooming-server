@@ -137,6 +137,21 @@ export class AppliedPromotion {
   usage_period?: string; // 'lifetime' | 'daily' | 'weekly' | 'monthly'
 }
 
+@Schema({ _id: false })
+export class CustomerSnapshot {
+  @Prop({ required: true })
+  customer_name: string;
+
+  @Prop({ required: true })
+  customer_phone: string;
+
+  @Prop({
+    type: { _id: { type: Types.ObjectId }, name: { type: String } },
+    default: null,
+  })
+  customer_category?: { _id: Types.ObjectId; name: string } | null;
+}
+
 @Schema({
   toJSON: {
     virtuals: true,
@@ -178,11 +193,8 @@ export class PetSnapshot {
   @Prop()
   internal_note?: string;
 
-  @Prop({
-    type: { _id: { type: Types.ObjectId }, name: { type: String } },
-    default: null,
-  })
-  member_type?: { _id: Types.ObjectId; name: string } | null;
+  @Prop({ type: String, default: null })
+  member_type?: string | null;
 
   @Prop({
     type: { _id: { type: Types.ObjectId }, name: { type: String } },
@@ -275,7 +287,20 @@ export class ServiceSnapshot {
   }[];
 }
 
-@Schema()
+@Schema({
+  toJSON: {
+    virtuals: true,
+    transform: (_: any, ret: any) => {
+      // Back-compat: older media documents only have `note` (singular).
+      // Mirror it into `notes` so frontend code can read a single field.
+      if (ret.notes == null && ret.note != null) {
+        ret.notes = ret.note;
+      }
+      return ret;
+    },
+  },
+  toObject: { virtuals: true },
+})
 export class SessionMedia {
   @Prop({
     enum: MediaType,
@@ -289,8 +314,15 @@ export class SessionMedia {
   @Prop({ required: true })
   public_id: string;
 
-  @Prop()
-  note?: string;
+  // Canonical caption/notes field for an individual media item.
+  // Optional — old documents may not have it; see toJSON transform above.
+  @Prop({ type: String, default: null })
+  notes?: string | null;
+
+  /** @deprecated kept for backward compatibility with media uploaded before
+   *  the `notes` field existed; new uploads write `notes` instead. */
+  @Prop({ type: String, default: null })
+  note?: string | null;
 
   // ID sesi asal — diisi jika upload melalui sesi tertentu
   @Prop()
@@ -381,6 +413,19 @@ export class BookingStatusLog {
 
   @Prop()
   note?: string;
+
+  /* ===== Reschedule snapshot (hanya diisi saat status = RESCHEDULED) ===== */
+  @Prop()
+  previous_date?: Date;
+
+  @Prop()
+  previous_time_range?: string;
+
+  @Prop()
+  new_date?: Date;
+
+  @Prop()
+  new_time_range?: string;
 }
 
 @Schema({
@@ -424,6 +469,10 @@ export class Booking {
   /* ===== Owner ===== */
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   customer_id: Types.ObjectId;
+
+  /* ===== Customer Snapshot ===== */
+  @Prop({ type: CustomerSnapshot })
+  customer_snapshot?: CustomerSnapshot;
 
   /* ===== Pet ===== */
   @Prop({ type: PetSnapshot, required: true })
@@ -532,6 +581,9 @@ export class Booking {
   @Prop()
   note?: string;
 
+  @Prop({ type: String, default: null })
+  brought_items_note?: string | null;
+
   @Prop()
   payment_method?: string;
 
@@ -577,15 +629,32 @@ export class Booking {
   @Prop({ type: [AppliedPromotion], default: [] })
   applied_promotions: AppliedPromotion[];
 
+  /* ===== Cancellation ===== */
+  @Prop({ type: String, default: null })
+  cancellation_reason: string | null;
+
   /* ===== Soft Delete ===== */
   @Prop({ default: false })
   isDeleted: boolean;
 
   @Prop({ default: null })
   deletedAt: Date;
+
+  /* ===== Analytics ===== */
+  @Prop({ type: Date, default: null, index: true })
+  completed_at: Date | null;
 }
 
 export const BookingSchema = SchemaFactory.createForClass(Booking);
+
+BookingSchema.index({ store_id: 1, completed_at: 1 });
+
+// Index untuk query reschedule berdasarkan tanggal asal (previous_date) di status_logs
+BookingSchema.index({
+  'status_logs.status': 1,
+  'status_logs.previous_date': 1,
+  store_id: 1,
+});
 
 BookingSchema.virtual('customer', {
   ref: 'User',

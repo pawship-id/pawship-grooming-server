@@ -20,6 +20,7 @@ import { BookingPreviewRequestDto } from './dto/booking-preview.dto';
 import { ObjectId } from 'mongodb';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
 import { UpdateBookingNoteDto } from './dto/update-booking-note.dto';
+import { UpdateBroughtItemsNoteDto } from './dto/update-brought-items-note.dto';
 import { AuthGuard } from 'src/auth/auth.guard';
 import { Public } from 'src/auth/public.decorator';
 import { GuestService } from './guest.service';
@@ -431,6 +432,29 @@ export class BookingController {
     };
   }
 
+  // update booking brought items note (List Barang Bawaan)
+  @Patch(':id/brought-items')
+  async updateBroughtItemsNote(
+    @Param('id') id: string,
+    @Body() body: UpdateBroughtItemsNoteDto,
+  ) {
+    if (!id) throw new BadRequestException('id is required');
+
+    const _id = new ObjectId(id);
+    const booking = await this.bookingService.findOne(_id);
+    if (!booking || booking.isDeleted)
+      throw new NotFoundException('Booking not found');
+
+    await this.bookingService.updateBroughtItemsNote(
+      _id,
+      body.brought_items_note,
+    );
+
+    return {
+      message: 'Brought items note updated successfully',
+    };
+  }
+
   // update status booking
   @Patch('update-status/:id')
   async updateStatus(
@@ -445,7 +469,7 @@ export class BookingController {
     if (!booking || booking.isDeleted)
       throw new NotFoundException('data not found');
 
-    const { status, date, time_range, note } = body;
+    const { status, date, time_range, note, cancellation_reason } = body;
 
     const rescheduleData =
       date && time_range ? { date, time_range } : undefined;
@@ -456,6 +480,7 @@ export class BookingController {
       note,
       rescheduleData,
       request.user,
+      cancellation_reason,
     );
 
     return {

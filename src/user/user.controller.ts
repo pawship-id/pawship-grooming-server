@@ -122,6 +122,24 @@ export class UserController {
     if (!pet || pet.isDeleted) throw new NotFoundException('Pet not found');
     if (pet.customer_id.toString() !== userId.toString())
       throw new NotFoundException('Pet not found');
+
+    // Customer cannot change pet name or weight while membership is active.
+    // Admin path (/pets/:id) is unaffected — admins keep full edit access.
+    const hasActiveMembership = await this.userService.hasActiveMembership(
+      new ObjectId(petId),
+    );
+    if (hasActiveMembership) {
+      const nameChanged =
+        body.name !== undefined && body.name.trim() !== pet.name;
+      const weightChanged =
+        body.weight !== undefined && Number(body.weight) !== pet.weight;
+      if (nameChanged || weightChanged) {
+        throw new BadRequestException(
+          'Pet name and weight cannot be changed while membership is active. Please contact admin if changes are needed.',
+        );
+      }
+    }
+
     await this.petService.update(new ObjectId(petId), body);
     return { message: 'Update pet successfully' };
   }
