@@ -16,6 +16,7 @@ import {
   ConfirmMediaUploadDto,
   ConfirmSessionOtherMediaUploadDto,
   RequestMediaSignatureDto,
+  UpdateMediaNotesDto,
 } from './dto/grooming-media.dto';
 import {
   UpdateSessionDto,
@@ -268,6 +269,26 @@ export class SessionController {
     );
 
     return { message: 'Media uploaded successfully' };
+  }
+
+  // Update `notes` caption of an existing booking media item.
+  // Admin can edit any media; groomer can only edit media they uploaded.
+  @Patch(':bookingId/media/notes')
+  async updateBookingMediaNotes(
+    @Param('bookingId') bookingId: string,
+    @Body() body: UpdateMediaNotesDto,
+    @Req() request: any,
+  ) {
+    if (!bookingId) throw new BadRequestException('bookingId is required');
+
+    const _bookingId = new ObjectId(bookingId);
+    await this.sessionService.updateBookingMediaNotes(
+      _bookingId,
+      body,
+      request.user,
+    );
+
+    return { message: 'Notes updated successfully' };
   }
 
   // Delete booking media with auth check (admin or original uploader)

@@ -20,6 +20,7 @@ import {
 import {
   ConfirmMediaUploadDto,
   ConfirmSessionOtherMediaUploadDto,
+  UpdateMediaNotesDto,
 } from './dto/grooming-media.dto';
 import { UpdateSessionDto } from './dto/update-grooming-session.dto';
 import { CreateSessionDto } from './dto/create-grooming-session.dto';
@@ -473,6 +474,7 @@ export class SessionService {
     }
     this.assertResourceMatchesBooking(resource, booking, dto.type);
 
+    const notes = dto.notes ?? dto.note ?? null;
     const mediaItem = {
       type: dto.type,
       secure_url: resource.secure_url,
@@ -481,7 +483,7 @@ export class SessionService {
         user_id: user?._id,
         name_snapshot: user?.username,
       },
-      note: dto.note || '',
+      notes,
       uploaded_at: new Date(),
     };
 
@@ -528,6 +530,7 @@ export class SessionService {
     }
     this.assertResourceMatchesBooking(resource, booking, MediaType.OTHER);
 
+    const notes = dto.notes ?? dto.note ?? null;
     const mediaItem = {
       type: MediaType.OTHER,
       secure_url: resource.secure_url,
@@ -537,7 +540,7 @@ export class SessionService {
         user_id: user?._id,
         name_snapshot: user?.username,
       },
-      note: dto.note || '',
+      notes,
       uploaded_at: new Date(),
     };
 
@@ -568,6 +571,41 @@ export class SessionService {
     } catch (error) {
       throw error;
     }
+  }
+
+  // Update the `notes` caption of a media item (matched by public_id).
+  // Admin can edit any media; groomer can only edit media they uploaded.
+  async updateBookingMediaNotes(
+    bookingId: ObjectId,
+    dto: UpdateMediaNotesDto,
+    user?: { _id: ObjectId; username: string; role: string },
+  ) {
+    const booking = await this.findBookingOrFail(bookingId);
+    this.assertNotReturned(booking);
+
+    const mediaItem = booking.media?.find(
+      (m: any) => m.public_id === dto.public_id,
+    );
+    if (!mediaItem) {
+      throw new NotFoundException('Media not found');
+    }
+
+    if (user?.role !== 'admin') {
+      const creatorId = (mediaItem as any).created_by?.user_id?.toString();
+      if (creatorId !== user?._id?.toString()) {
+        throw new ForbiddenException(
+          'Hanya admin atau pengunggah asli yang dapat mengubah catatan foto ini',
+        );
+      }
+    }
+
+    const notes = dto.notes ?? '';
+
+    return this.bookingModel.findOneAndUpdate(
+      { _id: bookingId, 'media.public_id': dto.public_id },
+      { $set: { 'media.$.notes': notes } },
+      { new: true },
+    );
   }
 
   // ==================== CUSTOMER REVIEW ====================

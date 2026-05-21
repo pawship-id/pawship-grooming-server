@@ -14,6 +14,11 @@ export class GroomingMediaDto {
 
   @IsOptional()
   @IsString()
+  notes?: string;
+
+  /** @deprecated Use `notes` instead. Kept so older clients keep working. */
+  @IsOptional()
+  @IsString()
   note?: string;
 }
 
@@ -37,6 +42,11 @@ export class ConfirmMediaUploadDto {
 
   @IsOptional()
   @IsString()
+  notes?: string;
+
+  /** @deprecated Use `notes` instead. */
+  @IsOptional()
+  @IsString()
   note?: string;
 }
 
@@ -50,5 +60,21 @@ export class ConfirmSessionOtherMediaUploadDto {
 
   @IsOptional()
   @IsString()
+  notes?: string;
+
+  /** @deprecated Use `notes` instead. */
+  @IsOptional()
+  @IsString()
   note?: string;
+}
+
+export class UpdateMediaNotesDto {
+  @IsString()
+  @IsNotEmpty({ message: 'public_id is required' })
+  public_id: string;
+
+  // Caption text. Empty string clears the note.
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }

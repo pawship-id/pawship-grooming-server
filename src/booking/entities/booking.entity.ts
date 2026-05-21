@@ -287,7 +287,20 @@ export class ServiceSnapshot {
   }[];
 }
 
-@Schema()
+@Schema({
+  toJSON: {
+    virtuals: true,
+    transform: (_: any, ret: any) => {
+      // Back-compat: older media documents only have `note` (singular).
+      // Mirror it into `notes` so frontend code can read a single field.
+      if (ret.notes == null && ret.note != null) {
+        ret.notes = ret.note;
+      }
+      return ret;
+    },
+  },
+  toObject: { virtuals: true },
+})
 export class SessionMedia {
   @Prop({
     enum: MediaType,
@@ -301,8 +314,15 @@ export class SessionMedia {
   @Prop({ required: true })
   public_id: string;
 
-  @Prop()
-  note?: string;
+  // Canonical caption/notes field for an individual media item.
+  // Optional — old documents may not have it; see toJSON transform above.
+  @Prop({ type: String, default: null })
+  notes?: string | null;
+
+  /** @deprecated kept for backward compatibility with media uploaded before
+   *  the `notes` field existed; new uploads write `notes` instead. */
+  @Prop({ type: String, default: null })
+  note?: string | null;
 
   // ID sesi asal — diisi jika upload melalui sesi tertentu
   @Prop()
