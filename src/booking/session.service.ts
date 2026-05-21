@@ -12,10 +12,15 @@ import { Booking, BookingDocument } from './entities/booking.entity';
 import { User, UserDocument } from 'src/user/entities/user.entity';
 import { BookingStatus, SessionStatus, MediaType } from './dto/booking.dto';
 import {
+  CloudinarySignaturePayload,
   generateGroomingSessionFolder,
-  uploadToCloudinary,
+  getCloudinaryResource,
+  signCloudinaryUploadParams,
 } from 'src/helpers/cloudinary';
-import { GroomingMediaDto } from './dto/grooming-media.dto';
+import {
+  ConfirmMediaUploadDto,
+  ConfirmSessionOtherMediaUploadDto,
+} from './dto/grooming-media.dto';
 import { UpdateSessionDto } from './dto/update-grooming-session.dto';
 import { CreateSessionDto } from './dto/create-grooming-session.dto';
 import { ReviewSessionDto } from './dto/review-session.dto';
@@ -385,101 +390,162 @@ export class SessionService {
 
   // ==================== MEDIA MANAGEMENT ====================
 
-  // Upload media for a specific session by ID
-  async uploadSessionMedia(
-    bookingId: ObjectId,
-    sessionId: ObjectId,
-    file: Express.Multer.File,
-    body: GroomingMediaDto,
-    user?: { _id: ObjectId; username: string; role: string },
+  private assertResourceMatchesBooking(
+    resource: { folder?: string; public_id: string },
+    booking: BookingDocument,
+    type: MediaType,
   ) {
-    try {
-      const booking = await this.findBookingOrFail(bookingId);
-      this.assertNotReturned(booking);
-
-      const sessionIndex = booking.sessions.findIndex(
-        (s: any) => s._id.toString() === sessionId.toString(),
+    const expectedFolder = `pawship-grooming/${generateGroomingSessionFolder(
+      booking.pet_snapshot.name,
+      type,
+    )}`;
+    const resourceFolder =
+      resource.folder ?? resource.public_id.split('/').slice(0, -1).join('/');
+    if (resourceFolder !== expectedFolder) {
+      throw new BadRequestException(
+        'Uploaded resource does not match the expected upload folder',
       );
-
-      if (sessionIndex === -1) {
-        throw new NotFoundException('Session not found');
-      }
-
-      // Convert buffer to base64 for Cloudinary
-      const base64Image = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-
-      // Upload to Cloudinary
-      const uploadResult = await uploadToCloudinary(
-        base64Image,
-        generateGroomingSessionFolder(booking.pet_snapshot.name, body.type),
-      );
-
-      const mediaItem = {
-        type: body.type,
-        secure_url: uploadResult.secure_url,
-        public_id: uploadResult.public_id,
-        created_by: {
-          user_id: user?._id,
-          name_snapshot: user?.username,
-        },
-        note: body.note || '',
-        uploaded_at: new Date(),
-      };
-
-      const basePath = `sessions.${sessionIndex}`;
-
-      const updatedBooking = await this.bookingModel.findByIdAndUpdate(
-        bookingId,
-        { $push: { [`${basePath}.media`]: mediaItem } },
-        { new: true },
-      );
-
-      return updatedBooking;
-    } catch (error) {
-      throw error;
     }
   }
 
-  // Upload media for a booking (booking-level, not session-level)
-  async uploadBookingMedia(
+  // Issue a signed upload payload for booking-level media.
+  // Client uploads the file directly to Cloudinary, then calls confirm.
+  async signBookingMediaUpload(
     bookingId: ObjectId,
-    file: Express.Multer.File,
-    body: GroomingMediaDto,
+    type: MediaType,
+  ): Promise<CloudinarySignaturePayload> {
+    const booking = await this.findBookingOrFail(bookingId);
+    this.assertNotReturned(booking);
+
+    return signCloudinaryUploadParams(
+      generateGroomingSessionFolder(booking.pet_snapshot.name, type),
+    );
+  }
+
+  // Issue a signed upload payload for session-level "other" media.
+  // Authorization mirrors the legacy multipart endpoint.
+  async signSessionOtherMediaUpload(
+    bookingId: ObjectId,
+    sessionId: ObjectId,
+    user?: { _id: ObjectId; username: string; role: string },
+  ): Promise<CloudinarySignaturePayload> {
+    const booking = await this.findBookingOrFail(bookingId);
+    this.assertNotReturned(booking);
+
+    const session = booking.sessions.find(
+      (s: any) => s._id.toString() === sessionId.toString(),
+    );
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    if (user?.role !== 'admin') {
+      const sessionGroomerId = (session as any).groomer_id?.toString();
+      const requestUserId = user?._id?.toString();
+      if (!sessionGroomerId || sessionGroomerId !== requestUserId) {
+        throw new ForbiddenException(
+          'Hanya admin atau groomer yang mengerjakan sesi ini yang dapat mengupload foto',
+        );
+      }
+    }
+
+    return signCloudinaryUploadParams(
+      generateGroomingSessionFolder(booking.pet_snapshot.name, MediaType.OTHER),
+    );
+  }
+
+  // Persist booking-level media after the client uploaded it to Cloudinary.
+  // Verifies the upload exists in Cloudinary and lives in the expected folder
+  // so callers cannot forge metadata.
+  async confirmBookingMediaUpload(
+    bookingId: ObjectId,
+    dto: ConfirmMediaUploadDto,
     user?: { _id: ObjectId; username: string; role: string },
   ) {
-    try {
-      const booking = await this.findBookingOrFail(bookingId);
-      this.assertNotReturned(booking);
+    const booking = await this.findBookingOrFail(bookingId);
+    this.assertNotReturned(booking);
 
-      const base64Image = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-
-      const uploadResult = await uploadToCloudinary(
-        base64Image,
-        generateGroomingSessionFolder(booking.pet_snapshot.name, body.type),
+    const resource = await getCloudinaryResource(dto.public_id);
+    if (!resource) {
+      throw new BadRequestException(
+        'Cloudinary resource not found for the provided public_id',
       );
-
-      const mediaItem = {
-        type: body.type,
-        secure_url: uploadResult.secure_url,
-        public_id: uploadResult.public_id,
-        created_by: {
-          user_id: user?._id,
-          name_snapshot: user?.username,
-        },
-        note: body.note || '',
-        uploaded_at: new Date(),
-      };
-
-      const updatedBooking = await this.bookingModel.findByIdAndUpdate(
-        bookingId,
-        { $push: { media: mediaItem } },
-        { new: true },
-      );
-
-      return updatedBooking;
-    } catch (error) {
-      throw error;
     }
+    this.assertResourceMatchesBooking(resource, booking, dto.type);
+
+    const mediaItem = {
+      type: dto.type,
+      secure_url: resource.secure_url,
+      public_id: resource.public_id,
+      created_by: {
+        user_id: user?._id,
+        name_snapshot: user?.username,
+      },
+      note: dto.note || '',
+      uploaded_at: new Date(),
+    };
+
+    return this.bookingModel.findByIdAndUpdate(
+      bookingId,
+      { $push: { media: mediaItem } },
+      { new: true },
+    );
+  }
+
+  // Persist session "other" media. Re-checks groomer authorization since
+  // the sign step happened in a separate request.
+  async confirmSessionOtherMediaUpload(
+    bookingId: ObjectId,
+    sessionId: ObjectId,
+    dto: ConfirmSessionOtherMediaUploadDto,
+    user?: { _id: ObjectId; username: string; role: string },
+  ) {
+    const booking = await this.findBookingOrFail(bookingId);
+    this.assertNotReturned(booking);
+
+    const session = booking.sessions.find(
+      (s: any) => s._id.toString() === sessionId.toString(),
+    );
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    if (user?.role !== 'admin') {
+      const sessionGroomerId = (session as any).groomer_id?.toString();
+      const requestUserId = user?._id?.toString();
+      if (!sessionGroomerId || sessionGroomerId !== requestUserId) {
+        throw new ForbiddenException(
+          'Hanya admin atau groomer yang mengerjakan sesi ini yang dapat mengupload foto',
+        );
+      }
+    }
+
+    const resource = await getCloudinaryResource(dto.public_id);
+    if (!resource) {
+      throw new BadRequestException(
+        'Cloudinary resource not found for the provided public_id',
+      );
+    }
+    this.assertResourceMatchesBooking(resource, booking, MediaType.OTHER);
+
+    const mediaItem = {
+      type: MediaType.OTHER,
+      secure_url: resource.secure_url,
+      public_id: resource.public_id,
+      session_id: sessionId.toString(),
+      created_by: {
+        user_id: user?._id,
+        name_snapshot: user?.username,
+      },
+      note: dto.note || '',
+      uploaded_at: new Date(),
+    };
+
+    return this.bookingModel.findByIdAndUpdate(
+      bookingId,
+      { $push: { media: mediaItem } },
+      { new: true },
+    );
   }
 
   // Delete a specific media item from a booking (matched by public_id)
@@ -497,74 +563,6 @@ export class SessionService {
       if (!updatedBooking) {
         throw new NotFoundException('Booking not found');
       }
-
-      return updatedBooking;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  // Upload "other" media from a specific session — stored in booking.media[]
-  // Only admin or the groomer assigned to the session can upload
-  async uploadSessionOtherMedia(
-    bookingId: ObjectId,
-    sessionId: ObjectId,
-    file: Express.Multer.File,
-    note: string | undefined,
-    user?: { _id: ObjectId; username: string; role: string },
-  ) {
-    try {
-      const booking = await this.findBookingOrFail(bookingId);
-      this.assertNotReturned(booking);
-
-      const session = booking.sessions.find(
-        (s: any) => s._id.toString() === sessionId.toString(),
-      );
-
-      if (!session) {
-        throw new NotFoundException('Session not found');
-      }
-
-      // Authorization: admin can upload for any session;
-      // groomer can only upload for sessions assigned to them
-      if (user?.role !== 'admin') {
-        const sessionGroomerId = (session as any).groomer_id?.toString();
-        const requestUserId = user?._id?.toString();
-        if (!sessionGroomerId || sessionGroomerId !== requestUserId) {
-          throw new ForbiddenException(
-            'Hanya admin atau groomer yang mengerjakan sesi ini yang dapat mengupload foto',
-          );
-        }
-      }
-
-      const base64Image = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-
-      const uploadResult = await uploadToCloudinary(
-        base64Image,
-        generateGroomingSessionFolder(
-          booking.pet_snapshot.name,
-          MediaType.OTHER,
-        ),
-      );
-
-      const mediaItem = {
-        type: MediaType.OTHER,
-        secure_url: uploadResult.secure_url,
-        public_id: uploadResult.public_id,
-        session_id: sessionId.toString(),
-        created_by: {
-          user_id: user?._id,
-          name_snapshot: user?.username,
-        },
-        note: note || '',
-        uploaded_at: new Date(),
-      };
-
-      const updatedBooking = await this.bookingModel.findByIdAndUpdate(
-        bookingId,
-        { $push: { media: mediaItem } },
-        { new: true },
-      );
 
       return updatedBooking;
     } catch (error) {

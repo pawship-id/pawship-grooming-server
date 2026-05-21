@@ -5,17 +5,18 @@ import {
   BadRequestException,
   Body,
   Post,
-  UseInterceptors,
-  UploadedFile,
   Delete,
   UseGuards,
   Req,
   Query,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import { SessionService } from './session.service';
 import { ObjectId } from 'mongodb';
-import { GroomingMediaDto } from './dto/grooming-media.dto';
+import {
+  ConfirmMediaUploadDto,
+  ConfirmSessionOtherMediaUploadDto,
+  RequestMediaSignatureDto,
+} from './dto/grooming-media.dto';
 import {
   UpdateSessionDto,
   FinishSessionDto,
@@ -177,58 +178,36 @@ export class SessionController {
     };
   }
 
-  // Upload media for a specific session
-  @Post(':bookingId/session/:sessionId/media')
-  @UseInterceptors(FileInterceptor('image'))
-  async uploadSessionMedia(
+  // Issue a Cloudinary signed upload payload for booking-level media.
+  // Client then uploads directly to Cloudinary and calls the confirm endpoint.
+  @Post(':bookingId/media/sign')
+  async signBookingMediaUpload(
     @Param('bookingId') bookingId: string,
-    @Param('sessionId') sessionId: string,
-    @UploadedFile() file: Express.Multer.File,
-    @Body() body: GroomingMediaDto,
-    @Req() request: any,
+    @Body() body: RequestMediaSignatureDto,
   ) {
     if (!bookingId) throw new BadRequestException('bookingId is required');
-    if (!sessionId) throw new BadRequestException('sessionId is required');
-    if (!file) throw new BadRequestException('image file is required');
 
     const _bookingId = new ObjectId(bookingId);
-    const _sessionId = new ObjectId(sessionId);
-    await this.sessionService.uploadSessionMedia(
-      _bookingId,
-      _sessionId,
-      file,
-      body,
-      request.user,
-    );
-
-    return {
-      message: 'Media uploaded successfully',
-    };
+    return this.sessionService.signBookingMediaUpload(_bookingId, body.type);
   }
 
-  // Upload media for a booking (booking-level)
-  @Post(':bookingId/media')
-  @UseInterceptors(FileInterceptor('image'))
-  async uploadBookingMedia(
+  // Persist booking-level media after the client uploaded it to Cloudinary.
+  @Post(':bookingId/media/confirm')
+  async confirmBookingMediaUpload(
     @Param('bookingId') bookingId: string,
-    @UploadedFile() file: Express.Multer.File,
-    @Body() body: GroomingMediaDto,
+    @Body() body: ConfirmMediaUploadDto,
     @Req() request: any,
   ) {
     if (!bookingId) throw new BadRequestException('bookingId is required');
-    if (!file) throw new BadRequestException('image file is required');
 
     const _bookingId = new ObjectId(bookingId);
-    await this.sessionService.uploadBookingMedia(
+    await this.sessionService.confirmBookingMediaUpload(
       _bookingId,
-      file,
       body,
       request.user,
     );
 
-    return {
-      message: 'Media uploaded successfully',
-    };
+    return { message: 'Media uploaded successfully' };
   }
 
   // Delete a media item from a booking (matched by public_id)
@@ -248,34 +227,47 @@ export class SessionController {
     };
   }
 
-  // Upload "other" media from a specific session — stored in booking.media[]
-  // Only admin or groomer assigned to the session can upload
-  @Post(':bookingId/session/:sessionId/media/other')
-  @UseInterceptors(FileInterceptor('image'))
-  async uploadSessionOtherMedia(
+  // Issue a Cloudinary signed upload payload for session "other" media.
+  // Only admin or the groomer assigned to the session can request a signature.
+  @Post(':bookingId/session/:sessionId/media/other/sign')
+  async signSessionOtherMediaUpload(
     @Param('bookingId') bookingId: string,
     @Param('sessionId') sessionId: string,
-    @UploadedFile() file: Express.Multer.File,
-    @Body('note') note: string,
     @Req() request: any,
   ) {
     if (!bookingId) throw new BadRequestException('bookingId is required');
     if (!sessionId) throw new BadRequestException('sessionId is required');
-    if (!file) throw new BadRequestException('image file is required');
 
     const _bookingId = new ObjectId(bookingId);
     const _sessionId = new ObjectId(sessionId);
-    await this.sessionService.uploadSessionOtherMedia(
+    return this.sessionService.signSessionOtherMediaUpload(
       _bookingId,
       _sessionId,
-      file,
-      note,
+      request.user,
+    );
+  }
+
+  // Persist session "other" media after the client uploaded it to Cloudinary.
+  @Post(':bookingId/session/:sessionId/media/other/confirm')
+  async confirmSessionOtherMediaUpload(
+    @Param('bookingId') bookingId: string,
+    @Param('sessionId') sessionId: string,
+    @Body() body: ConfirmSessionOtherMediaUploadDto,
+    @Req() request: any,
+  ) {
+    if (!bookingId) throw new BadRequestException('bookingId is required');
+    if (!sessionId) throw new BadRequestException('sessionId is required');
+
+    const _bookingId = new ObjectId(bookingId);
+    const _sessionId = new ObjectId(sessionId);
+    await this.sessionService.confirmSessionOtherMediaUpload(
+      _bookingId,
+      _sessionId,
+      body,
       request.user,
     );
 
-    return {
-      message: 'Media uploaded successfully',
-    };
+    return { message: 'Media uploaded successfully' };
   }
 
   // Delete booking media with auth check (admin or original uploader)
