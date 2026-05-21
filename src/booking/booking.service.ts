@@ -51,6 +51,23 @@ import { CounterService } from 'src/counter/counter.service';
 import { OptionService } from 'src/option/option.service';
 import { BookingEventsService } from 'src/booking-events/booking-events.service';
 
+// Open Jobs status priority — arrived first, then in-progress, then confirmed.
+// Lower = higher priority. Other statuses fall to default (99) and follow the
+// secondary sort (booking date asc, createdAt desc).
+const OPEN_JOBS_STATUS_PRIORITY: Record<string, number> = {
+  [BookingStatus.ARRIVED]: 1,
+  [BookingStatus.IN_PROGRESS]: 2,
+  [BookingStatus.CONFIRMED]: 3,
+};
+
+// YYYY-MM-DD in the server's local timezone.
+function toYMD(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 @Injectable()
 export class BookingService {
   private readonly logger = new Logger(BookingService.name);
@@ -2103,54 +2120,88 @@ export class BookingService {
 
   /**
    * Get bookings with at least one unassigned session (groomer_id is null)
-   * Only returns confirmed/arrived bookings.
-   * Filters by groomer's store placement and matches sessions by skill name
-   * (case-insensitive, name-based — IDs are not compared).
+   * Defaults to today's bookings, scoped to the groomer's branch.
+   * Sorted by status priority (arrived → in progress → confirmed) then by
+   * nearest booking time. Reuses `findOpenJobs()` so the urgent dashboard
+   * can call into the same query with different date/scope inputs.
    */
   async getGroomerOpenJobs(
     groomerId: ObjectId,
     query: ListGroomerOpenJobsDto = {},
   ) {
-    const { page = 1, limit = 20 } = query;
+    const { page = 1, limit = 20, date_from, date_to, store_id, scope } = query;
 
-    // Look up groomer's placement (store) and skills
-    const groomer = await this.userModel
-      .findById(groomerId)
-      .select('profile.placement profile.groomer_skills')
-      .lean();
-    const groomerStoreId = groomer?.profile?.placement;
-    const groomerSkills: string[] = groomer?.profile?.groomer_skills || [];
-
-    const filter: any = {
-      isDeleted: false,
-      booking_status: {
-        $in: [
-          BookingStatus.CONFIRMED,
-          BookingStatus.ARRIVED,
-          BookingStatus.IN_PROGRESS,
-        ],
-      },
-    };
-
-    // Filter by groomer's store if they have a placement.
-    // store_id in some bookings may be stored as a string (not ObjectId),
-    // so we match against both the ObjectId and its string representation.
-    if (groomerStoreId) {
-      filter.store_id = {
-        $in: [groomerStoreId, groomerStoreId.toString()],
-      };
+    // Default to today's date unless the caller opts out via `scope=all|urgent`.
+    const skipDateDefault = scope === 'all' || scope === 'urgent';
+    let effectiveDateFrom = date_from;
+    let effectiveDateTo = date_to;
+    if (!effectiveDateFrom && !effectiveDateTo && !skipDateDefault) {
+      const today = toYMD(new Date());
+      effectiveDateFrom = today;
+      effectiveDateTo = today;
     }
 
-    // Build session $elemMatch: unclaimed + matching groomer's skills (by name, case-insensitive)
-    const elemMatchFilter: any = { groomer_id: null };
-    if (groomerSkills.length > 0) {
-      const skillsRegex = groomerSkills.map(
-        (skill) =>
-          new RegExp(`^${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
-      );
-      elemMatchFilter.type = { $in: skillsRegex };
+    return this.findOpenJobs({
+      groomerId,
+      page,
+      limit,
+      date_from: effectiveDateFrom,
+      date_to: effectiveDateTo,
+      store_id_override: store_id,
+    });
+  }
+
+  /**
+   * Reusable open-jobs query — exposed for callers like the urgent dashboard.
+   * Encapsulates: branch scoping (groomer placement wins; admin/no-placement
+   * falls back to `store_id_override` if provided), skill matching, status
+   * filter (confirmed/arrived/in progress), date filter, and status-priority
+   * sort.
+   */
+  async findOpenJobs(args: {
+    groomerId?: ObjectId;
+    page?: number;
+    limit?: number;
+    date_from?: string;
+    date_to?: string;
+    store_id_override?: string;
+    booking_statuses?: BookingStatus[];
+    match_skills?: boolean;
+  }) {
+    const {
+      groomerId,
+      page = 1,
+      limit = 20,
+      date_from,
+      date_to,
+      store_id_override,
+      booking_statuses,
+      match_skills = true,
+    } = args;
+
+    // Look up groomer's placement (store) and skills if a groomerId is given.
+    let groomerStoreId: any = undefined;
+    let groomerSkills: string[] = [];
+    if (groomerId) {
+      const groomer = await this.userModel
+        .findById(groomerId)
+        .select('profile.placement profile.groomer_skills')
+        .lean();
+      groomerStoreId = groomer?.profile?.placement;
+      groomerSkills = groomer?.profile?.groomer_skills || [];
     }
-    filter.sessions = { $elemMatch: elemMatchFilter };
+
+    // Branch scoping: groomer placement always wins. If no placement (e.g.
+    // super-admin / unscoped caller), honour the explicit override.
+    const effectiveStoreId = groomerStoreId ?? store_id_override;
+
+    const filter = this.buildOpenJobsFilter({
+      store_id: effectiveStoreId,
+      groomer_skills: match_skills ? groomerSkills : [],
+      date_from,
+      date_to,
+      booking_statuses,
+    });
 
     const skip = (page - 1) * limit;
 
@@ -2171,7 +2222,73 @@ export class BookingService {
       this.bookingModel.countDocuments(filter),
     ]);
 
-    return { bookings, total, page, limit };
+    // Status-priority sort: arrived → in progress → confirmed.
+    // Tie-break preserves the date-asc / createdAt-desc order from the DB.
+    const sorted = [...bookings].sort((a, b) => {
+      const pa = OPEN_JOBS_STATUS_PRIORITY[a.booking_status] ?? 99;
+      const pb = OPEN_JOBS_STATUS_PRIORITY[b.booking_status] ?? 99;
+      return pa - pb;
+    });
+
+    return { bookings: sorted, total, page, limit };
+  }
+
+  /**
+   * Build a MongoDB filter for "open jobs" (bookings that have at least one
+   * unclaimed session). Pure / stateless — safe to call from other services.
+   */
+  buildOpenJobsFilter(args: {
+    store_id?: any;
+    groomer_skills?: string[];
+    date_from?: string;
+    date_to?: string;
+    booking_statuses?: BookingStatus[];
+  }) {
+    const {
+      store_id,
+      groomer_skills = [],
+      date_from,
+      date_to,
+      booking_statuses,
+    } = args;
+
+    const filter: any = {
+      isDeleted: false,
+      booking_status: {
+        $in: booking_statuses ?? [
+          BookingStatus.CONFIRMED,
+          BookingStatus.ARRIVED,
+          BookingStatus.IN_PROGRESS,
+        ],
+      },
+    };
+
+    // store_id in some bookings is stored as a string (not ObjectId), so match
+    // against both the ObjectId and its string representation.
+    if (store_id) {
+      filter.store_id = {
+        $in: [store_id, store_id.toString()],
+      };
+    }
+
+    if (date_from || date_to) {
+      filter.date = {};
+      if (date_from) filter.date.$gte = new Date(`${date_from}T00:00:00.000Z`);
+      if (date_to) filter.date.$lte = new Date(`${date_to}T23:59:59.999Z`);
+    }
+
+    // Session $elemMatch: unclaimed + matching groomer's skills (by name, ci)
+    const elemMatchFilter: any = { groomer_id: null };
+    if (groomer_skills.length > 0) {
+      const skillsRegex = groomer_skills.map(
+        (skill) =>
+          new RegExp(`^${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+      );
+      elemMatchFilter.type = { $in: skillsRegex };
+    }
+    filter.sessions = { $elemMatch: elemMatchFilter };
+
+    return filter;
   }
 
   async findAll(query: ListBookingsDto = {}) {
