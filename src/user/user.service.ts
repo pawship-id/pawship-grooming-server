@@ -42,6 +42,20 @@ export class UserService {
     return 'inactive';
   }
 
+  async hasActiveMembership(petId: ObjectId | Types.ObjectId): Promise<boolean> {
+    const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setUTCHours(0, 0, 0, 0);
+    const count = await this.petMembershipModel.countDocuments({
+      pet_id: petId,
+      is_active: true,
+      isDeleted: false,
+      start_date: { $lte: now },
+      end_date: { $gte: todayStart },
+    });
+    return count > 0;
+  }
+
   async getUsers(query: GetUsersQueryDto) {
     const { page = 1, limit = 10, search, role, is_active } = query;
 
