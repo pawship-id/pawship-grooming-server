@@ -218,6 +218,10 @@ export class CreateBookingDto {
 
   @IsOptional()
   @IsString()
+  brought_items_note?: string;
+
+  @IsOptional()
+  @IsString()
   payment_method?: string;
 
   @IsOptional()

@@ -2836,6 +2836,18 @@ export class BookingService {
     return booking;
   }
 
+  async updateBroughtItemsNote(id: ObjectId, brought_items_note?: string) {
+    const booking = await this.bookingModel.findByIdAndUpdate(
+      id,
+      {
+        $set: { brought_items_note: brought_items_note ?? '' },
+      },
+      { new: true },
+    );
+
+    return booking;
+  }
+
   async updateStatus(
     id: ObjectId,
     status: BookingStatus,

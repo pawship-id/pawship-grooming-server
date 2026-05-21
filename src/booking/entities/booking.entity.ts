@@ -561,6 +561,9 @@ export class Booking {
   @Prop()
   note?: string;
 
+  @Prop({ type: String, default: null })
+  brought_items_note?: string | null;
+
   @Prop()
   payment_method?: string;
 
