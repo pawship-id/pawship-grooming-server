@@ -111,4 +111,10 @@ export class ReportsController {
     const result = await this.reportsService.getMembershipRevenueReport(dto);
     return { message: 'Membership revenue report fetched successfully', ...result };
   }
+
+  @Get('membership/benefit-utilisation')
+  async getBenefitUtilisationReport() {
+    const result = await this.reportsService.getBenefitUtilisationReport();
+    return { message: 'Benefit utilisation report fetched successfully', ...result };
+  }
 }

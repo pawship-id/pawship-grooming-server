@@ -1731,6 +1731,7 @@ export class ReportsService {
       );
 
       return {
+        order_number: m.order_number ?? '',
         customer_name: oObj?.profile?.full_name ?? oObj?.username ?? '',
         customer_phone: oObj?.phone_number ?? '',
         pet_name: pObj?.name ?? '',
@@ -2066,5 +2067,190 @@ export class ReportsService {
       data,
       total: data.length,
     };
+  }
+
+  async getBenefitUtilisationReport() {
+    // 1 row per BenefitUsage event. Joins pet name (via PetMembership →
+    // pet_id → Pets), membership plan name & price, and the target service
+    // name (when scope is service/addon). benefit_index = position of
+    // benefit_id inside the membership's benefits_snapshot array.
+    const usages = await this.benefitUsageModel
+      .find({ isDeleted: false })
+      .sort({ used_at: -1 })
+      .exec();
+
+    if (usages.length === 0) {
+      return { data: [], total: 0 };
+    }
+
+    // Cumulative amount_deducted per pet_membership_id (running total of
+    // Rp value of all benefits consumed in this membership period). Sumber
+    // sama dengan kolom amount_used per row (Booking.applied_benefits.
+    // amount_deducted), tinggal di-group per pet_membership_id.
+    const cumulativeAgg: { _id: Types.ObjectId; total: number }[] =
+      await this.bookingModel.aggregate([
+        { $match: { isDeleted: false } },
+        { $unwind: '$applied_benefits' },
+        {
+          $match: {
+            'applied_benefits.pet_membership_id': { $exists: true, $ne: null },
+          },
+        },
+        {
+          $group: {
+            _id: '$applied_benefits.pet_membership_id',
+            total: { $sum: '$applied_benefits.amount_deducted' },
+          },
+        },
+      ]);
+    const cumulativeMap = new Map<string, number>();
+    for (const agg of cumulativeAgg) {
+      cumulativeMap.set(agg._id.toString(), agg.total);
+    }
+
+    // PetMemberships referenced by these usages (for pet_id, benefits_snapshot, plan).
+    const pmIds = [...new Set(usages.map((u) => u.pet_membership_id.toString()))];
+    const petMemberships = await this.petMembershipModel
+      .find({ _id: { $in: pmIds.map((id) => new Types.ObjectId(id)) } })
+      .populate({ path: 'membership_plan_id', model: 'Membership' })
+      .exec();
+    const pmMap = new Map(petMemberships.map((pm) => [pm._id.toString(), pm]));
+
+    // Pets referenced via PetMembership.pet_id.
+    const petIds = [...new Set(petMemberships.map((pm) => pm.pet_id.toString()))];
+    const pets = await this.petModel
+      .find({ _id: { $in: petIds.map((id) => new Types.ObjectId(id)) } })
+      .select('name')
+      .exec();
+    const petMap = new Map(pets.map((p) => [p._id.toString(), (p as any).name as string]));
+
+    // target_service is resolved through the membership's own snapshot:
+    //   BenefitUsage.pet_membership_id → PetMembership
+    //   → benefits_snapshot[i] where snapshot[i]._id === BenefitUsage.benefit_id
+    //   → snapshot[i].service_id → Service.name
+    // Collect every service_id referenced by any snapshot item in any
+    // membership touched by these usages.
+    const snapshotServiceIds = new Set<string>();
+    for (const pm of petMemberships) {
+      const pmObj = (pm as any).toObject({ virtuals: true });
+      for (const b of pmObj.benefits_snapshot ?? []) {
+        if (b.service_id) snapshotServiceIds.add(b.service_id.toString());
+      }
+    }
+    const services = snapshotServiceIds.size > 0
+      ? await this.serviceModel
+          .find({
+            _id: {
+              $in: [...snapshotServiceIds].map((id) => new Types.ObjectId(id)),
+            },
+          })
+          .select('name')
+          .exec()
+      : [];
+    const serviceMap = new Map(services.map((s) => [s._id.toString(), (s as any).name as string]));
+
+    // Bookings referenced by usage rows — needed for:
+    //   - booking.code   → human-readable booking reference
+    //   - selected_benefit_ids → benefit_index (position of BenefitUsage.benefit_id)
+    //   - applied_benefits[index].amount_deducted → amount_used
+    const bookingIds = [
+      ...new Set(
+        usages.filter((u) => u.booking_id).map((u) => u.booking_id.toString()),
+      ),
+    ];
+    const bookings = bookingIds.length > 0
+      ? await this.bookingModel
+          .find({ _id: { $in: bookingIds.map((id) => new Types.ObjectId(id)) } })
+          .select('code selected_benefit_ids applied_benefits')
+          .exec()
+      : [];
+    const bookingMap = new Map(bookings.map((b) => [b._id.toString(), b]));
+
+    const rows = usages.map((u) => {
+      const pmId = u.pet_membership_id.toString();
+      const pm = pmMap.get(pmId);
+      const pmObj = pm ? (pm as any).toObject({ virtuals: true }) : null;
+      const plan = pmObj?.membership_plan_id as any;
+
+      const pet_name = pmObj ? (petMap.get(pmObj.pet_id.toString()) ?? '') : '';
+      const membership_name = plan?.name ?? '';
+      const membership_price = (pmObj?.purchase_price ?? plan?.price ?? 0) as number;
+
+      const snapshot = (pmObj?.benefits_snapshot ?? []) as Array<{
+        _id?: Types.ObjectId;
+        service_id?: Types.ObjectId;
+        label?: string;
+      }>;
+      // benefit_index dicari di Booking.selected_benefit_ids dengan
+      // mencocokkan BenefitUsage.benefit_id. amount_used diambil dari
+      // applied_benefits[index].amount_deducted (selected_benefit_ids dan
+      // applied_benefits diasumsikan paralel — keduanya ditulis dari
+      // pilihan benefit yang sama saat booking dibuat).
+      const booking = u.booking_id
+        ? (bookingMap.get(u.booking_id.toString()) as any)
+        : null;
+      const selectedIds = (booking?.selected_benefit_ids ?? []) as Types.ObjectId[];
+      const appliedBenefits = (booking?.applied_benefits ?? []) as Array<{
+        amount_deducted?: number;
+        benefit?: { _id?: Types.ObjectId };
+      }>;
+      const benefit_index_raw = selectedIds.findIndex(
+        (sid) => sid?.toString() === u.benefit_id?.toString(),
+      );
+      const benefit_index = benefit_index_raw >= 0 ? benefit_index_raw : null;
+
+      // amount_used = applied_benefits[index].amount_deducted. Fallback:
+      // cari applied_benefits.benefit._id yang cocok kalau array tidak paralel.
+      let amount_used = 0;
+      if (benefit_index !== null && appliedBenefits[benefit_index]) {
+        amount_used = appliedBenefits[benefit_index].amount_deducted ?? 0;
+      } else {
+        const ab = appliedBenefits.find(
+          (a) => a.benefit?._id?.toString() === u.benefit_id?.toString(),
+        );
+        if (ab) amount_used = ab.amount_deducted ?? 0;
+      }
+
+      // target_service via snapshot[i].service_id → Service.name, dimana i
+      // adalah posisi benefit_id di benefits_snapshot (bukan di
+      // selected_benefit_ids). Fallback ke snapshot[i].label kalau
+      // service_id null.
+      const snapshotIdx = snapshot.findIndex(
+        (b) => b._id?.toString() === u.benefit_id?.toString(),
+      );
+      const matchedBenefit = snapshotIdx >= 0 ? snapshot[snapshotIdx] : null;
+      const target_service = matchedBenefit?.service_id
+        ? (serviceMap.get(matchedBenefit.service_id.toString()) ?? matchedBenefit.label ?? '')
+        : (matchedBenefit?.label ?? '');
+
+      const cumulative_used = cumulativeMap.get(pmId) ?? 0;
+      const benefit_vs_price_pct =
+        membership_price > 0
+          ? Math.round((cumulative_used / membership_price) * 10000) / 100
+          : 0;
+
+      // booking_id → booking.code (human-readable reference).
+      // pet_membership_id → PetMembership.order_number.
+      const bookingCode = (booking as any)?.code ?? '';
+      const pmOrderNumber = pmObj?.order_number ?? '';
+
+      return {
+        benefit_usage_id: u._id.toString(),
+        used_at: u.used_at ?? null,
+        booking_id: bookingCode,
+        pet_membership_id: pmOrderNumber,
+        pet_name,
+        membership_name,
+        benefit_type: u.scope ?? '',
+        target_service,
+        amount_used,
+        benefit_index,
+        cumulative_used,
+        membership_price,
+        benefit_vs_price_pct,
+      };
+    });
+
+    return { data: rows, total: rows.length };
   }
 }
