@@ -2191,7 +2191,15 @@ export class BookingService {
     const filter: any = { isDeleted: false };
 
     if (status) {
-      filter.booking_status = status;
+      const statuses = status
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (statuses.length > 1) {
+        filter.booking_status = { $in: statuses };
+      } else if (statuses.length === 1) {
+        filter.booking_status = statuses[0];
+      }
     }
 
     if (date_from || date_to) {
