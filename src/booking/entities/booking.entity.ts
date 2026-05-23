@@ -656,6 +656,9 @@ BookingSchema.index({
   store_id: 1,
 });
 
+// Index untuk groomer my-jobs query: filter by sessions.groomer_id + sort by date desc
+BookingSchema.index({ 'sessions.groomer_id': 1, date: -1 });
+
 BookingSchema.virtual('customer', {
   ref: 'User',
   localField: 'customer_id',

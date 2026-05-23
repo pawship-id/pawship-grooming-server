@@ -87,8 +87,8 @@ export class ReportsController {
   }
 
   @Get('customer/vip-top-customers')
-  async getVipCustomerReport() {
-    const result = await this.reportsService.getVipCustomerReport();
+  async getVipCustomerReport(@Query() dto: CustomerReportDto) {
+    const result = await this.reportsService.getVipCustomerReport(dto);
     return { message: 'VIP customer report fetched successfully', ...result };
   }
 

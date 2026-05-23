@@ -1,4 +1,5 @@
-import { IsOptional, IsMongoId, IsIn } from 'class-validator';
+import { IsOptional, IsMongoId, IsIn, IsInt, Min, Max, IsString, IsDateString } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class GetPetMembershipQueryDto {
   @IsOptional()
@@ -12,4 +13,29 @@ export class GetPetMembershipQueryDto {
   @IsOptional()
   @IsIn(['active', 'pending', 'expired', 'cancelled'])
   status?: 'active' | 'pending' | 'expired' | 'cancelled';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limit?: number;
+
+  @IsOptional()
+  @IsString()
+  q?: string;
+
+  @IsOptional()
+  @IsDateString()
+  date_from?: string;
+
+  @IsOptional()
+  @IsDateString()
+  date_to?: string;
 }

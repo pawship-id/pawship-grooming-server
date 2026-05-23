@@ -35,10 +35,10 @@ export class PetMembershipController {
 
   @Get()
   async findAll(@Query() query: GetPetMembershipQueryDto) {
-    const petMemberships = await this.petMembershipService.findAll(query);
+    const result = await this.petMembershipService.findAll(query);
     return {
       message: 'pet memberships retrieved successfully',
-      data: petMemberships,
+      ...result,
     };
   }
 
