@@ -44,5 +44,13 @@ export class ListBookingsDto {
 
   @IsOptional()
   @IsString()
+  service_type?: string;
+
+  @IsOptional()
+  @IsString()
+  groomer_id?: string;
+
+  @IsOptional()
+  @IsString()
   search?: string;
 }

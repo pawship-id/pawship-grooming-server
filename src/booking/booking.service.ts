@@ -2302,6 +2302,8 @@ export class BookingService {
       customer_id,
       store_id,
       service_id,
+      service_type,
+      groomer_id,
       search,
     } = query;
 
@@ -2339,6 +2341,22 @@ export class BookingService {
 
     if (service_id) {
       filter.service_id = service_id;
+    }
+
+    if (service_type) {
+      filter['service_snapshot.service_type._id'] =
+        Types.ObjectId.isValid(service_type)
+          ? new Types.ObjectId(service_type)
+          : service_type;
+    }
+
+    // Match bookings that have at least one session assigned to this groomer.
+    // Mongoose doesn't reliably auto-cast values on subdocument array paths,
+    // so cast the string id to ObjectId here when valid.
+    if (groomer_id) {
+      filter['sessions.groomer_id'] = Types.ObjectId.isValid(groomer_id)
+        ? new Types.ObjectId(groomer_id)
+        : groomer_id;
     }
 
     // --- SEARCH PATH ---
