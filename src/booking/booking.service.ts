@@ -2300,6 +2300,7 @@ export class BookingService {
       date_to,
       created_by_role,
       customer_id,
+      pet_id,
       store_id,
       service_id,
       service_type,
@@ -2333,6 +2334,10 @@ export class BookingService {
 
     if (customer_id) {
       filter.customer_id = customer_id;
+    }
+
+    if (pet_id) {
+      filter.pet_id = pet_id;
     }
 
     if (store_id) {

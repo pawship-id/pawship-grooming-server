@@ -36,6 +36,10 @@ export class ListBookingsDto {
 
   @IsOptional()
   @IsString()
+  pet_id?: string;
+
+  @IsOptional()
+  @IsString()
   store_id?: string;
 
   @IsOptional()
