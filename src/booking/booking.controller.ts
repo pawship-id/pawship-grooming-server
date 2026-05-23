@@ -7,6 +7,7 @@ import {
   Delete,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
   Put,
   Patch,
   UseGuards,
@@ -346,15 +347,28 @@ export class BookingController {
     };
   }
 
-  // get booking by id (admin)
+  // get booking by id (admin / owner customer / assigned groomer)
   @Get(':id')
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id') id: string, @Req() request: any) {
     if (!id) throw new BadRequestException('id is required');
+    if (!ObjectId.isValid(id))
+      throw new BadRequestException('Invalid booking id');
 
     const _id = new ObjectId(id);
     const booking = await this.bookingService.findOne(_id);
     if (!booking || booking.isDeleted)
       throw new NotFoundException('data not found');
+
+    const role = request.user?.role;
+    if (role === 'customer') {
+      const ownerId = booking.customer_id?.toString();
+      const requesterId = request.user?._id?.toString();
+      if (!ownerId || !requesterId || ownerId !== requesterId) {
+        throw new ForbiddenException(
+          'Booking ini bukan milik Anda, silahkan hubungi admin untuk konfirmasi',
+        );
+      }
+    }
 
     return {
       message: 'Fetch booking successfully',

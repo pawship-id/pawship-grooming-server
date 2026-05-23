@@ -21,6 +21,8 @@ import {
   BenefitPeriod,
 } from '../membership/entities/membership.entity';
 import { Service, ServiceDocument } from '../service/entities/service.entity';
+import { Pet, PetDocument } from '../pet/entities/pet.entity';
+import { User, UserDocument } from '../user/entities/user.entity';
 import { CreatePetMembershipDto } from './dto/create-pet-membership.dto';
 import { UpdatePetMembershipDto } from './dto/update-pet-membership.dto';
 import { GetPetMembershipQueryDto } from './dto/get-pet-membership-query.dto';
@@ -63,6 +65,10 @@ export class PetMembershipService implements OnModuleInit {
     private membershipModel: Model<MembershipDocument>,
     @InjectModel(Service.name)
     private serviceModel: Model<ServiceDocument>,
+    @InjectModel(Pet.name)
+    private petModel: Model<PetDocument>,
+    @InjectModel(User.name)
+    private userModel: Model<UserDocument>,
     private readonly benefitUsageService: BenefitUsageService,
     private readonly counterService: CounterService,
   ) {}
@@ -226,64 +232,197 @@ export class PetMembershipService implements OnModuleInit {
     }));
   }
 
-  async findAll(query: GetPetMembershipQueryDto): Promise<any[]> {
+  async findAll(query: GetPetMembershipQueryDto): Promise<{
+    data: any[];
+    pagination?: {
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    };
+    statusCounts?: {
+      active: number;
+      pending: number;
+      expired: number;
+      cancelled: number;
+    };
+  }> {
     const now = new Date();
     const todayStart = this.startOfDayUtc(now);
-    const conditions: any = { isDeleted: false };
 
-    if (query.status === 'cancelled') {
-      conditions.is_active = false;
-    } else if (query.status === 'active') {
-      conditions.is_active = true;
-      conditions.start_date = { $lte: now };
-      conditions.end_date = { $gte: todayStart };
-    } else if (query.status === 'pending') {
-      conditions.is_active = true;
-      conditions.start_date = { $gt: now };
-    } else if (query.status === 'expired') {
-      conditions.is_active = true;
-      conditions.end_date = { $lt: todayStart };
-    } else {
-      // default: only non-cancelled records (backward compat for other callers)
-      conditions.is_active = true;
-    }
+    // Build base conditions (without status filter — needed for statusCounts).
+    const baseConditions: any = { isDeleted: false };
 
     if (query.pet_id) {
-      conditions.pet_id = new Types.ObjectId(query.pet_id);
+      baseConditions.pet_id = new Types.ObjectId(query.pet_id);
     }
 
     if (query.membership_plan_id) {
-      conditions.membership_plan_id = new Types.ObjectId(
+      baseConditions.membership_plan_id = new Types.ObjectId(
         query.membership_plan_id,
       );
     }
 
-    const petMemberships = await this.petMembershipModel
-      .find(conditions)
-      .populate({
-        path: 'pet',
-        select: 'name tags pet_type_id customer_id',
-        populate: [
-          {
-            path: 'pet_type',
-            select: 'name',
-          },
-          {
-            path: 'owner',
-            select: 'username',
-          },
-        ],
-      })
-      .populate('membership', 'name description duration_months price')
-      .exec();
+    // Date range filter on end_date.
+    if (query.date_from || query.date_to) {
+      baseConditions.end_date = {};
+      if (query.date_from) {
+        baseConditions.end_date.$gte = this.startOfDayUtc(
+          new Date(query.date_from),
+        );
+      }
+      if (query.date_to) {
+        const to = new Date(query.date_to);
+        to.setUTCHours(23, 59, 59, 999);
+        baseConditions.end_date.$lte = to;
+      }
+    }
 
-    // Populate services in benefits_snapshot
-    const result = await this.populateBenefitsWithServices(petMemberships);
-    const docs = Array.isArray(result) ? result : [result];
-    return docs.map((pm: any) => ({
+    // Resolve search keyword to pet_ids and membership_plan_ids (when q provided).
+    let searchEmpty = false;
+    if (query.q && query.q.trim().length > 0) {
+      const q = query.q.trim();
+      const regex = new RegExp(this.escapeRegex(q), 'i');
+
+      const [matchingUsers, matchingPlans] = await Promise.all([
+        this.userModel.find({ username: regex }).select('_id').lean(),
+        this.membershipModel.find({ name: regex }).select('_id').lean(),
+      ]);
+
+      const ownerIds = matchingUsers.map((u: any) => u._id);
+      const planIds = matchingPlans.map((p: any) => p._id);
+
+      const matchingPets = await this.petModel
+        .find({
+          $or: [
+            { name: regex },
+            ...(ownerIds.length ? [{ customer_id: { $in: ownerIds } }] : []),
+          ],
+        })
+        .select('_id')
+        .lean();
+      const petIds = matchingPets.map((p: any) => p._id);
+
+      const orClauses: any[] = [];
+      if (petIds.length) orClauses.push({ pet_id: { $in: petIds } });
+      if (planIds.length)
+        orClauses.push({ membership_plan_id: { $in: planIds } });
+
+      if (orClauses.length === 0) {
+        // No match for search keyword — return empty quickly.
+        searchEmpty = true;
+      } else {
+        baseConditions.$or = orClauses;
+      }
+    }
+
+    // Build status-specific conditions.
+    const applyStatus = (
+      cond: any,
+      status: 'active' | 'pending' | 'expired' | 'cancelled' | undefined,
+    ): any => {
+      const c: any = { ...cond };
+      if (status === 'cancelled') {
+        c.is_active = false;
+      } else if (status === 'active') {
+        c.is_active = true;
+        c.start_date = { $lte: now };
+        // Merge end_date constraints carefully if date filter sudah ada.
+        c.end_date = { ...(c.end_date || {}), $gte: todayStart };
+      } else if (status === 'pending') {
+        c.is_active = true;
+        c.start_date = { $gt: now };
+      } else if (status === 'expired') {
+        c.is_active = true;
+        c.end_date = { ...(c.end_date || {}), $lt: todayStart };
+      } else {
+        // No status filter: include both active=true and active=false.
+        // (Backward compat: when no `status` is provided, default to active-only
+        // for callers like the per-pet flow that don't expect cancelled records.)
+        c.is_active = true;
+      }
+      return c;
+    };
+
+    const conditions = applyStatus(baseConditions, query.status);
+
+    // Compute statusCounts in parallel (across baseConditions, ignoring status).
+    const buildCountCond = (
+      status: 'active' | 'pending' | 'expired' | 'cancelled',
+    ) => applyStatus(baseConditions, status);
+
+    // Early-exit path: search returned no matching ids.
+    if (searchEmpty) {
+      const page = query.page ?? 1;
+      const limit = query.limit ?? (query.page ? 20 : 100);
+      return {
+        data: [],
+        pagination: { total: 0, page, limit, totalPages: 0 },
+        statusCounts: { active: 0, pending: 0, expired: 0, cancelled: 0 },
+      };
+    }
+
+    // Pagination params. When neither `page` nor `limit` is supplied (e.g. the
+    // per-pet caller), default to limit=100 — small enough to be fast, large
+    // enough for typical per-pet history.
+    const page = query.page ?? 1;
+    const limit = query.limit ?? (query.page ? 20 : 100);
+    const skip = (page - 1) * limit;
+
+    const [total, activeCount, pendingCount, expiredCount, cancelledCount, docs] =
+      await Promise.all([
+        this.petMembershipModel.countDocuments(conditions),
+        this.petMembershipModel.countDocuments(buildCountCond('active')),
+        this.petMembershipModel.countDocuments(buildCountCond('pending')),
+        this.petMembershipModel.countDocuments(buildCountCond('expired')),
+        this.petMembershipModel.countDocuments(buildCountCond('cancelled')),
+        this.petMembershipModel
+          .find(conditions)
+          .sort({ end_date: 1 })
+          .skip(skip)
+          .limit(limit)
+          .populate({
+            path: 'pet',
+            select: 'name tags pet_type_id customer_id',
+            populate: [
+              { path: 'pet_type', select: 'name' },
+              { path: 'owner', select: 'username' },
+            ],
+          })
+          .populate('membership', 'name description duration_months price')
+          .lean()
+          .exec(),
+      ]);
+
+    // Populate services in benefits_snapshot. populateBenefitsWithServices
+    // already handles both Mongoose docs and lean objects.
+    const result = await this.populateBenefitsWithServices(docs as any);
+    const populated = Array.isArray(result) ? result : [result];
+
+    const data = populated.map((pm: any) => ({
       ...pm,
       status: this.computeStatus(pm.is_active, pm.start_date, pm.end_date),
     }));
+
+    return {
+      data,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+      statusCounts: {
+        active: activeCount,
+        pending: pendingCount,
+        expired: expiredCount,
+        cancelled: cancelledCount,
+      },
+    };
+  }
+
+  private escapeRegex(s: string): string {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   async findById(id: string): Promise<any> {

@@ -13,6 +13,8 @@ import {
   Membership,
   MembershipSchema,
 } from '../membership/entities/membership.entity';
+import { Pet, PetSchema } from '../pet/entities/pet.entity';
+import { User, UserSchema } from '../user/entities/user.entity';
 import { AuthModule } from 'src/auth/auth.module';
 import { PetMembershipController } from './pet-membership.controller';
 import { Service, ServiceSchema } from 'src/service/entities/service.entity';
@@ -26,6 +28,8 @@ import { CounterModule } from 'src/counter/counter.module';
       { name: MembershipLog.name, schema: MembershipLogSchema },
       { name: Membership.name, schema: MembershipSchema },
       { name: Service.name, schema: ServiceSchema },
+      { name: Pet.name, schema: PetSchema },
+      { name: User.name, schema: UserSchema },
     ]),
     AuthModule,
     BenefitUsageModule,
