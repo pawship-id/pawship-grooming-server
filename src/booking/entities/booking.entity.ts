@@ -491,6 +491,12 @@ export class Booking {
   @Prop({ required: true })
   date: Date;
 
+  // End date for multi-day bookings (hotel/boarding). For single-day services,
+  // this mirrors `date`. Left optional so legacy documents without the field
+  // continue to load — callers should fall back to `date` when missing.
+  @Prop({ type: Date, default: null })
+  end_date?: Date | null;
+
   @Prop({ required: true })
   time_range: string;
 

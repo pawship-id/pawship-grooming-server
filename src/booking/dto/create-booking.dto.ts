@@ -162,6 +162,9 @@ export class CreateBookingDto {
   @IsNotEmpty({ message: 'date booking is required' })
   date: Date;
 
+  @IsOptional()
+  end_date?: Date;
+
   @IsString()
   time_range: string;
 
