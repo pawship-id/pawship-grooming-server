@@ -3009,7 +3009,7 @@ export class BookingService {
     id: ObjectId,
     status: BookingStatus,
     note?: string,
-    rescheduleData?: { date?: Date; time_range?: string },
+    rescheduleData?: { date?: Date; end_date?: Date; time_range?: string },
     user?: { username: string; role: string },
     cancellation_reason?: string,
   ) {
@@ -3032,6 +3032,28 @@ export class BookingService {
         if (!rescheduleData?.date || !rescheduleData?.time_range) {
           throw new NotFoundException(
             'date and time_range are required for rescheduled status',
+          );
+        }
+      }
+
+      // Hotel-specific reschedule validation. Detect via the service_type snapshot
+      // (already populated at create time) so we don't need to re-fetch the service.
+      const snapshotTypeTitle = (existingBooking.service_snapshot as any)
+        ?.service_type?.title as string | undefined;
+      const isHotelBooking = isHotelServiceType(snapshotTypeTitle);
+      if (status === BookingStatus.RESCHEDULED && isHotelBooking) {
+        if (!rescheduleData?.end_date) {
+          throw new BadRequestException(
+            'end_date wajib diisi saat reschedule booking hotel',
+          );
+        }
+        const sOnly = new Date(rescheduleData.date!);
+        sOnly.setUTCHours(0, 0, 0, 0);
+        const eOnly = new Date(rescheduleData.end_date);
+        eOnly.setUTCHours(0, 0, 0, 0);
+        if (eOnly.getTime() < sOnly.getTime()) {
+          throw new BadRequestException(
+            'end_date tidak boleh sebelum tanggal mulai',
           );
         }
       }
@@ -3169,6 +3191,11 @@ export class BookingService {
         statusLog.previous_time_range = existingBooking.time_range;
         statusLog.new_date = rescheduleData.date;
         statusLog.new_time_range = rescheduleData.time_range;
+        if (isHotelBooking) {
+          (statusLog as any).previous_end_date =
+            (existingBooking as any).end_date ?? existingBooking.date;
+          (statusLog as any).new_end_date = rescheduleData.end_date;
+        }
       }
 
       const updateData: any = {
@@ -3182,10 +3209,58 @@ export class BookingService {
         updateData.completed_at = null;
       }
 
-      // jika RESCHEDULED, tambahkan date dan time_range ke update
+      // jika RESCHEDULED, tambahkan date, time_range, end_date ke update.
+      // Hotel: end_date diset ke nilai baru dan harga di-recompute berdasarkan
+      // jumlah malam baru. Non-hotel: end_date selalu mirror dari date.
       if (status === BookingStatus.RESCHEDULED && rescheduleData) {
         updateData.date = rescheduleData.date;
         updateData.time_range = rescheduleData.time_range;
+
+        if (isHotelBooking) {
+          updateData.end_date = rescheduleData.end_date;
+
+          // Recompute hotel pricing: service.price (per-night, possibly
+          // admin-edited) × new nights. Addon and travel fee stay as-is;
+          // total_discount is preserved so prior benefit/promo amounts carry
+          // over after the reschedule.
+          const nights = computeHotelNights(
+            rescheduleData.date!,
+            rescheduleData.end_date!,
+          );
+          const unitPrice =
+            (existingBooking as any).edited_service_price ??
+            existingBooking.service_snapshot?.price ??
+            0;
+          const serviceBase = unitPrice * nights;
+          const addonBase = (
+            (existingBooking as any).edited_addon_prices ?? []
+          ).reduce((sum: number, a: any) => sum + (a.price ?? 0), 0);
+          // Fall back to snapshot addons when no admin overrides exist
+          const fallbackAddonBase =
+            (existingBooking as any).edited_addon_prices?.length > 0
+              ? 0
+              : (existingBooking.service_snapshot?.addons ?? []).reduce(
+                  (sum: number, a: any) => sum + (a.price ?? 0),
+                  0,
+                );
+          const subTotalService = serviceBase + addonBase + fallbackAddonBase;
+          const travelFee =
+            (existingBooking as any).edited_travel_fee ??
+            existingBooking.travel_fee ??
+            0;
+          const newOriginalTotal = subTotalService + travelFee;
+          const totalDiscount = existingBooking.total_discount ?? 0;
+          updateData.sub_total_service = subTotalService;
+          updateData.original_total_price = newOriginalTotal;
+          updateData.final_total_price = Math.max(
+            0,
+            newOriginalTotal - totalDiscount,
+          );
+        } else {
+          // Non-hotel: keep end_date in lock-step with start_date so the field
+          // is always present and predictable for downstream consumers.
+          updateData.end_date = rescheduleData.date;
+        }
       }
 
       // jika CANCELLED, simpan cancellation_reason

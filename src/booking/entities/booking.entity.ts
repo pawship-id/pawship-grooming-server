@@ -421,11 +421,18 @@ export class BookingStatusLog {
   @Prop()
   previous_time_range?: string;
 
+  // Hotel reschedule snapshot — only set when rescheduling a hotel booking
+  @Prop()
+  previous_end_date?: Date;
+
   @Prop()
   new_date?: Date;
 
   @Prop()
   new_time_range?: string;
+
+  @Prop()
+  new_end_date?: Date;
 }
 
 @Schema({
