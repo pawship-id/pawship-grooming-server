@@ -127,11 +127,17 @@ export class BookingStatusLogDto {
   previous_time_range?: string;
 
   @IsOptional()
+  previous_end_date?: Date;
+
+  @IsOptional()
   new_date?: Date;
 
   @IsOptional()
   @IsString()
   new_time_range?: string;
+
+  @IsOptional()
+  new_end_date?: Date;
 }
 
 export class CreateBookingDto {
@@ -161,6 +167,9 @@ export class CreateBookingDto {
 
   @IsNotEmpty({ message: 'date booking is required' })
   date: Date;
+
+  @IsOptional()
+  end_date?: Date;
 
   @IsString()
   time_range: string;

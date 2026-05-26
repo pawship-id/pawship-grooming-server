@@ -483,10 +483,11 @@ export class BookingController {
     if (!booking || booking.isDeleted)
       throw new NotFoundException('data not found');
 
-    const { status, date, time_range, note, cancellation_reason } = body;
+    const { status, date, end_date, time_range, note, cancellation_reason } =
+      body;
 
     const rescheduleData =
-      date && time_range ? { date, time_range } : undefined;
+      date && time_range ? { date, end_date, time_range } : undefined;
 
     await this.bookingService.updateStatus(
       _id,

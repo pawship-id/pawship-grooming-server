@@ -37,6 +37,9 @@ export class BookingPreviewRequestDto {
   date: Date;
 
   @IsOptional()
+  end_date?: Date;
+
+  @IsOptional()
   time_range?: string;
 
   @IsOptional()

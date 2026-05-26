@@ -68,6 +68,24 @@ function toYMD(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+// Hotel detection — service type title (case-insensitive, trimmed) equals "hotel".
+// Used to gate end_date requirement and per-night pricing.
+export function isHotelServiceType(title?: string | null): boolean {
+  return (title ?? '').trim().toLowerCase() === 'hotel';
+}
+
+// Number of nights between two dates (calendar-day diff, min 1).
+// Both dates are normalized to UTC midnight to ignore time-of-day drift.
+export function computeHotelNights(start: Date, end: Date): number {
+  const s = new Date(start);
+  const e = new Date(end);
+  s.setUTCHours(0, 0, 0, 0);
+  e.setUTCHours(0, 0, 0, 0);
+  const ms = e.getTime() - s.getTime();
+  const nights = Math.round(ms / (1000 * 60 * 60 * 24));
+  return Math.max(1, nights);
+}
+
 @Injectable()
 export class BookingService {
   private readonly logger = new Logger(BookingService.name);
@@ -126,7 +144,42 @@ export class BookingService {
         throw new NotFoundException('Service not found');
       }
 
-      let originalPrice = service.price || 0;
+      // Hotel pricing: when the service type is "hotel", the service price is
+      // per-night. Multiply by the night count derived from start/end dates.
+      const serviceTypeTitle = (service as any).service_type?.title as
+        | string
+        | undefined;
+      const isHotel = isHotelServiceType(serviceTypeTitle);
+      const startDate = dto.date ? new Date(dto.date) : new Date();
+      let effectiveEndDate = dto.end_date ? new Date(dto.end_date) : startDate;
+      if (isHotel) {
+        if (!dto.end_date) {
+          throw new BadRequestException(
+            'end_date is required for hotel service',
+          );
+        }
+        effectiveEndDate = new Date(dto.end_date);
+        const startOnly = new Date(startDate);
+        startOnly.setUTCHours(0, 0, 0, 0);
+        const endOnly = new Date(effectiveEndDate);
+        endOnly.setUTCHours(0, 0, 0, 0);
+        if (endOnly.getTime() < startOnly.getTime()) {
+          throw new BadRequestException(
+            'end_date must be greater than or equal to start_date',
+          );
+        }
+      } else {
+        // Non-hotel services always check-in/out the same day.
+        effectiveEndDate = new Date(startDate);
+      }
+      const hotelNights = isHotel
+        ? computeHotelNights(startDate, effectiveEndDate)
+        : 1;
+
+      const basePricePerUnit = service.price || 0;
+      let originalPrice = isHotel
+        ? basePricePerUnit * hotelNights
+        : basePricePerUnit;
       const addonPrices: any[] = [];
       let addonsTotal = 0;
 
@@ -448,8 +501,14 @@ export class BookingService {
         service_id: dto.service_id,
         service_name: service.name,
         service_type: isInHome ? 'in home' : isInStore ? 'in store' : 'unknown',
+        is_hotel: isHotel,
+        hotel_nights: hotelNights,
+        start_date: startDate,
+        end_date: effectiveEndDate,
         pricing: {
           original_service_price: originalPrice,
+          base_service_price: basePricePerUnit,
+          hotel_nights: hotelNights,
           addon_prices: addonPrices,
           subtotal_before_benefits: subtotalBeforeBenefits,
           pickup_fee: pickupFee,
@@ -465,6 +524,8 @@ export class BookingService {
           service: {
             name: service.name,
             price: originalPrice,
+            base_price: basePricePerUnit,
+            nights: hotelNights,
           },
           addons: addonPrices,
           subtotal: subtotalBeforeBenefits,
@@ -1706,8 +1767,46 @@ export class BookingService {
       const serviceDuration =
         (Number(service.duration) || 0) + addonsTotalDuration;
 
-      // 8. calculate service and addons price
-      body.sub_total_service = service.price + addonsTotal;
+      // 7b. Hotel: validate end_date and compute number of nights for pricing.
+      // For non-hotel services we always set end_date = date so all downstream
+      // consumers can rely on the field being present.
+      const createServiceTypeTitle = (service as any).service_type?.title as
+        | string
+        | undefined;
+      const isHotelCreate = isHotelServiceType(createServiceTypeTitle);
+      const startDateCreate = new Date(body.date);
+      let endDateCreate = body.end_date
+        ? new Date(body.end_date)
+        : startDateCreate;
+      if (isHotelCreate) {
+        if (!body.end_date) {
+          throw new BadRequestException(
+            'end_date wajib diisi untuk service hotel',
+          );
+        }
+        const sOnly = new Date(startDateCreate);
+        sOnly.setUTCHours(0, 0, 0, 0);
+        const eOnly = new Date(endDateCreate);
+        eOnly.setUTCHours(0, 0, 0, 0);
+        if (eOnly.getTime() < sOnly.getTime()) {
+          throw new BadRequestException(
+            'end_date tidak boleh sebelum tanggal mulai',
+          );
+        }
+      } else {
+        endDateCreate = new Date(startDateCreate);
+      }
+      const nightsCreate = isHotelCreate
+        ? computeHotelNights(startDateCreate, endDateCreate)
+        : 1;
+      (body as any).end_date = endDateCreate;
+
+      // 8. calculate service and addons price.
+      // Hotel: service.price is per-night, multiply by nights.
+      const serviceBaseTotal = isHotelCreate
+        ? service.price * nightsCreate
+        : service.price;
+      body.sub_total_service = serviceBaseTotal + addonsTotal;
       const originalTotalPrice =
         (body.sub_total_service || 0) +
         (typeof travelFee === 'number' ? travelFee : 0);
@@ -1774,7 +1873,7 @@ export class BookingService {
             delivery: body.delivery === true,
             hasActiveMembership:
               appliedBenefitsData.applied_benefits.length > 0,
-            originalServicePrice: service.price,
+            originalServicePrice: serviceBaseTotal,
             addonPrices: promoAddonPrices,
             travelFee: travelFee,
             grandTotal: originalTotalPrice,
@@ -2609,7 +2708,42 @@ export class BookingService {
       const newServiceDuration =
         (Number(service.duration) || 0) + addonsTotalDuration;
 
-      body.sub_total_service = service.price + addonsTotal;
+      // Hotel: validate end_date & compute nights. Non-hotel: end_date = date.
+      const updateServiceTypeTitle = (service as any).service_type?.title as
+        | string
+        | undefined;
+      const isHotelUpdate = isHotelServiceType(updateServiceTypeTitle);
+      const startDateUpdate = new Date(body.date ?? existingBooking.date);
+      let endDateUpdate: Date;
+      if (isHotelUpdate) {
+        const providedEnd = body.end_date ?? (existingBooking as any).end_date;
+        if (!providedEnd) {
+          throw new BadRequestException(
+            'end_date wajib diisi untuk service hotel',
+          );
+        }
+        endDateUpdate = new Date(providedEnd);
+        const sOnly = new Date(startDateUpdate);
+        sOnly.setUTCHours(0, 0, 0, 0);
+        const eOnly = new Date(endDateUpdate);
+        eOnly.setUTCHours(0, 0, 0, 0);
+        if (eOnly.getTime() < sOnly.getTime()) {
+          throw new BadRequestException(
+            'end_date tidak boleh sebelum tanggal mulai',
+          );
+        }
+      } else {
+        endDateUpdate = new Date(startDateUpdate);
+      }
+      const nightsUpdate = isHotelUpdate
+        ? computeHotelNights(startDateUpdate, endDateUpdate)
+        : 1;
+      (body as any).end_date = endDateUpdate;
+
+      const serviceBaseTotalUpdate = isHotelUpdate
+        ? service.price * nightsUpdate
+        : service.price;
+      body.sub_total_service = serviceBaseTotalUpdate + addonsTotal;
       // travelFee always from matched zone (or 0 if not pick up)
       let travelFee = 0;
       if (
@@ -2875,7 +3009,7 @@ export class BookingService {
     id: ObjectId,
     status: BookingStatus,
     note?: string,
-    rescheduleData?: { date?: Date; time_range?: string },
+    rescheduleData?: { date?: Date; end_date?: Date; time_range?: string },
     user?: { username: string; role: string },
     cancellation_reason?: string,
   ) {
@@ -2898,6 +3032,28 @@ export class BookingService {
         if (!rescheduleData?.date || !rescheduleData?.time_range) {
           throw new NotFoundException(
             'date and time_range are required for rescheduled status',
+          );
+        }
+      }
+
+      // Hotel-specific reschedule validation. Detect via the service_type snapshot
+      // (already populated at create time) so we don't need to re-fetch the service.
+      const snapshotTypeTitle = (existingBooking.service_snapshot as any)
+        ?.service_type?.title as string | undefined;
+      const isHotelBooking = isHotelServiceType(snapshotTypeTitle);
+      if (status === BookingStatus.RESCHEDULED && isHotelBooking) {
+        if (!rescheduleData?.end_date) {
+          throw new BadRequestException(
+            'end_date wajib diisi saat reschedule booking hotel',
+          );
+        }
+        const sOnly = new Date(rescheduleData.date!);
+        sOnly.setUTCHours(0, 0, 0, 0);
+        const eOnly = new Date(rescheduleData.end_date);
+        eOnly.setUTCHours(0, 0, 0, 0);
+        if (eOnly.getTime() < sOnly.getTime()) {
+          throw new BadRequestException(
+            'end_date tidak boleh sebelum tanggal mulai',
           );
         }
       }
@@ -3035,6 +3191,11 @@ export class BookingService {
         statusLog.previous_time_range = existingBooking.time_range;
         statusLog.new_date = rescheduleData.date;
         statusLog.new_time_range = rescheduleData.time_range;
+        if (isHotelBooking) {
+          (statusLog as any).previous_end_date =
+            (existingBooking as any).end_date ?? existingBooking.date;
+          (statusLog as any).new_end_date = rescheduleData.end_date;
+        }
       }
 
       const updateData: any = {
@@ -3048,10 +3209,58 @@ export class BookingService {
         updateData.completed_at = null;
       }
 
-      // jika RESCHEDULED, tambahkan date dan time_range ke update
+      // jika RESCHEDULED, tambahkan date, time_range, end_date ke update.
+      // Hotel: end_date diset ke nilai baru dan harga di-recompute berdasarkan
+      // jumlah malam baru. Non-hotel: end_date selalu mirror dari date.
       if (status === BookingStatus.RESCHEDULED && rescheduleData) {
         updateData.date = rescheduleData.date;
         updateData.time_range = rescheduleData.time_range;
+
+        if (isHotelBooking) {
+          updateData.end_date = rescheduleData.end_date;
+
+          // Recompute hotel pricing: service.price (per-night, possibly
+          // admin-edited) × new nights. Addon and travel fee stay as-is;
+          // total_discount is preserved so prior benefit/promo amounts carry
+          // over after the reschedule.
+          const nights = computeHotelNights(
+            rescheduleData.date!,
+            rescheduleData.end_date!,
+          );
+          const unitPrice =
+            (existingBooking as any).edited_service_price ??
+            existingBooking.service_snapshot?.price ??
+            0;
+          const serviceBase = unitPrice * nights;
+          const addonBase = (
+            (existingBooking as any).edited_addon_prices ?? []
+          ).reduce((sum: number, a: any) => sum + (a.price ?? 0), 0);
+          // Fall back to snapshot addons when no admin overrides exist
+          const fallbackAddonBase =
+            (existingBooking as any).edited_addon_prices?.length > 0
+              ? 0
+              : (existingBooking.service_snapshot?.addons ?? []).reduce(
+                  (sum: number, a: any) => sum + (a.price ?? 0),
+                  0,
+                );
+          const subTotalService = serviceBase + addonBase + fallbackAddonBase;
+          const travelFee =
+            (existingBooking as any).edited_travel_fee ??
+            existingBooking.travel_fee ??
+            0;
+          const newOriginalTotal = subTotalService + travelFee;
+          const totalDiscount = existingBooking.total_discount ?? 0;
+          updateData.sub_total_service = subTotalService;
+          updateData.original_total_price = newOriginalTotal;
+          updateData.final_total_price = Math.max(
+            0,
+            newOriginalTotal - totalDiscount,
+          );
+        } else {
+          // Non-hotel: keep end_date in lock-step with start_date so the field
+          // is always present and predictable for downstream consumers.
+          updateData.end_date = rescheduleData.date;
+        }
       }
 
       // jika CANCELLED, simpan cancellation_reason
@@ -3331,7 +3540,20 @@ export class BookingService {
       existing.delivery = dto.delivery;
     }
 
-    const svcBase = dto.service_price ?? existing.service_snapshot.price ?? 0;
+    // Hotel pricing: service base is per-night. Detect via the service_type
+    // title snapshot; fall back to the live service when absent (older bookings
+    // before the snapshot included the title).
+    const snapshotServiceTypeTitle = (existing.service_snapshot as any)
+      ?.service_type?.title as string | undefined;
+    const isHotelPricing = isHotelServiceType(snapshotServiceTypeTitle);
+    const pricingStart = existing.date;
+    const pricingEnd =
+      (existing as any).end_date ?? existing.date;
+    const pricingNights = isHotelPricing
+      ? computeHotelNights(pricingStart, pricingEnd)
+      : 1;
+    const svcUnit = dto.service_price ?? existing.service_snapshot.price ?? 0;
+    const svcBase = isHotelPricing ? svcUnit * pricingNights : svcUnit;
     const svcDisc = dto.service_discount ?? 0;
     const svcEffective = Math.max(0, svcBase - svcDisc);
 

@@ -8,6 +8,11 @@ export class UpdateBookingStatusDto {
   @IsOptional()
   date?: Date;
 
+  // Hotel reschedule: new check-out date. Required when rescheduling a hotel
+  // booking; ignored for non-hotel services.
+  @IsOptional()
+  end_date?: Date;
+
   @IsOptional()
   time_range?: string;
 
