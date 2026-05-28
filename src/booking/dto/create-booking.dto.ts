@@ -13,6 +13,7 @@ import {
 } from 'class-validator';
 import { BookingStatus, GroomingType } from './booking.dto';
 import { CreateSessionDto } from './create-grooming-session.dto';
+import { ParentItemDto } from './parent-item.dto';
 
 export class PetSnapshotDto {
   @IsOptional()
@@ -228,6 +229,12 @@ export class CreateBookingDto {
   @IsOptional()
   @IsString()
   brought_items_note?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ParentItemDto)
+  parent_items?: ParentItemDto[];
 
   @IsOptional()
   @IsString()

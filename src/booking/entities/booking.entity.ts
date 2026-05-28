@@ -597,6 +597,19 @@ export class Booking {
   @Prop({ type: String, default: null })
   brought_items_note?: string | null;
 
+  @Prop({
+    type: [
+      {
+        item: { type: String, default: '' },
+        item_in: { type: Boolean, default: false },
+        item_out: { type: Boolean, default: false },
+      },
+    ],
+    default: [],
+    _id: false,
+  })
+  parent_items: { item: string; item_in: boolean; item_out: boolean }[];
+
   @Prop()
   payment_method?: string;
 

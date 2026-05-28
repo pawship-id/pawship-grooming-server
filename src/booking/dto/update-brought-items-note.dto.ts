@@ -1,7 +1,11 @@
-import { IsString, IsOptional } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsArray, IsOptional, ValidateNested } from 'class-validator';
+import { ParentItemDto } from './parent-item.dto';
 
 export class UpdateBroughtItemsNoteDto {
   @IsOptional()
-  @IsString()
-  brought_items_note?: string;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ParentItemDto)
+  parent_items?: ParentItemDto[];
 }

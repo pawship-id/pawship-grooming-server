@@ -459,10 +459,7 @@ export class BookingController {
     if (!booking || booking.isDeleted)
       throw new NotFoundException('Booking not found');
 
-    await this.bookingService.updateBroughtItemsNote(
-      _id,
-      body.brought_items_note,
-    );
+    await this.bookingService.updateParentItems(_id, body.parent_items);
 
     return {
       message: 'Brought items note updated successfully',
