@@ -1557,6 +1557,14 @@ export class BookingService {
     const seq = await this.counterService.getNextSequence('booking');
     (body as any).code = `ODR-${String(seq).padStart(4, '0')}`;
 
+    if (Array.isArray(body.parent_items)) {
+      body.parent_items = body.parent_items.map((it) => ({
+        item: it?.item ?? '',
+        item_in: it?.item_in ?? false,
+        item_out: it?.item_out ?? false,
+      }));
+    }
+
     const session = await this.connection.startSession();
     session.startTransaction();
 
@@ -2993,11 +3001,20 @@ export class BookingService {
     return booking;
   }
 
-  async updateBroughtItemsNote(id: ObjectId, brought_items_note?: string) {
+  async updateParentItems(
+    id: ObjectId,
+    parent_items?: { item?: string; item_in?: boolean; item_out?: boolean }[],
+  ) {
+    const normalized = (parent_items ?? []).map((it) => ({
+      item: it?.item ?? '',
+      item_in: it?.item_in ?? false,
+      item_out: it?.item_out ?? false,
+    }));
+
     const booking = await this.bookingModel.findByIdAndUpdate(
       id,
       {
-        $set: { brought_items_note: brought_items_note ?? '' },
+        $set: { parent_items: normalized },
       },
       { new: true },
     );
