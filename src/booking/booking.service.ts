@@ -60,31 +60,20 @@ const OPEN_JOBS_STATUS_PRIORITY: Record<string, number> = {
   [BookingStatus.CONFIRMED]: 3,
 };
 
-// YYYY-MM-DD in the server's local timezone.
-function toYMD(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+import {
+  computeHotelNights,
+  isGroomingServiceType,
+  isHotelServiceType,
+  toYMD,
+} from './booking.helpers';
 
-// Hotel detection — service type title (case-insensitive, trimmed) equals "hotel".
-// Used to gate end_date requirement and per-night pricing.
-export function isHotelServiceType(title?: string | null): boolean {
-  return (title ?? '').trim().toLowerCase() === 'hotel';
-}
-
-// Number of nights between two dates (calendar-day diff, min 1).
-// Both dates are normalized to UTC midnight to ignore time-of-day drift.
-export function computeHotelNights(start: Date, end: Date): number {
-  const s = new Date(start);
-  const e = new Date(end);
-  s.setUTCHours(0, 0, 0, 0);
-  e.setUTCHours(0, 0, 0, 0);
-  const ms = e.getTime() - s.getTime();
-  const nights = Math.round(ms / (1000 * 60 * 60 * 24));
-  return Math.max(1, nights);
-}
+// Re-exported so existing callers that imported these helpers from
+// './booking.service' continue to work.
+export {
+  computeHotelNights,
+  isGroomingServiceType,
+  isHotelServiceType,
+} from './booking.helpers';
 
 @Injectable()
 export class BookingService {
@@ -1973,81 +1962,89 @@ export class BookingService {
         (body as any).sessions = generatedSessions;
       }
 
-      // 12. get capacity by store_id and date (override or default)
-      const targetDate = new Date(body.date);
-      targetDate.setUTCHours(0, 0, 0, 0);
-      const nextDay = new Date(targetDate);
-      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-
-      const dailyOverride = await this.storeDailyCapacityModel
-        .findOne({
-          store_id: new ObjectId(body.store_id),
-          date: { $gte: targetDate, $lt: nextDay },
-        })
-        .session(session);
-
-      const totalCapacity =
-        dailyOverride?.total_capacity_minutes ??
-        store.capacity.default_daily_capacity_minutes;
-
-      const overbookingLimit = store.capacity.overbooking_limit_minutes;
-      const maxAllowedCapacity = totalCapacity + overbookingLimit;
-
-      // 13. atomic increment usage store by date
-      const usage = await this.storeDailyUsageModel.findOneAndUpdate(
-        {
-          store_id: new ObjectId(body.store_id),
-          date: body.date,
-        },
-        {
-          $inc: { used_minutes: serviceDuration },
-        },
-        {
-          returnDocument: 'after',
-          upsert: true,
-          session,
-        },
+      // 12-15. Daily store capacity tracking — only applied for grooming bookings.
+      // Hotel / daycare / vet / transport / etc. do not consume or validate
+      // daily store capacity, so this block is skipped for those service types.
+      const tracksCapacityCreate = isGroomingServiceType(
+        createServiceTypeTitle,
       );
+      let overbookedMinutes = 0;
 
-      // 14. validate overbooking Limit
-      if (usage.used_minutes > maxAllowedCapacity) {
-        // Rollback increment
-        await this.storeDailyUsageModel.findOneAndUpdate(
+      if (tracksCapacityCreate) {
+        // 12. get capacity by store_id and date (override or default)
+        const targetDate = new Date(body.date);
+        targetDate.setUTCHours(0, 0, 0, 0);
+        const nextDay = new Date(targetDate);
+        nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+
+        const dailyOverride = await this.storeDailyCapacityModel
+          .findOne({
+            store_id: new ObjectId(body.store_id),
+            date: { $gte: targetDate, $lt: nextDay },
+          })
+          .session(session);
+
+        const totalCapacity =
+          dailyOverride?.total_capacity_minutes ??
+          store.capacity.default_daily_capacity_minutes;
+
+        const overbookingLimit = store.capacity.overbooking_limit_minutes;
+        const maxAllowedCapacity = totalCapacity + overbookingLimit;
+
+        // 13. atomic increment usage store by date
+        const usage = await this.storeDailyUsageModel.findOneAndUpdate(
           {
             store_id: new ObjectId(body.store_id),
             date: body.date,
           },
           {
-            $inc: { used_minutes: -serviceDuration },
+            $inc: { used_minutes: serviceDuration },
           },
-          { session },
+          {
+            returnDocument: 'after',
+            upsert: true,
+            session,
+          },
         );
 
-        // Create status log for WAITLIST
-        const waitlistStatusLog: BookingStatusLogDto = {
-          status: BookingStatus.WAITLIST,
-          timestamp: new Date(),
-          note: `Booking is waitlisted (capacity exceeded) - created by ${user?.username || 'unknown'} (${user?.role || 'unknown'})`,
-        };
+        // 14. validate overbooking Limit
+        if (usage.used_minutes > maxAllowedCapacity) {
+          // Rollback increment
+          await this.storeDailyUsageModel.findOneAndUpdate(
+            {
+              store_id: new ObjectId(body.store_id),
+              date: body.date,
+            },
+            {
+              $inc: { used_minutes: -serviceDuration },
+            },
+            { session },
+          );
 
-        body.status_logs = [waitlistStatusLog];
-        body.booking_status = BookingStatus.WAITLIST;
+          // Create status log for WAITLIST
+          const waitlistStatusLog: BookingStatusLogDto = {
+            status: BookingStatus.WAITLIST,
+            timestamp: new Date(),
+            note: `Booking is waitlisted (capacity exceeded) - created by ${user?.username || 'unknown'} (${user?.role || 'unknown'})`,
+          };
 
-        const waitlistBooking = await this.bookingModel.create([body], {
-          session,
-        });
+          body.status_logs = [waitlistStatusLog];
+          body.booking_status = BookingStatus.WAITLIST;
 
-        await session.commitTransaction();
-        session.endSession();
+          const waitlistBooking = await this.bookingModel.create([body], {
+            session,
+          });
 
-        return waitlistBooking[0];
-      }
+          await session.commitTransaction();
+          session.endSession();
 
-      // 15. calculate overbooked_minutes
-      let overbookedMinutes = 0;
+          return waitlistBooking[0];
+        }
 
-      if (usage.used_minutes > totalCapacity) {
-        overbookedMinutes = usage.used_minutes - totalCapacity;
+        // 15. calculate overbooked_minutes
+        if (usage.used_minutes > totalCapacity) {
+          overbookedMinutes = usage.used_minutes - totalCapacity;
+        }
       }
 
       // 16. create CONFIRMED booking
@@ -2835,109 +2832,127 @@ export class BookingService {
 
       const durationChanged = oldServiceDuration !== newServiceDuration;
 
+      // Capacity tracking is gated on grooming service type. We may need to
+      // rollback the old booking's usage (if it WAS grooming) and increment the
+      // new date's usage (if the updated booking IS grooming).
+      const oldServiceTypeTitle = (existingBooking.service_snapshot as any)
+        ?.service_type?.title as string | undefined;
+      const oldTracksCapacity = isGroomingServiceType(oldServiceTypeTitle);
+      const newTracksCapacity = isGroomingServiceType(updateServiceTypeTitle);
+
       // If date or duration changed, update capacity tracking
-      if (dateChanged || durationChanged) {
-        // 1️⃣ Rollback old capacity usage
-        await this.storeDailyUsageModel.findOneAndUpdate(
-          {
-            store_id: new ObjectId(existingBooking.store_id),
-            date: oldDate,
-          },
-          {
-            $inc: { used_minutes: -oldServiceDuration },
-          },
-          { session },
-        );
-
-        // 2️⃣ Get store and check new capacity
-        const store = await this.storeModel
-          .findById(body.store_id)
-          .session(session);
-
-        if (!store) throw new NotFoundException('Store not found');
-
-        const targetDate = new Date(newDate);
-        targetDate.setUTCHours(0, 0, 0, 0);
-        const nextDay = new Date(targetDate);
-        nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-
-        const dailyOverride = await this.storeDailyCapacityModel
-          .findOne({
-            store_id: new ObjectId(body.store_id),
-            date: { $gte: targetDate, $lt: nextDay },
-          })
-          .session(session);
-
-        const totalCapacity =
-          dailyOverride?.total_capacity_minutes ??
-          store.capacity.default_daily_capacity_minutes;
-
-        const overbookingLimit = store.capacity.overbooking_limit_minutes;
-        const maxAllowedCapacity = totalCapacity + overbookingLimit;
-
-        // 3️⃣ Atomic increment usage for new date
-        const usage = await this.storeDailyUsageModel.findOneAndUpdate(
-          {
-            store_id: new ObjectId(body.store_id),
-            date: newDate,
-          },
-          {
-            $inc: { used_minutes: newServiceDuration },
-          },
-          {
-            returnDocument: 'after',
-            upsert: true,
-            session,
-          },
-        );
-
-        // 4️⃣ Validasi Overbooking Limit
-        if (usage.used_minutes > maxAllowedCapacity) {
-          // Rollback increment
-          await this.storeDailyUsageModel.findOneAndUpdate(
-            {
-              store_id: new ObjectId(body.store_id),
-              date: newDate,
-            },
-            {
-              $inc: { used_minutes: -newServiceDuration },
-            },
-            { session },
-          );
-
-          // Restore old capacity usage
+      if (
+        (dateChanged || durationChanged) &&
+        (oldTracksCapacity || newTracksCapacity)
+      ) {
+        // 1️⃣ Rollback old capacity usage (only if old booking consumed capacity)
+        if (oldTracksCapacity) {
           await this.storeDailyUsageModel.findOneAndUpdate(
             {
               store_id: new ObjectId(existingBooking.store_id),
               date: oldDate,
             },
             {
-              $inc: { used_minutes: oldServiceDuration },
+              $inc: { used_minutes: -oldServiceDuration },
             },
             { session },
           );
+        }
 
-          await session.abortTransaction();
-          session.endSession();
+        // Only validate/increment new capacity if updated booking is grooming.
+        if (newTracksCapacity) {
+          // 2️⃣ Get store and check new capacity
+          const store = await this.storeModel
+            .findById(body.store_id)
+            .session(session);
 
-          throw new Error(
-            `Cannot update booking: capacity exceeded for ${newDate.toISOString().split('T')[0]}. Available capacity: ${maxAllowedCapacity} minutes, would be used: ${usage.used_minutes} minutes.`,
+          if (!store) throw new NotFoundException('Store not found');
+
+          const targetDate = new Date(newDate);
+          targetDate.setUTCHours(0, 0, 0, 0);
+          const nextDay = new Date(targetDate);
+          nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+
+          const dailyOverride = await this.storeDailyCapacityModel
+            .findOne({
+              store_id: new ObjectId(body.store_id),
+              date: { $gte: targetDate, $lt: nextDay },
+            })
+            .session(session);
+
+          const totalCapacity =
+            dailyOverride?.total_capacity_minutes ??
+            store.capacity.default_daily_capacity_minutes;
+
+          const overbookingLimit = store.capacity.overbooking_limit_minutes;
+          const maxAllowedCapacity = totalCapacity + overbookingLimit;
+
+          // 3️⃣ Atomic increment usage for new date
+          const usage = await this.storeDailyUsageModel.findOneAndUpdate(
+            {
+              store_id: new ObjectId(body.store_id),
+              date: newDate,
+            },
+            {
+              $inc: { used_minutes: newServiceDuration },
+            },
+            {
+              returnDocument: 'after',
+              upsert: true,
+              session,
+            },
           );
-        }
 
-        // 5️⃣ Update status log if overbooked
-        let overbookedMinutes = 0;
-        if (usage.used_minutes > totalCapacity) {
-          overbookedMinutes = usage.used_minutes - totalCapacity;
-        }
+          // 4️⃣ Validasi Overbooking Limit
+          if (usage.used_minutes > maxAllowedCapacity) {
+            // Rollback increment
+            await this.storeDailyUsageModel.findOneAndUpdate(
+              {
+                store_id: new ObjectId(body.store_id),
+                date: newDate,
+              },
+              {
+                $inc: { used_minutes: -newServiceDuration },
+              },
+              { session },
+            );
 
-        if (overbookedMinutes > 0) {
-          const overbookLog: BookingStatusLogDto = {
-            status: existingBooking.booking_status,
-            timestamp: new Date(),
-            note: `Booking updated - overbooked by ${overbookedMinutes} minutes by ${user?.username || 'unknown'} (${user?.role || 'unknown'})`,
-          };
-          body.status_logs = [...status_logs, overbookLog];
+            // Restore old capacity usage (only if we rolled it back)
+            if (oldTracksCapacity) {
+              await this.storeDailyUsageModel.findOneAndUpdate(
+                {
+                  store_id: new ObjectId(existingBooking.store_id),
+                  date: oldDate,
+                },
+                {
+                  $inc: { used_minutes: oldServiceDuration },
+                },
+                { session },
+              );
+            }
+
+            await session.abortTransaction();
+            session.endSession();
+
+            throw new Error(
+              `Cannot update booking: capacity exceeded for ${newDate.toISOString().split('T')[0]}. Available capacity: ${maxAllowedCapacity} minutes, would be used: ${usage.used_minutes} minutes.`,
+            );
+          }
+
+          // 5️⃣ Update status log if overbooked
+          let overbookedMinutes = 0;
+          if (usage.used_minutes > totalCapacity) {
+            overbookedMinutes = usage.used_minutes - totalCapacity;
+          }
+
+          if (overbookedMinutes > 0) {
+            const overbookLog: BookingStatusLogDto = {
+              status: existingBooking.booking_status,
+              timestamp: new Date(),
+              note: `Booking updated - overbooked by ${overbookedMinutes} minutes by ${user?.username || 'unknown'} (${user?.role || 'unknown'})`,
+            };
+            body.status_logs = [...status_logs, overbookLog];
+          }
         }
       }
 
@@ -3075,10 +3090,16 @@ export class BookingService {
         }
       }
 
+      // Daily store capacity is only tracked for grooming bookings. Non-grooming
+      // bookings never wrote to StoreDailyUsage on create, so we must not adjust
+      // it on reschedule/cancel either.
+      const tracksCapacityStatus = isGroomingServiceType(snapshotTypeTitle);
+
       // Hitung service duration untuk keperluan update StoreDailyUsage
       const isBookingWithUsage =
         existingBooking.booking_status !== BookingStatus.WAITLIST &&
-        existingBooking.booking_status !== BookingStatus.CANCELLED;
+        existingBooking.booking_status !== BookingStatus.CANCELLED &&
+        tracksCapacityStatus;
 
       let serviceDuration = 0;
       if (
