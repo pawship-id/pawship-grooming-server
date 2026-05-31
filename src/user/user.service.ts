@@ -42,6 +42,25 @@ export class UserService {
     return 'inactive';
   }
 
+  /**
+   * Normalize a user's profile so callers always see `placements: ObjectId[]`.
+   * Legacy documents may only have the singular `placement` field — promote
+   * it to the array form for the response while leaving the underlying
+   * document untouched (migration happens lazily on the next write).
+   */
+  private normalizeUserPlacements<T extends Record<string, any>>(user: T): T {
+    if (!user || !user.profile) return user;
+    const profile = user.profile;
+    const hasArray =
+      Array.isArray(profile.placements) && profile.placements.length > 0;
+    if (!hasArray && profile.placement) {
+      profile.placements = [profile.placement];
+    } else if (!Array.isArray(profile.placements)) {
+      profile.placements = [];
+    }
+    return user;
+  }
+
   async hasActiveMembership(petId: ObjectId | Types.ObjectId): Promise<boolean> {
     const now = new Date();
     const todayStart = new Date(now);
@@ -119,13 +138,15 @@ export class UserService {
       );
     }
 
-    const usersWithPetCount = users.map((user) => ({
-      ...user.toObject(),
-      pet_count:
-        user.role === 'customer'
-          ? (petCountMap[user._id.toString()] ?? 0)
-          : undefined,
-    }));
+    const usersWithPetCount = users.map((user) =>
+      this.normalizeUserPlacements({
+        ...user.toObject(),
+        pet_count:
+          user.role === 'customer'
+            ? (petCountMap[user._id.toString()] ?? 0)
+            : undefined,
+      }),
+    );
 
     return {
       users: usersWithPetCount,
@@ -201,9 +222,12 @@ export class UserService {
         memberships: membershipsByPetId[pet._id.toString()] ?? [],
       }));
 
-      return { ...user.toObject(), pets: petsWithMemberships };
+      return this.normalizeUserPlacements({
+        ...user.toObject(),
+        pets: petsWithMemberships,
+      });
     }
-    return user;
+    return user ? this.normalizeUserPlacements(user.toObject()) : user;
   }
 
   async create(body: CreateUserDto) {
@@ -279,7 +303,7 @@ export class UserService {
       'tags',
     ] as const;
 
-    const objectIdFields = ['placement', 'customer_category_id'] as const;
+    const objectIdFields = ['customer_category_id'] as const;
 
     for (const field of scalarFields) {
       if (body[field]) {
@@ -294,6 +318,23 @@ export class UserService {
       if (body[field]) {
         setData[`profile.${field}`] = new Types.ObjectId(body[field] as string);
       }
+    }
+
+    // Placements: accept array `placements` (preferred) or legacy `placement`
+    // (single store ID). When writing we always persist the array form and
+    // clear the legacy field to keep the document canonical.
+    const placementsInput: string[] | undefined = Array.isArray(body.placements)
+      ? body.placements
+      : body.placement
+        ? [body.placement]
+        : undefined;
+    if (placementsInput) {
+      const unique = Array.from(new Set(placementsInput.filter(Boolean)));
+      setData['profile.placements'] = unique.map(
+        (id) => new Types.ObjectId(id),
+      );
+      // Drop the legacy scalar so we don't keep stale data alongside the array.
+      setData['profile.placement'] = null;
     }
 
     if (body.addresses) {

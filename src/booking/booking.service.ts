@@ -2283,24 +2283,50 @@ export class BookingService {
       match_skills = true,
     } = args;
 
-    // Look up groomer's placement (store) and skills if a groomerId is given.
-    let groomerStoreId: any = undefined;
+    // Look up groomer's placements (stores) and skills if a groomerId is given.
+    // Supports both the new array field (`placements`) and the legacy scalar
+    // (`placement`) for backward compatibility with old groomer profiles.
+    let groomerStoreIds: any[] = [];
     let groomerSkills: string[] = [];
     if (groomerId) {
       const groomer = await this.userModel
         .findById(groomerId)
-        .select('profile.placement profile.groomer_skills')
+        .select(
+          'profile.placements profile.placement profile.groomer_skills',
+        )
         .lean();
-      groomerStoreId = groomer?.profile?.placement;
+      const placementsArr = (groomer?.profile as any)?.placements;
+      const legacyPlacement = (groomer?.profile as any)?.placement;
+      if (Array.isArray(placementsArr) && placementsArr.length > 0) {
+        groomerStoreIds = placementsArr;
+      } else if (legacyPlacement) {
+        groomerStoreIds = [legacyPlacement];
+      }
       groomerSkills = groomer?.profile?.groomer_skills || [];
     }
 
-    // Branch scoping: groomer placement always wins. If no placement (e.g.
-    // super-admin / unscoped caller), honour the explicit override.
-    const effectiveStoreId = groomerStoreId ?? store_id_override;
+    // Branch scoping: groomer placements always win. If a single override is
+    // supplied AND that store is one of the groomer's placements, we keep
+    // scoping to that store; otherwise the filter spans every placement.
+    // Super-admin / unscoped callers (no placements) fall back to override.
+    let effectiveStoreIds: any[] | undefined;
+    if (groomerStoreIds.length > 0) {
+      if (
+        store_id_override &&
+        groomerStoreIds.some(
+          (id) => id?.toString() === store_id_override.toString(),
+        )
+      ) {
+        effectiveStoreIds = [store_id_override];
+      } else {
+        effectiveStoreIds = groomerStoreIds;
+      }
+    } else if (store_id_override) {
+      effectiveStoreIds = [store_id_override];
+    }
 
     const filter = this.buildOpenJobsFilter({
-      store_id: effectiveStoreId,
+      store_ids: effectiveStoreIds,
       groomer_skills: match_skills ? groomerSkills : [],
       date_from,
       date_to,
@@ -2343,6 +2369,7 @@ export class BookingService {
    */
   buildOpenJobsFilter(args: {
     store_id?: any;
+    store_ids?: any[];
     groomer_skills?: string[];
     date_from?: string;
     date_to?: string;
@@ -2350,6 +2377,7 @@ export class BookingService {
   }) {
     const {
       store_id,
+      store_ids,
       groomer_skills = [],
       date_from,
       date_to,
@@ -2368,11 +2396,22 @@ export class BookingService {
     };
 
     // store_id in some bookings is stored as a string (not ObjectId), so match
-    // against both the ObjectId and its string representation.
-    if (store_id) {
-      filter.store_id = {
-        $in: [store_id, store_id.toString()],
-      };
+    // against both the ObjectId and its string representation. With multi-
+    // placement, we expand each store id into both forms.
+    const storeList: any[] = Array.isArray(store_ids)
+      ? store_ids
+      : store_id
+        ? [store_id]
+        : [];
+    if (storeList.length > 0) {
+      const expanded: any[] = [];
+      for (const sid of storeList) {
+        if (sid === undefined || sid === null) continue;
+        expanded.push(sid);
+        const str = sid.toString();
+        if (str !== sid) expanded.push(str);
+      }
+      filter.store_id = { $in: expanded };
     }
 
     if (date_from || date_to) {

@@ -65,7 +65,7 @@ export class UpdateAddressDto {
 
 /**
  * Fields available per role (email cannot be updated here):
- *   admin / ops : full_name, image_url, public_id, gender, placement, tags, address
+ *   admin / ops : full_name, image_url, public_id, gender, placements, tags, address
  *   groomer     : above + groomer_skills, groomer_rating
  *   customer    : full_name, image_url, public_id, gender, customer_category_id, tags, address
  */
@@ -86,7 +86,19 @@ export class UpdateProfileDto {
   @IsEnum(Gender, { message: 'gender must be Male or Female' })
   gender?: Gender;
 
-  /** Admin / Ops / Groomer — Store ObjectId */
+  /**
+   * Admin / Ops / Groomer — array of Store ObjectIds (multi-placement).
+   * A user may be placed at one or more stores.
+   */
+  @IsOptional()
+  @IsArray({ message: 'placements must be an array' })
+  @IsMongoId({ each: true, message: 'each placement must be a valid store ID' })
+  placements?: string[];
+
+  /**
+   * @deprecated Legacy single placement input. Accepted for backward
+   * compatibility — if `placements` is also provided, `placements` wins.
+   */
   @IsOptional()
   @IsMongoId({ message: 'placement must be a valid store ID' })
   placement?: string;
