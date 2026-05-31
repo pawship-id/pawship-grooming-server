@@ -74,8 +74,8 @@ export const UserAddressSchema = SchemaFactory.createForClass(UserAddress);
 // All role-specific fields are stored in a single subdocument.
 // Which fields apply per role is enforced at the DTO / service layer.
 //
-//  Admin / Ops : full_name, image_url, public_id, gender, placement, tags, address
-//  Groomer     : full_name, image_url, public_id, gender, placement,
+//  Admin / Ops : full_name, image_url, public_id, gender, placements, tags, address
+//  Groomer     : full_name, image_url, public_id, gender, placements,
 //                groomer_skills, groomer_rating, tags, address
 //  Customer    : full_name, image_url, public_id, gender,
 //                customer_category_id, tags, address
@@ -94,7 +94,19 @@ export class UserProfile {
   @Prop({ enum: Object.values(Gender) })
   gender?: Gender;
 
-  /** Admin / Ops / Groomer — ref: Store */
+  /**
+   * Admin / Ops / Groomer — Store ObjectIds (multiple placement support).
+   * A user may be placed at one or more stores.
+   */
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Store' }], default: [] })
+  placements?: Types.ObjectId[];
+
+  /**
+   * @deprecated Legacy single-placement field, kept for backward compatibility
+   * with documents written before multi-placement was introduced. New writes
+   * should use `placements`. Reads are migrated transparently in the service
+   * layer.
+   */
   @Prop({ type: Types.ObjectId, ref: 'Store' })
   placement?: Types.ObjectId;
 
