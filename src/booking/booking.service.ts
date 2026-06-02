@@ -1563,9 +1563,13 @@ export class BookingService {
         new ObjectId(body.pet_id),
       );
 
-      // Resolve member_type: comma-separated names of all active memberships at booking time
+      // Resolve member_type: comma-separated names of all memberships active on the appointment date
+      const createBookingDate = body.date ? new Date(body.date) : undefined;
       const activeMemberships =
-        await this.petMembershipService.getActiveMembership(body.pet_id);
+        await this.petMembershipService.getActiveMembership(
+          body.pet_id,
+          createBookingDate,
+        );
       let memberType: string | null = null;
       if (activeMemberships && activeMemberships.length > 0) {
         const names = activeMemberships
@@ -2691,9 +2695,13 @@ export class BookingService {
         new ObjectId(body.pet_id),
       );
 
-      // Resolve member_type: comma-separated names of all active memberships at update time
+      // Resolve member_type: comma-separated names of all memberships active on the appointment date
+      const updateBookingDate = body.date ? new Date(body.date) : undefined;
       const activeMembershipsUpd = body.pet_id
-        ? await this.petMembershipService.getActiveMembership(body.pet_id)
+        ? await this.petMembershipService.getActiveMembership(
+            body.pet_id,
+            updateBookingDate,
+          )
         : [];
       let memberTypeUpd: string | null = null;
       if (activeMembershipsUpd && activeMembershipsUpd.length > 0) {
