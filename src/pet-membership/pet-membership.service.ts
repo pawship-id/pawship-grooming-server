@@ -460,18 +460,21 @@ export class PetMembershipService implements OnModuleInit {
     return this.populateBenefitsWithServices(petMembership);
   }
 
-  async getActiveMembership(petId: string): Promise<any | null> {
+  async getActiveMembership(
+    petId: string,
+    targetDate?: Date,
+  ): Promise<any | null> {
     if (!Types.ObjectId.isValid(petId)) {
       throw new BadRequestException('invalid pet ID');
     }
 
-    const now = new Date();
-    const todayStart = this.startOfDayUtc(now);
+    const effectiveDate = targetDate ?? new Date();
+    const effectiveDateStart = this.startOfDayUtc(effectiveDate);
     const petMembership = await this.petMembershipModel
       .find({
         pet_id: new Types.ObjectId(petId),
-        start_date: { $lte: now },
-        end_date: { $gte: todayStart }, // inklusif sepanjang hari end_date
+        start_date: { $lte: effectiveDate },
+        end_date: { $gte: effectiveDateStart }, // inklusif sepanjang hari end_date
         isDeleted: false,
         is_active: true,
       })
@@ -514,7 +517,7 @@ export class PetMembershipService implements OnModuleInit {
     bookingDate?: Date,
     excludeBookingId?: string,
   ): Promise<any> {
-    const activeMemberships = await this.getActiveMembership(petId);
+    const activeMemberships = await this.getActiveMembership(petId, bookingDate);
 
     if (!activeMemberships) {
       return {
@@ -561,7 +564,7 @@ export class PetMembershipService implements OnModuleInit {
   }
 
   async getBenefitsSummary(petId: string, bookingDate?: Date): Promise<any[]> {
-    const activeMemberships = await this.getActiveMembership(petId);
+    const activeMemberships = await this.getActiveMembership(petId, bookingDate);
 
     if (!activeMemberships) {
       return [];
