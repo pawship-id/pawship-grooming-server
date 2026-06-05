@@ -108,9 +108,8 @@ export class MembershipHealthService {
         .aggregate([
           {
             $match: {
-              is_active: true,
+              createdAt: { $gte: range.from, $lte: range.to },
               isDeleted: { $ne: true },
-              end_date: { $gte: today },
             },
           },
           {
