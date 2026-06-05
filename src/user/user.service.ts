@@ -91,12 +91,25 @@ export class UserService {
       filter.is_active = is_active;
     }
 
-    // Add search filter if provided (search in username, email, phone_number)
+    // Add search filter if provided
+    // (search in username, email, phone_number, and pet name)
     if (search) {
+      // Find customer ids that own a pet whose name matches the search term.
+      const matchingPetCustomerIds = await this.petModel
+        .find({
+          name: { $regex: search, $options: 'i' },
+          isDeleted: false,
+        })
+        .distinct('customer_id')
+        .exec();
+
       filter.$or = [
         { username: { $regex: search, $options: 'i' } },
         { email: { $regex: search, $options: 'i' } },
         { phone_number: { $regex: search, $options: 'i' } },
+        ...(matchingPetCustomerIds.length > 0
+          ? [{ _id: { $in: matchingPetCustomerIds } }]
+          : []),
       ];
     }
 
