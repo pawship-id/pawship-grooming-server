@@ -67,8 +67,11 @@ export interface RevenueByLayananCategoryItem {
 
 export interface DiscountBreakdown {
   membership_benefit_total: number;
+  membership_benefit_order_count: number;
   promotion_discount_total: number;
+  promotion_discount_order_count: number;
   admin_discount_total: number;
+  admin_discount_order_count: number;
   total_attributed: number;
   leakage_pct: number;
 }
@@ -418,8 +421,11 @@ export class RevenueService {
     storeMatch: Record<string, any>,
   ): Promise<{
     membership_benefit_total: number;
+    membership_benefit_order_count: number;
     promotion_discount_total: number;
+    promotion_discount_order_count: number;
     admin_discount_total: number;
+    admin_discount_order_count: number;
   }> {
     const [row] = await this.bookingModel
       .aggregate([
@@ -472,8 +478,17 @@ export class RevenueService {
           $group: {
             _id: null,
             membership_benefit_total: { $sum: '$benefits_total' },
+            membership_benefit_order_count: {
+              $sum: { $cond: [{ $gt: ['$benefits_total', 0] }, 1, 0] },
+            },
             promotion_discount_total: { $sum: '$promotions_total' },
+            promotion_discount_order_count: {
+              $sum: { $cond: [{ $gt: ['$promotions_total', 0] }, 1, 0] },
+            },
             admin_discount_total: { $sum: '$admin_total' },
+            admin_discount_order_count: {
+              $sum: { $cond: [{ $gt: ['$admin_total', 0] }, 1, 0] },
+            },
           },
         },
       ])
@@ -481,8 +496,11 @@ export class RevenueService {
 
     return {
       membership_benefit_total: row?.membership_benefit_total ?? 0,
+      membership_benefit_order_count: row?.membership_benefit_order_count ?? 0,
       promotion_discount_total: row?.promotion_discount_total ?? 0,
+      promotion_discount_order_count: row?.promotion_discount_order_count ?? 0,
       admin_discount_total: row?.admin_discount_total ?? 0,
+      admin_discount_order_count: row?.admin_discount_order_count ?? 0,
     };
   }
 
