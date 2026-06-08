@@ -37,6 +37,21 @@ export function parseRange(from?: string, to?: string): DateRange {
   };
 }
 
+/**
+ * Like parseRange but returns null when no explicit, valid YYYY-MM-DD range was
+ * supplied (instead of falling back to "today"). Use when callers need to treat
+ * "no period filter" as "all time".
+ */
+export function parseRangeOrNull(from?: string, to?: string): DateRange | null {
+  const parsedFrom = parseYmd(from);
+  const parsedTo = parseYmd(to);
+  if (!parsedFrom || !parsedTo) return null;
+  return {
+    from: toUtcStartOfDay(parsedFrom),
+    to: toUtcEndOfDay(parsedTo),
+  };
+}
+
 export function previousRange(range: DateRange): DateRange {
   const durationMs =
     toUtcStartOfDay(range.to).getTime() -

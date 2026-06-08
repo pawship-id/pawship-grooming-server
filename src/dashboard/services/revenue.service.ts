@@ -8,6 +8,7 @@ import {
 } from 'src/pet-membership/entities/pet-membership.entity';
 import {
   parseRange,
+  parseRangeOrNull,
   previousRange,
   toUtcStartOfDay,
 } from '../utils/date-range';
@@ -141,7 +142,7 @@ export class RevenueService {
       this.aggregateByServiceType(range, storeMatch),
       this.aggregateAddonAndPickup(range, storeMatch),
       this.aggregateDiscountBreakdown(range, storeMatch),
-      this.aggregateMembership(range),
+      this.aggregateMembership(args.from, args.to),
       this.aggregateTrend7d(storeMatch),
     ]);
 
@@ -544,18 +545,26 @@ export class RevenueService {
       .filter((item) => item.revenue > 0 || item.category !== 'other');
   }
 
-  private async aggregateMembership(range: {
-    from: Date;
-    to: Date;
-  }): Promise<MembershipRevenue> {
+  private async aggregateMembership(
+    from?: string,
+    to?: string,
+  ): Promise<MembershipRevenue> {
+    // Hitung semua pembelian membership yang statusnya bukan "Dibatalkan".
+    // Cancelled = is_active: false (lihat computeStatus di pet-membership.service).
+    const match: Record<string, any> = {
+      is_active: true,
+      isDeleted: { $ne: true },
+    };
+
+    // Filter periode hanya jika range diberikan; tanpa range = all time.
+    const range = parseRangeOrNull(from, to);
+    if (range) {
+      match.createdAt = { $gte: range.from, $lte: range.to };
+    }
+
     const [row] = await this.petMembershipModel
       .aggregate([
-        {
-          $match: {
-            createdAt: { $gte: range.from, $lte: range.to },
-            isDeleted: { $ne: true },
-          },
-        },
+        { $match: match },
         {
           $group: {
             _id: null,
