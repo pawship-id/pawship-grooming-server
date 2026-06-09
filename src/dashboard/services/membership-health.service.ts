@@ -169,11 +169,19 @@ export class MembershipHealthService {
         isDeleted: { $ne: true },
         end_date: { $gte: today, $lte: in30 },
       }),
-      // Distribusi tier mengikuti populasi "Active member" (status aktif +
-      // pending), bukan per-periode, dikelompokkan menurut nama paket.
+      // Distribusi tier mengikuti pembelian membership pada periode terpilih
+      // (sama dengan "No of Purchase" di kartu Period Income): hanya pembelian
+      // aktif (tidak dibatalkan) yang createdAt-nya dalam rentang tanggal,
+      // dikelompokkan menurut nama paket.
       this.petMembershipModel
         .aggregate([
-          { $match: activeMemberMatch },
+          {
+            $match: {
+              is_active: true,
+              createdAt: { $gte: range.from, $lte: range.to },
+              isDeleted: { $ne: true },
+            },
+          },
           {
             $lookup: {
               from: 'memberships',
