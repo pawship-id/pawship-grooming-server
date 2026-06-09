@@ -705,7 +705,13 @@ export class ReportsService {
               pet_id: { $in: pagedPetIdMatch },
             },
           },
-          { $group: { _id: '$pet_id', last_at: { $max: '$date' } } },
+          {
+            $group: {
+              _id: '$pet_id',
+              last_at: { $max: '$date' },
+              count: { $sum: 1 },
+            },
+          },
         ]),
         this.bookingModel.aggregate([
           {
@@ -750,6 +756,9 @@ export class ReportsService {
     };
     const membershipMap = new Map<string, any>();
     const membershipStatusMap = new Map<string, string>();
+    // Jumlah membership non-cancelled (aktif/menunggu/berakhir) per pet — dipakai
+    // untuk kolom "Total Transaksi".
+    const membershipCountMap = new Map<string, number>();
     const membershipsByPet = new Map<string, any[]>();
     for (const m of memberships as any[]) {
       const key = m.pet_id.toString();
@@ -760,9 +769,11 @@ export class ReportsService {
     for (const [key, list] of membershipsByPet) {
       let best: any = null;
       let bestStatus = '';
+      let nonCancelledCount = 0;
       for (const m of list) {
         const status = membershipStatusOf(m);
         if (status === 'cancelled') continue;
+        nonCancelledCount++;
         if (
           best === null ||
           STATUS_RANK[status] < STATUS_RANK[bestStatus] ||
@@ -773,6 +784,7 @@ export class ReportsService {
           bestStatus = status;
         }
       }
+      membershipCountMap.set(key, nonCancelledCount);
       if (best) {
         membershipMap.set(key, best);
         membershipStatusMap.set(key, bestStatus);
@@ -780,6 +792,11 @@ export class ReportsService {
     }
     const bookedPetSet = new Set(
       bookedPetIds.map((id: any) => id.toString()),
+    );
+    // Jumlah booking berstatus completed/returned per pet (sumber sama dengan
+    // lastVisitAgg) — dipakai untuk kolom "Total Transaksi".
+    const bookingCountMap = new Map<string, number>(
+      lastVisitAgg.map((a: any) => [a._id.toString(), a.count ?? 0]),
     );
     const lastVisitMap = new Map<string, Date>(
       lastVisitAgg.map((a: any) => [a._id.toString(), a.last_at]),
@@ -829,6 +846,11 @@ export class ReportsService {
         last_visit_at: lastVisitMap.get(p._id.toString()) ?? null,
         last_grooming_at: lastGroomingMap.get(p._id.toString()) ?? null,
         pet_registered_at: p.createdAt ?? null,
+        // Total transaksi per pet = jumlah booking completed/returned +
+        // jumlah membership non-cancelled (aktif/menunggu/berakhir).
+        total_transactions:
+          (bookingCountMap.get(p._id.toString()) ?? 0) +
+          (membershipCountMap.get(p._id.toString()) ?? 0),
         has_booked: bookedPetSet.has(p._id.toString()),
       };
     });
@@ -929,6 +951,10 @@ export class ReportsService {
       .exec();
 
     const pagedPetIds = pets.map((p: any) => p._id);
+    // Sebagian booking lama menyimpan pet_id sebagai string, sehingga
+    // `{ $in: <ObjectId[]> }` melewatkan match-nya → kolom kunjungan kosong.
+    // Sertakan kedua bentuk (ObjectId & string) agar agregasi booking match.
+    const pagedPetIdMatch = pagedPetIds.flatMap((id: any) => [id, id.toString()]);
     const pagedCustomerIds = [
       ...new Set(pets.map((p: any) => p.customer_id?.toString()).filter(Boolean)),
     ];
@@ -942,14 +968,14 @@ export class ReportsService {
     ] = await Promise.all([
       this.bookingModel.distinct('pet_id', {
         isDeleted: false,
-        pet_id: { $in: pagedPetIds },
+        pet_id: { $in: pagedPetIdMatch },
       }),
       this.bookingModel.aggregate([
         {
           $match: {
             isDeleted: false,
-            booking_status: 'completed',
-            pet_id: { $in: pagedPetIds },
+            booking_status: { $in: ['completed', 'returned'] },
+            pet_id: { $in: pagedPetIdMatch },
           },
         },
         { $group: { _id: '$pet_id', last_at: { $max: '$date' } } },
@@ -958,8 +984,8 @@ export class ReportsService {
         {
           $match: {
             isDeleted: false,
-            booking_status: 'completed',
-            pet_id: { $in: pagedPetIds },
+            booking_status: { $in: ['completed', 'returned'] },
+            pet_id: { $in: pagedPetIdMatch },
           },
         },
         {
