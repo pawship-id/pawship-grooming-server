@@ -725,10 +725,58 @@ export class ReportsService {
     const userMap = new Map(
       users.map((u: any) => [u._id.toString(), u]),
     );
+    // Status membership dihitung konsisten dengan
+    // PetMembershipService.computeStatus: cancelled (is_active=false) >
+    // pending (belum mulai) > expired (sudah lewat) > active.
+    const membershipStatusOf = (
+      m: any,
+    ): 'active' | 'pending' | 'expired' | 'cancelled' => {
+      if (!m.is_active) return 'cancelled';
+      if (today < new Date(m.start_date)) return 'pending';
+      if (new Date(m.end_date) < toUtcStartOfDay(today)) return 'expired';
+      return 'active';
+    };
+
+    // Per pet, pilih membership yang ditampilkan berdasarkan prioritas status:
+    // aktif (0) > menunggu/pending (1) > berakhir/expired (2). Membership
+    // "dibatalkan" (cancelled) tidak pernah ditampilkan. Jika ada >1 membership
+    // dengan status yang sama, pilih yang start_date-nya paling lama (paling
+    // awal). Jika pet hanya punya membership cancelled (atau tidak ada sama
+    // sekali), tier & status dikosongkan → tampil "-" di tabel.
+    const STATUS_RANK: Record<string, number> = {
+      active: 0,
+      pending: 1,
+      expired: 2,
+    };
     const membershipMap = new Map<string, any>();
+    const membershipStatusMap = new Map<string, string>();
+    const membershipsByPet = new Map<string, any[]>();
     for (const m of memberships as any[]) {
       const key = m.pet_id.toString();
-      if (!membershipMap.has(key)) membershipMap.set(key, m);
+      const arr = membershipsByPet.get(key) ?? [];
+      arr.push(m);
+      membershipsByPet.set(key, arr);
+    }
+    for (const [key, list] of membershipsByPet) {
+      let best: any = null;
+      let bestStatus = '';
+      for (const m of list) {
+        const status = membershipStatusOf(m);
+        if (status === 'cancelled') continue;
+        if (
+          best === null ||
+          STATUS_RANK[status] < STATUS_RANK[bestStatus] ||
+          (STATUS_RANK[status] === STATUS_RANK[bestStatus] &&
+            new Date(m.start_date) < new Date(best.start_date))
+        ) {
+          best = m;
+          bestStatus = status;
+        }
+      }
+      if (best) {
+        membershipMap.set(key, best);
+        membershipStatusMap.set(key, bestStatus);
+      }
     }
     const bookedPetSet = new Set(
       bookedPetIds.map((id: any) => id.toString()),
@@ -775,11 +823,7 @@ export class ReportsService {
         pet_tags: p.tags ?? [],
         internal_note: p.internal_note ?? '',
         membership_tier: (membership?.membership_plan_id as any)?.name ?? '',
-        membership_status: membership
-          ? new Date(membership.end_date) >= toUtcStartOfDay(today)
-            ? 'active'
-            : 'expired'
-          : '',
+        membership_status: membershipStatusMap.get(p._id.toString()) ?? '',
         membership_start: membership?.start_date ?? null,
         membership_expiry: membership?.end_date ?? null,
         last_visit_at: lastVisitMap.get(p._id.toString()) ?? null,
