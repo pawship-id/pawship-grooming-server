@@ -116,14 +116,16 @@ export class GrowthService {
 
     if (recentPets.length === 0) return 0;
 
-    const recentPetIds = recentPets.map((p) => p._id);
-    const convertedIds = await this.bookingModel
-      .distinct('pet_id', {
-        pet_id: { $in: recentPetIds },
-        booking_status: 'completed',
-        isDeleted: { $ne: true },
-      })
-      .exec();
+    // pet_id pada koleksi bookings tersimpan sebagai string, sementara Pet._id
+    // adalah ObjectId. Mongoose otomatis meng-cast nilai query ke ObjectId
+    // (sesuai schema), sehingga query lewat bookingModel tidak akan match.
+    // Pakai koleksi raw + id string agar perbandingan tepat.
+    const recentPetIds = recentPets.map((p) => String(p._id));
+    const convertedIds = await this.bookingModel.collection.distinct('pet_id', {
+      pet_id: { $in: recentPetIds },
+      booking_status: 'completed',
+      isDeleted: { $ne: true },
+    });
 
     return round2((convertedIds.length / recentPets.length) * 100);
   }
@@ -136,8 +138,6 @@ export class GrowthService {
     const today = toUtcStartOfDay(new Date());
     const ago14 = new Date(today);
     ago14.setUTCDate(ago14.getUTCDate() - 14);
-    const ago30 = new Date(today);
-    ago30.setUTCDate(ago30.getUTCDate() - 30);
     const ago31 = new Date(today);
     ago31.setUTCDate(ago31.getUTCDate() - 31);
 
@@ -155,7 +155,11 @@ export class GrowthService {
                 $match: {
                   $expr: {
                     $and: [
-                      { $eq: ['$pet_id', '$$petId'] },
+                      // pet_id di koleksi bookings tersimpan sebagai string,
+                      // sedangkan Pet._id ObjectId. Aggregation $expr tidak
+                      // melakukan cast otomatis (beda dengan query Mongoose),
+                      // jadi samakan keduanya ke string sebelum dibandingkan.
+                      { $eq: [{ $toString: '$pet_id' }, { $toString: '$$petId' }] },
                       { $eq: ['$booking_status', 'completed'] },
                       { $ne: ['$isDeleted', true] },
                     ],
@@ -188,14 +192,24 @@ export class GrowthService {
           },
         },
         {
+          // 5-tier MECE. Prioritas top-to-bottom, first match wins.
+          // Threshold (CURDATE = awal hari ini, UTC):
+          //   ago14 = CURDATE - 14 hari, ago31 = CURDATE - 31 hari
+          // Mapping days_since_last_visit:
+          //   last_booking_date >= ago14  -> days_since <= 14
+          //   last_booking_date <  ago14  -> days_since >= 15
+          //   last_booking_date >= ago31  -> days_since <= 31
+          //   last_booking_date <  ago31  -> days_since >  31
           $addFields: {
             status: {
               $switch: {
                 branches: [
+                  // Idle: total_visits = 0 (terdaftar tapi belum pernah booking layanan)
                   {
                     case: { $eq: ['$total_visits', 0] },
                     then: 'idle',
                   },
+                  // New: total_visits >= 1 AND first_booking_date >= CURDATE()-14
                   {
                     case: {
                       $and: [
@@ -205,26 +219,36 @@ export class GrowthService {
                     },
                     then: 'new',
                   },
+                  // Active: days_since_last_visit <= 14
+                  // (New sudah dievaluasi lebih dulu, jadi pet baru tetap masuk "new")
                   {
-                    case: {
-                      $and: [
-                        { $gte: ['$last_booking_date', ago14] },
-                        { $lt: ['$first_booking_date', ago30] },
-                      ],
-                    },
+                    case: { $gte: ['$last_booking_date', ago14] },
                     then: 'active',
                   },
+                  // At risk: days_since_last_visit 15-31 AND total_visits > 1
                   {
                     case: {
                       $and: [
-                        { $gte: ['$last_booking_date', ago31] },
                         { $lt: ['$last_booking_date', ago14] },
+                        { $gte: ['$last_booking_date', ago31] },
                         { $gt: ['$total_visits', 1] },
                       ],
                     },
                     then: 'at_risk',
                   },
+                  // Lapsed: days_since_last_visit > 31 AND total_visits > 1
+                  {
+                    case: {
+                      $and: [
+                        { $lt: ['$last_booking_date', ago31] },
+                        { $gt: ['$total_visits', 1] },
+                      ],
+                    },
+                    then: 'lapsed',
+                  },
                 ],
+                // Sisa edge case (mis. tepat 1 kunjungan lama, atau pelanggan 15-30 hari
+                // yang baru aktif) jatuh ke lapsed agar snapshot tetap MECE.
                 default: 'lapsed',
               },
             },
