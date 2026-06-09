@@ -667,6 +667,11 @@ export class ReportsService {
       .exec();
 
     const pagedPetIds = pets.map((p: any) => p._id);
+    // Sebagian booking lama menyimpan pet_id sebagai string, sehingga
+    // `{ $in: <ObjectId[]> }` melewatkan match-nya. Sertakan kedua bentuk
+    // (ObjectId & string) agar agregasi last_visit/last_grooming tidak kosong
+    // untuk pet tersebut (pola sama dengan getCustomerRetention).
+    const pagedPetIdMatch = pagedPetIds.flatMap((id: any) => [id, id.toString()]);
     const pagedCustomerIds = [
       ...new Set(pets.map((p: any) => p.customer_id?.toString()).filter(Boolean)),
     ];
@@ -696,8 +701,8 @@ export class ReportsService {
           {
             $match: {
               isDeleted: false,
-              booking_status: 'completed',
-              pet_id: { $in: pagedPetIds },
+              booking_status: { $in: ['completed', 'returned'] },
+              pet_id: { $in: pagedPetIdMatch },
             },
           },
           { $group: { _id: '$pet_id', last_at: { $max: '$date' } } },
@@ -706,8 +711,8 @@ export class ReportsService {
           {
             $match: {
               isDeleted: false,
-              booking_status: 'completed',
-              pet_id: { $in: pagedPetIds },
+              booking_status: { $in: ['completed', 'returned'] },
+              pet_id: { $in: pagedPetIdMatch },
               'service_snapshot.service_type.title': {
                 $regex: new RegExp('^grooming$', 'i'),
               },
