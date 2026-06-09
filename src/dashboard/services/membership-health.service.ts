@@ -81,6 +81,10 @@ export class MembershipHealthService {
         .aggregate([
           {
             $match: {
+              // Selaras dengan kartu "Membership Revenue" di tab Ringkasan
+              // (revenue.service.aggregateMembership): hanya pembelian aktif,
+              // tidak termasuk yang dibatalkan (cancelled = is_active false).
+              is_active: true,
               createdAt: { $gte: range.from, $lte: range.to },
               isDeleted: { $ne: true },
             },
