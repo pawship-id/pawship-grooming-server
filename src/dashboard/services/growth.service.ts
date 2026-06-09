@@ -4,7 +4,12 @@ import { Model } from 'mongoose';
 import { Booking, BookingDocument } from 'src/booking/entities/booking.entity';
 import { Pet, PetDocument } from 'src/pet/entities/pet.entity';
 import { User, UserDocument } from 'src/user/entities/user.entity';
-import { parseRange, previousRange, toUtcStartOfDay } from '../utils/date-range';
+import {
+  parseRange,
+  parseRangeOrNull,
+  previousRange,
+  toUtcStartOfDay,
+} from '../utils/date-range';
 
 export type PetStatus = 'idle' | 'new' | 'active' | 'at_risk' | 'lapsed';
 
@@ -19,6 +24,7 @@ export interface PetStatusSnapshot {
 
 export interface GrowthResponse {
   range: { from: string; to: string };
+  total_customers: number;
   new_customers: number;
   new_pets_registered: number;
   pets_from_existing_owners: number;
@@ -47,19 +53,27 @@ export class GrowthService {
   async getGrowth(args: GrowthArgs): Promise<GrowthResponse> {
     const range = parseRange(args.from, args.to);
     const prevRange = previousRange(range);
+    // "Tanpa filter" (custom tanpa tanggal) -> null -> diperlakukan all-time.
+    const customerRange = parseRangeOrNull(args.from, args.to);
 
     const [
-      newCustomers,
+      totalCustomers,
+      newCustomersInRange,
       newPets,
       prevCustomers,
       prevPets,
       conversion,
       status,
     ] = await Promise.all([
-      this.userModel.countDocuments({
-        role: 'customer',
-        createdAt: { $gte: range.from, $lte: range.to },
-      }),
+      // Total customer all-time — tidak mengikuti filter tanggal.
+      this.userModel.countDocuments({ role: 'customer' }),
+      // New customer mengikuti filter; null (tanpa filter) dihitung all-time di bawah.
+      customerRange
+        ? this.userModel.countDocuments({
+            role: 'customer',
+            createdAt: { $gte: customerRange.from, $lte: customerRange.to },
+          })
+        : null,
       this.petModel.countDocuments({
         createdAt: { $gte: range.from, $lte: range.to },
         isDeleted: { $ne: true },
@@ -76,11 +90,15 @@ export class GrowthService {
       this.computePetStatusSnapshot(),
     ]);
 
+    // Tanpa filter -> new customer = seluruh customer all-time (= total_customers).
+    const newCustomers = newCustomersInRange ?? totalCustomers;
+
     return {
       range: {
         from: range.from.toISOString(),
         to: range.to.toISOString(),
       },
+      total_customers: totalCustomers,
       new_customers: newCustomers,
       new_pets_registered: newPets,
       pets_from_existing_owners: Math.max(0, newPets - newCustomers),
@@ -89,7 +107,10 @@ export class GrowthService {
       // Exact transition-in-period tracking butuh event log; di luar scope phase ini.
       net_pet_growth: newPets - status.lapsed,
       delta: {
-        new_customers_pct: pctDelta(newCustomers, prevCustomers),
+        // Delta hanya bermakna saat ada rentang filter; tanpa filter -> null.
+        new_customers_pct: customerRange
+          ? pctDelta(newCustomers, prevCustomers)
+          : null,
         new_pets_registered_pct: pctDelta(newPets, prevPets),
       },
       pet_status: status,
