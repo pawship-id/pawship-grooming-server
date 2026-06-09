@@ -1387,6 +1387,15 @@ export class ReportsService {
     }
 
     const pagedPetIds = pagedAgg.map((a) => a._id).filter(Boolean);
+    // pagedPetIds berisi string (booking.pet_id disimpan sebagai string),
+    // sedangkan petmemberships.pet_id berbentuk ObjectId. Query $in dengan
+    // string tidak akan match → tier/revenue membership kosong. Sertakan kedua
+    // bentuk (string + ObjectId) agar match-nya andal.
+    const pagedPetIdMatch = pagedPetIds.flatMap((id: any) =>
+      typeof id === 'string' && Types.ObjectId.isValid(id)
+        ? [id, new Types.ObjectId(id)]
+        : [id],
+    );
 
     const pets = await this.petModel
       .find({ _id: { $in: pagedPetIds }, isDeleted: false })
@@ -1408,7 +1417,7 @@ export class ReportsService {
         .lean()
         .exec(),
       this.petMembershipModel
-        .find({ pet_id: { $in: pagedPetIds }, isDeleted: false })
+        .find({ pet_id: { $in: pagedPetIdMatch }, isDeleted: false })
         .populate({
           path: 'membership_plan_id',
           model: 'Membership',
@@ -1423,8 +1432,19 @@ export class ReportsService {
       users.map((u: any) => [u._id.toString(), u]),
     );
     const membershipMap = new Map<string, any>();
+    // Revenue Membership per pet = SUM(purchase_price) dari semua membership
+    // kecuali yang dibatalkan (is_active === false → status "cancelled").
+    const membershipRevenueMap = new Map<string, number>();
     for (const m of memberships as any[]) {
       const key = m.pet_id.toString();
+
+      if (m.is_active !== false) {
+        membershipRevenueMap.set(
+          key,
+          (membershipRevenueMap.get(key) ?? 0) + (m.purchase_price ?? 0),
+        );
+      }
+
       if (membershipMap.has(key)) continue;
       const notExpired = m.end_date
         ? new Date(m.end_date) >= toUtcStartOfDay(today)
@@ -1496,6 +1516,7 @@ export class ReportsService {
           membership_tier: (membership?.membership_plan_id as any)?.name ?? '',
           total_visits,
           lifetime_revenue: booking.lifetime_revenue ?? 0,
+          membership_revenue: membershipRevenueMap.get(petId) ?? 0,
           last_booking_date,
           days_since_last_visit,
           pet_status,
