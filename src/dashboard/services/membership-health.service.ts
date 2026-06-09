@@ -10,6 +10,8 @@ import {
   PetMembership,
   PetMembershipDocument,
 } from 'src/pet-membership/entities/pet-membership.entity';
+import { User, UserDocument } from 'src/user/entities/user.entity';
+import { UserRole } from 'src/user/dto/user.dto';
 import { parseRange, toUtcStartOfDay } from '../utils/date-range';
 
 export interface MembershipTierItem {
@@ -33,6 +35,10 @@ export interface MembershipHealthResponse {
   expiring_30_days: number;
   penetration_rate_pct: number;
   tier_breakdown: MembershipTierItem[];
+  total_customers: number;
+  active_member_customers: number;
+  non_member_customers: number;
+  ex_member_customers: number;
 }
 
 interface MembershipHealthArgs {
@@ -48,6 +54,7 @@ export class MembershipHealthService {
     @InjectModel(Membership.name)
     private membershipModel: Model<MembershipDocument>,
     @InjectModel(Pet.name) private petModel: Model<PetDocument>,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
   ) {}
 
   async getMembershipHealth(
@@ -88,6 +95,8 @@ export class MembershipHealthService {
       tierAgg,
       totalPets,
       renewalData,
+      totalCustomers,
+      everMemberAgg,
     ] = await Promise.all([
       this.petMembershipModel
         .aggregate([
@@ -205,6 +214,34 @@ export class MembershipHealthService {
         isDeleted: { $ne: true },
       }),
       this.computeRenewalRate(ago30, today),
+      // Total customer = user role customer yang aktif & belum dihapus.
+      this.userModel.countDocuments({
+        role: UserRole.CUSTOMER,
+        is_active: true,
+        isDeleted: { $ne: true },
+      }),
+      // Ever-member: customer unik yang pernah punya membership apa pun (belum
+      // dihapus), join ke pet aktif agar konsisten dengan member_customer_count.
+      this.petMembershipModel
+        .aggregate([
+          { $match: { isDeleted: { $ne: true } } },
+          { $group: { _id: '$pet_id' } },
+          {
+            $lookup: {
+              from: 'pets',
+              localField: '_id',
+              foreignField: '_id',
+              as: 'pet',
+            },
+          },
+          { $unwind: '$pet' },
+          { $match: { 'pet.is_active': true, 'pet.isDeleted': { $ne: true } } },
+          {
+            $group: { _id: null, customers: { $addToSet: '$pet.customer_id' } },
+          },
+          { $project: { customer_count: { $size: '$customers' } } },
+        ])
+        .exec(),
     ]);
 
     const statusRow = statusAgg[0] ?? { total: 0, active: 0, pending: 0 };
@@ -219,6 +256,22 @@ export class MembershipHealthService {
     const newRow = newInPeriod[0] ?? { count: 0, revenue: 0 };
     const newCount = newRow.count ?? 0;
     const newRevenue = newRow.revenue ?? 0;
+
+    // Klasifikasi customer (current-state, global):
+    //   Active member = customer unik yang punya membership aktif/pending now.
+    //   Non member    = total customer − active member.
+    //   Ex member     = pernah punya membership tapi kini tidak ada yang
+    //                   aktif/pending (subset dari non member).
+    const everMemberCustomers = everMemberAgg[0]?.customer_count ?? 0;
+    const activeMemberCustomers = memberCustomerCount;
+    const nonMemberCustomers = Math.max(
+      0,
+      totalCustomers - activeMemberCustomers,
+    );
+    const exMemberCustomers = Math.max(
+      0,
+      everMemberCustomers - activeMemberCustomers,
+    );
 
     const tierTotal = tierAgg.reduce((acc, t) => acc + (t.count ?? 0), 0);
     const tier_breakdown: MembershipTierItem[] = tierAgg.map((t) => ({
@@ -250,6 +303,10 @@ export class MembershipHealthService {
       penetration_rate_pct:
         totalPets > 0 ? round2((memberPetCount / totalPets) * 100) : 0,
       tier_breakdown,
+      total_customers: totalCustomers,
+      active_member_customers: activeMemberCustomers,
+      non_member_customers: nonMemberCustomers,
+      ex_member_customers: exMemberCustomers,
     };
   }
 

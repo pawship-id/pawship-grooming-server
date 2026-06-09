@@ -67,12 +67,19 @@ export class GrowthService {
       conversion,
       status,
     ] = await Promise.all([
-      // Total customer all-time — tidak mengikuti filter tanggal.
-      this.userModel.countDocuments({ role: 'customer' }),
+      // Total customer all-time — tidak mengikuti filter tanggal. Hanya customer
+      // aktif & belum dihapus (konsisten dengan card "Classify all customers").
+      this.userModel.countDocuments({
+        role: 'customer',
+        is_active: true,
+        isDeleted: { $ne: true },
+      }),
       // New customer mengikuti filter; null (tanpa filter) dihitung all-time di bawah.
       filterRange
         ? this.userModel.countDocuments({
             role: 'customer',
+            is_active: true,
+            isDeleted: { $ne: true },
             createdAt: { $gte: filterRange.from, $lte: filterRange.to },
           })
         : null,
@@ -87,6 +94,8 @@ export class GrowthService {
         : null,
       this.userModel.countDocuments({
         role: 'customer',
+        is_active: true,
+        isDeleted: { $ne: true },
         createdAt: { $gte: prevRange.from, $lte: prevRange.to },
       }),
       this.petModel.countDocuments({
