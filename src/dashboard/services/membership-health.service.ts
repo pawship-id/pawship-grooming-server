@@ -21,6 +21,10 @@ export interface MembershipTierItem {
 export interface MembershipHealthResponse {
   range: { from: string; to: string };
   active_memberships: number;
+  active_count: number;
+  pending_count: number;
+  member_pet_count: number;
+  member_customer_count: number;
   new_memberships: number;
   membership_revenue: number;
   avg_membership_value: number;
@@ -50,7 +54,8 @@ export class MembershipHealthService {
     args: MembershipHealthArgs,
   ): Promise<MembershipHealthResponse> {
     const range = parseRange(args.from, args.to);
-    const today = toUtcStartOfDay(new Date());
+    const now = new Date();
+    const today = toUtcStartOfDay(now);
 
     const in7 = new Date(today);
     in7.setUTCDate(in7.getUTCDate() + 7);
@@ -63,8 +68,20 @@ export class MembershipHealthService {
     const ago30 = new Date(today);
     ago30.setUTCDate(ago30.getUTCDate() - 30);
 
+    // Active member = membership yang masih berlaku (status active + pending),
+    // yaitu is_active true (belum dibatalkan), belum dihapus, dan end_date belum
+    // lewat. Status detail mengikuti computeStatus di pet-membership.service:
+    //   pending = tanggal mulai masih di masa depan (start_date > now)
+    //   active  = sudah berjalan (start_date <= now) dan belum berakhir
+    const activeMemberMatch = {
+      is_active: true,
+      isDeleted: { $ne: true },
+      end_date: { $gte: today },
+    };
+
     const [
-      activeCount,
+      statusAgg,
+      reachAgg,
       newInPeriod,
       expiring7,
       expiring30,
@@ -72,11 +89,55 @@ export class MembershipHealthService {
       totalPets,
       renewalData,
     ] = await Promise.all([
-      this.petMembershipModel.countDocuments({
-        is_active: true,
-        isDeleted: { $ne: true },
-        end_date: { $gte: today },
-      }),
+      this.petMembershipModel
+        .aggregate([
+          { $match: activeMemberMatch },
+          {
+            $group: {
+              _id: null,
+              total: { $sum: 1 },
+              active: {
+                $sum: { $cond: [{ $lte: ['$start_date', now] }, 1, 0] },
+              },
+              pending: {
+                $sum: { $cond: [{ $gt: ['$start_date', now] }, 1, 0] },
+              },
+            },
+          },
+        ])
+        .exec(),
+      // Jangkauan unik: pet & customer berbeda yang punya membership berlaku.
+      // Distinct pet_id dulu, lalu join ke pet terdaftar (aktif, belum dihapus)
+      // agar penetrasi tidak melebihi total pet terdaftar.
+      this.petMembershipModel
+        .aggregate([
+          { $match: activeMemberMatch },
+          { $group: { _id: '$pet_id' } },
+          {
+            $lookup: {
+              from: 'pets',
+              localField: '_id',
+              foreignField: '_id',
+              as: 'pet',
+            },
+          },
+          { $unwind: '$pet' },
+          { $match: { 'pet.is_active': true, 'pet.isDeleted': { $ne: true } } },
+          {
+            $group: {
+              _id: null,
+              pet_count: { $sum: 1 },
+              customers: { $addToSet: '$pet.customer_id' },
+            },
+          },
+          {
+            $project: {
+              pet_count: 1,
+              customer_count: { $size: '$customers' },
+            },
+          },
+        ])
+        .exec(),
       this.petMembershipModel
         .aggregate([
           {
@@ -141,6 +202,15 @@ export class MembershipHealthService {
       this.computeRenewalRate(ago30, today),
     ]);
 
+    const statusRow = statusAgg[0] ?? { total: 0, active: 0, pending: 0 };
+    const activeMembers = statusRow.total ?? 0;
+    const activeOnly = statusRow.active ?? 0;
+    const pendingOnly = statusRow.pending ?? 0;
+
+    const reachRow = reachAgg[0] ?? { pet_count: 0, customer_count: 0 };
+    const memberPetCount = reachRow.pet_count ?? 0;
+    const memberCustomerCount = reachRow.customer_count ?? 0;
+
     const newRow = newInPeriod[0] ?? { count: 0, revenue: 0 };
     const newCount = newRow.count ?? 0;
     const newRevenue = newRow.revenue ?? 0;
@@ -157,7 +227,11 @@ export class MembershipHealthService {
         from: range.from.toISOString(),
         to: range.to.toISOString(),
       },
-      active_memberships: activeCount,
+      active_memberships: activeMembers,
+      active_count: activeOnly,
+      pending_count: pendingOnly,
+      member_pet_count: memberPetCount,
+      member_customer_count: memberCustomerCount,
       new_memberships: newCount,
       membership_revenue: newRevenue,
       avg_membership_value:
@@ -165,8 +239,11 @@ export class MembershipHealthService {
       renewal_rate_pct: renewalData.rate,
       expiring_7_days: expiring7,
       expiring_30_days: expiring30,
+      // Penetrasi = pet terdaftar yang punya membership berlaku ÷ total pet
+      // terdaftar. Memakai jumlah pet unik (bukan jumlah membership) agar
+      // tidak melebihi 100% saat satu pet punya lebih dari satu membership.
       penetration_rate_pct:
-        totalPets > 0 ? round2((activeCount / totalPets) * 100) : 0,
+        totalPets > 0 ? round2((memberPetCount / totalPets) * 100) : 0,
       tier_breakdown,
     };
   }
