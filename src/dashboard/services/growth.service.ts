@@ -26,6 +26,7 @@ export interface GrowthResponse {
   range: { from: string; to: string };
   total_customers: number;
   new_customers: number;
+  total_pets: number;
   new_pets_registered: number;
   pets_from_existing_owners: number;
   first_booking_conversion_pct: number;
@@ -54,12 +55,13 @@ export class GrowthService {
     const range = parseRange(args.from, args.to);
     const prevRange = previousRange(range);
     // "Tanpa filter" (custom tanpa tanggal) -> null -> diperlakukan all-time.
-    const customerRange = parseRangeOrNull(args.from, args.to);
+    const filterRange = parseRangeOrNull(args.from, args.to);
 
     const [
       totalCustomers,
       newCustomersInRange,
-      newPets,
+      totalPets,
+      newPetsInRange,
       prevCustomers,
       prevPets,
       conversion,
@@ -68,16 +70,21 @@ export class GrowthService {
       // Total customer all-time — tidak mengikuti filter tanggal.
       this.userModel.countDocuments({ role: 'customer' }),
       // New customer mengikuti filter; null (tanpa filter) dihitung all-time di bawah.
-      customerRange
+      filterRange
         ? this.userModel.countDocuments({
             role: 'customer',
-            createdAt: { $gte: customerRange.from, $lte: customerRange.to },
+            createdAt: { $gte: filterRange.from, $lte: filterRange.to },
           })
         : null,
-      this.petModel.countDocuments({
-        createdAt: { $gte: range.from, $lte: range.to },
-        isDeleted: { $ne: true },
-      }),
+      // Total pet all-time — tidak mengikuti filter tanggal.
+      this.petModel.countDocuments({ isDeleted: { $ne: true } }),
+      // New pet mengikuti filter; null (tanpa filter) dihitung all-time di bawah.
+      filterRange
+        ? this.petModel.countDocuments({
+            createdAt: { $gte: filterRange.from, $lte: filterRange.to },
+            isDeleted: { $ne: true },
+          })
+        : null,
       this.userModel.countDocuments({
         role: 'customer',
         createdAt: { $gte: prevRange.from, $lte: prevRange.to },
@@ -90,8 +97,9 @@ export class GrowthService {
       this.computePetStatusSnapshot(),
     ]);
 
-    // Tanpa filter -> new customer = seluruh customer all-time (= total_customers).
+    // Tanpa filter -> new = seluruh entitas all-time (= total).
     const newCustomers = newCustomersInRange ?? totalCustomers;
+    const newPets = newPetsInRange ?? totalPets;
 
     return {
       range: {
@@ -100,6 +108,7 @@ export class GrowthService {
       },
       total_customers: totalCustomers,
       new_customers: newCustomers,
+      total_pets: totalPets,
       new_pets_registered: newPets,
       pets_from_existing_owners: Math.max(0, newPets - newCustomers),
       first_booking_conversion_pct: conversion,
@@ -108,10 +117,12 @@ export class GrowthService {
       net_pet_growth: newPets - status.lapsed,
       delta: {
         // Delta hanya bermakna saat ada rentang filter; tanpa filter -> null.
-        new_customers_pct: customerRange
+        new_customers_pct: filterRange
           ? pctDelta(newCustomers, prevCustomers)
           : null,
-        new_pets_registered_pct: pctDelta(newPets, prevPets),
+        new_pets_registered_pct: filterRange
+          ? pctDelta(newPets, prevPets)
+          : null,
       },
       pet_status: status,
     };
