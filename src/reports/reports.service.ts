@@ -1334,7 +1334,7 @@ export class ReportsService {
 
     const matchStage: any = {
       isDeleted: false,
-      booking_status: 'completed',
+      booking_status: { $in: ['completed', 'returned'] },
     };
     if (searchPetIds) matchStage.pet_id = { $in: searchPetIds };
 
