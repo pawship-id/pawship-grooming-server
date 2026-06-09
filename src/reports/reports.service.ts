@@ -72,10 +72,22 @@ export class ReportsService {
     private readonly bookingEventsService: BookingEventsService,
   ) {}
 
+  /** Parse a comma-separated filter value into a Mongo equality / $in clause. */
+  private multiValueClause(raw?: string): any {
+    if (!raw) return undefined;
+    const values = raw
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean);
+    if (values.length === 0) return undefined;
+    return values.length === 1 ? values[0] : { $in: values };
+  }
+
   private buildFilter(dto: FinancialReportDto): Record<string, any> {
     const filter: Record<string, any> = { isDeleted: false };
 
-    if (dto.booking_status) filter.booking_status = dto.booking_status;
+    const statusClause = this.multiValueClause(dto.booking_status);
+    if (statusClause !== undefined) filter.booking_status = statusClause;
 
     if (dto.date_from || dto.date_to) {
       filter.date = {};
@@ -92,7 +104,8 @@ export class ReportsService {
       }
     }
 
-    if (dto.booking_type) filter.type = dto.booking_type;
+    const typeClause = this.multiValueClause(dto.booking_type);
+    if (typeClause !== undefined) filter.type = typeClause;
 
     return filter;
   }
