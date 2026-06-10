@@ -26,6 +26,11 @@ export interface RevenueKpis {
   total_discount: number;
   discount_leakage_pct: number;
   total_orders: number;
+  gross_order_count: number;
+  gross_order_membership_count: number;
+  gross_order_onetime_count: number;
+  gross_order_inhome_count: number;
+  gross_order_instore_count: number;
   avg_order_value: number;
   delta: {
     gross_revenue_pct: number | null;
@@ -187,6 +192,12 @@ export class RevenueService {
           ? round2((current.discount / current.gross) * 100)
           : 0,
       total_orders: current.orders_completed,
+      gross_order_count: current.orders_total,
+      gross_order_membership_count: current.orders_membership,
+      gross_order_onetime_count:
+        current.orders_total - current.orders_membership,
+      gross_order_inhome_count: current.orders_inhome,
+      gross_order_instore_count: current.orders_instore,
       avg_order_value:
         current.orders_completed > 0
           ? Math.round(currentNetCompleted / current.orders_completed)
@@ -269,6 +280,30 @@ export class RevenueService {
                 ],
               },
             },
+            // Semua order yang masuk dalam scope gross (selain cancelled & rescheduled)
+            orders_total: { $sum: 1 },
+            // Order yang memakai benefit membership = order membership; sisanya one-time.
+            orders_membership: {
+              $sum: {
+                $cond: [
+                  {
+                    $gt: [
+                      { $size: { $ifNull: ['$applied_benefits', []] } },
+                      0,
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            // Lokasi layanan: 'in home' = home service, 'in store' = di toko.
+            orders_inhome: {
+              $sum: { $cond: [{ $eq: ['$type', 'in home'] }, 1, 0] },
+            },
+            orders_instore: {
+              $sum: { $cond: [{ $eq: ['$type', 'in store'] }, 1, 0] },
+            },
           },
         },
       ])
@@ -280,6 +315,10 @@ export class RevenueService {
       gross_completed: row?.gross_completed ?? 0,
       discount_completed: row?.discount_completed ?? 0,
       orders_completed: row?.orders_completed ?? 0,
+      orders_total: row?.orders_total ?? 0,
+      orders_membership: row?.orders_membership ?? 0,
+      orders_inhome: row?.orders_inhome ?? 0,
+      orders_instore: row?.orders_instore ?? 0,
     };
   }
 
