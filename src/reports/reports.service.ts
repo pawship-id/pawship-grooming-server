@@ -710,6 +710,7 @@ export class ReportsService {
               _id: '$pet_id',
               last_at: { $max: '$date' },
               count: { $sum: 1 },
+              lifetime_revenue: { $sum: { $ifNull: ['$final_total_price', 0] } },
             },
           },
         ]),
@@ -798,6 +799,11 @@ export class ReportsService {
     const bookingCountMap = new Map<string, number>(
       lastVisitAgg.map((a: any) => [a._id.toString(), a.count ?? 0]),
     );
+    // Revenue lifetime per pet = total final_total_price booking completed/returned
+    // (sumber sama dengan lastVisitAgg) — dipakai untuk kolom "Total Revenue Lifetime".
+    const lifetimeRevenueMap = new Map<string, number>(
+      lastVisitAgg.map((a: any) => [a._id.toString(), a.lifetime_revenue ?? 0]),
+    );
     const lastVisitMap = new Map<string, Date>(
       lastVisitAgg.map((a: any) => [a._id.toString(), a.last_at]),
     );
@@ -851,6 +857,7 @@ export class ReportsService {
         total_transactions:
           (bookingCountMap.get(p._id.toString()) ?? 0) +
           (membershipCountMap.get(p._id.toString()) ?? 0),
+        total_revenue_lifetime: lifetimeRevenueMap.get(p._id.toString()) ?? 0,
         has_booked: bookedPetSet.has(p._id.toString()),
       };
     });
