@@ -196,7 +196,8 @@ export class ReportsService {
   private buildOperationsFilter(dto: OperationsReportDto): Record<string, any> {
     const filter: Record<string, any> = { isDeleted: false };
 
-    if (dto.booking_status) filter.booking_status = dto.booking_status;
+    const statusClause = this.multiValueClause(dto.booking_status);
+    if (statusClause !== undefined) filter.booking_status = statusClause;
 
     if (dto.date_from || dto.date_to) {
       filter.date = {};
@@ -204,23 +205,29 @@ export class ReportsService {
       if (dto.date_to) filter.date.$lte = new Date(dto.date_to);
     }
 
-    if (dto.store_id) {
-      try {
-        const oid = new Types.ObjectId(dto.store_id);
-        filter.store_id = { $in: [oid, dto.store_id] };
-      } catch {
-        filter.store_id = dto.store_id;
-      }
-    }
+    const storeClause = this.storeIdClause(dto.store_id);
+    if (storeClause !== undefined) filter.store_id = storeClause;
 
-    if (dto.booking_type) filter.type = dto.booking_type;
+    const typeClause = this.multiValueClause(dto.booking_type);
+    if (typeClause !== undefined) filter.type = typeClause;
 
-    if (dto.session_status) filter['sessions.status'] = dto.session_status;
+    const sessionClause = this.multiValueClause(dto.session_status);
+    if (sessionClause !== undefined) filter['sessions.status'] = sessionClause;
 
     if (dto.service_type) {
-      filter['service_snapshot.service_type.title'] = {
-        $regex: new RegExp(`^${dto.service_type}$`, 'i'),
-      };
+      const titles = dto.service_type
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean);
+      if (titles.length === 1) {
+        filter['service_snapshot.service_type.title'] = {
+          $regex: new RegExp(`^${titles[0]}$`, 'i'),
+        };
+      } else if (titles.length > 1) {
+        filter['service_snapshot.service_type.title'] = {
+          $in: titles.map((t) => new RegExp(`^${t}$`, 'i')),
+        };
+      }
     }
 
     return filter;
@@ -294,13 +301,8 @@ export class ReportsService {
   async getCapacityUtilisationReport(dto: CapacityUtilisationReportDto) {
     // 1. Build usage filter
     const usageFilter: Record<string, any> = {};
-    if (dto.store_id) {
-      try {
-        usageFilter.store_id = new Types.ObjectId(dto.store_id);
-      } catch {
-        usageFilter.store_id = dto.store_id;
-      }
-    }
+    const usageStoreClause = this.storeIdClause(dto.store_id);
+    if (usageStoreClause !== undefined) usageFilter.store_id = usageStoreClause;
     if (dto.date_from || dto.date_to) {
       usageFilter.date = {};
       if (dto.date_from) usageFilter.date.$gte = new Date(dto.date_from);
@@ -363,13 +365,9 @@ export class ReportsService {
 
     // 6. Count bookings per store+date via aggregation
     const bookingFilter: Record<string, any> = { isDeleted: false };
-    if (dto.store_id) {
-      try {
-        bookingFilter.store_id = new Types.ObjectId(dto.store_id);
-      } catch {
-        bookingFilter.store_id = dto.store_id;
-      }
-    }
+    const bookingStoreClause = this.storeIdClause(dto.store_id);
+    if (bookingStoreClause !== undefined)
+      bookingFilter.store_id = bookingStoreClause;
     if (dto.date_from || dto.date_to) {
       bookingFilter.date = {};
       if (dto.date_from) bookingFilter.date.$gte = new Date(dto.date_from);
