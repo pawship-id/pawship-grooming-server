@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthGuard } from 'src/auth/auth.guard';
+import { CustomerTrendQueryDto } from './dto/customer-trend-query.dto';
 import { DashboardQueryDto } from './dto/dashboard-query.dto';
 import { OperationalQueryDto } from './dto/operational-query.dto';
 import { ActivityFeedService } from './services/activity-feed.service';
@@ -116,6 +117,21 @@ export class DashboardController {
       to: query.to,
     });
     return { message: 'Fetch growth successfully', ...data };
+  }
+
+  @Get('customer-trend')
+  async getCustomerTrend(
+    @Req() req: Request,
+    @Query() query: CustomerTrendQueryDto,
+  ) {
+    this.assertAdmin(req);
+    const data = await this.growthService.getCustomerTrend({
+      storeId: query.store_id,
+      from: query.from,
+      to: query.to,
+      granularity: query.granularity,
+    });
+    return { message: 'Fetch customer trend successfully', ...data };
   }
 
   private assertAdmin(req: Request) {

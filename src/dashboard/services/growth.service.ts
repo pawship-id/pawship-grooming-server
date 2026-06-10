@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Booking, BookingDocument } from 'src/booking/entities/booking.entity';
 import { Pet, PetDocument } from 'src/pet/entities/pet.entity';
 import { User, UserDocument } from 'src/user/entities/user.entity';
@@ -11,7 +11,31 @@ import {
   toUtcStartOfDay,
 } from '../utils/date-range';
 
+const EXCLUDED_BOOKING_STATUSES = ['cancelled', 'rescheduled'];
+
 export type PetStatus = 'idle' | 'new' | 'active' | 'at_risk' | 'lapsed';
+
+export type TrendGranularity = 'week' | 'month';
+
+export interface CustomerTrendPoint {
+  bucket: string; // ISO date of bucket start (YYYY-MM-DD)
+  label: string; // human-friendly label
+  registered: number; // customers yang registrasi / masuk sistem pada bucket ini
+  transacting: number; // customers unik yang bertransaksi pada bucket ini
+}
+
+export interface CustomerTrendResponse {
+  range: { from: string; to: string };
+  granularity: TrendGranularity;
+  points: CustomerTrendPoint[];
+}
+
+interface CustomerTrendArgs {
+  storeId?: string;
+  from?: string;
+  to?: string;
+  granularity?: TrendGranularity;
+}
 
 export interface PetStatusSnapshot {
   idle: number;
@@ -134,6 +158,97 @@ export class GrowthService {
           : null,
       },
       pet_status: status,
+    };
+  }
+
+  /**
+   * Time-series membandingkan jumlah customer yang registrasi (masuk sistem)
+   * dengan jumlah customer unik yang bertransaksi, dibucket per minggu/bulan.
+   * Mengikuti filter global (rentang tanggal + store).
+   */
+  async getCustomerTrend(
+    args: CustomerTrendArgs,
+  ): Promise<CustomerTrendResponse> {
+    const range = parseRange(args.from, args.to);
+    const granularity: TrendGranularity =
+      args.granularity === 'month' ? 'month' : 'week';
+    const storeMatch = buildStoreMatch(args.storeId);
+
+    // Daftar bucket berurutan (mengisi gap dengan 0).
+    const buckets = buildBuckets(range, granularity);
+    const registeredMap = new Map<string, number>();
+    const transactingMap = new Map<string, number>();
+
+    const dateTrunc = (field: string) =>
+      granularity === 'week'
+        ? {
+            $dateTrunc: {
+              date: field,
+              unit: 'week',
+              startOfWeek: 'monday',
+            },
+          }
+        : { $dateTrunc: { date: field, unit: 'month' } };
+
+    const [registeredRows, transactingRows] = await Promise.all([
+      // Customer yang registrasi/masuk sistem (berdasarkan createdAt).
+      this.userModel
+        .aggregate([
+          {
+            $match: {
+              role: 'customer',
+              is_active: true,
+              isDeleted: { $ne: true },
+              createdAt: { $gte: range.from, $lte: range.to },
+            },
+          },
+          {
+            $group: { _id: dateTrunc('$createdAt'), count: { $sum: 1 } },
+          },
+        ])
+        .exec(),
+      // Customer unik yang bertransaksi (punya booking pada bucket, exclude batal).
+      this.bookingModel
+        .aggregate([
+          {
+            $match: {
+              ...storeMatch,
+              booking_status: { $nin: EXCLUDED_BOOKING_STATUSES },
+              isDeleted: { $ne: true },
+              date: { $gte: range.from, $lte: range.to },
+            },
+          },
+          {
+            $group: {
+              _id: dateTrunc('$date'),
+              customers: { $addToSet: '$customer_id' },
+            },
+          },
+          {
+            $project: { count: { $size: '$customers' } },
+          },
+        ])
+        .exec(),
+    ]);
+
+    for (const r of registeredRows) {
+      registeredMap.set(bucketKey(r._id), r.count ?? 0);
+    }
+    for (const r of transactingRows) {
+      transactingMap.set(bucketKey(r._id), r.count ?? 0);
+    }
+
+    const points: CustomerTrendPoint[] = buckets.map((b) => ({
+      bucket: b.key,
+      label: b.label,
+      registered: registeredMap.get(b.key) ?? 0,
+      transacting: transactingMap.get(b.key) ?? 0,
+    }));
+
+    return {
+      range: { from: range.from.toISOString(), to: range.to.toISOString() },
+      granularity,
+      points,
     };
   }
 
@@ -330,4 +445,80 @@ function pctDelta(current: number, previous: number): number | null {
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+function buildStoreMatch(storeId?: string): Record<string, any> {
+  if (!storeId || storeId === 'all') return {};
+  if (!Types.ObjectId.isValid(storeId)) return {};
+  return { store_id: new Types.ObjectId(storeId) };
+}
+
+/** Awal minggu (Senin, UTC) untuk tanggal tertentu. */
+function truncToWeekMonday(date: Date): Date {
+  const d = toUtcStartOfDay(date);
+  const day = d.getUTCDay(); // 0=Min, 1=Sen, ...
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setUTCDate(d.getUTCDate() + diff);
+  return d;
+}
+
+/** Awal bulan (UTC) untuk tanggal tertentu. */
+function truncToMonth(date: Date): Date {
+  const d = toUtcStartOfDay(date);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+}
+
+function bucketKey(date: Date): string {
+  return new Date(date).toISOString().slice(0, 10);
+}
+
+const MONTHS_ID = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'Mei',
+  'Jun',
+  'Jul',
+  'Agu',
+  'Sep',
+  'Okt',
+  'Nov',
+  'Des',
+];
+
+/**
+ * Bangun daftar bucket berurutan (mengisi gap) dari range, sesuai granularity.
+ * Key = ISO tanggal awal bucket; label = ramah-baca.
+ */
+function buildBuckets(
+  range: { from: Date; to: Date },
+  granularity: TrendGranularity,
+): { key: string; label: string }[] {
+  const buckets: { key: string; label: string }[] = [];
+  if (granularity === 'month') {
+    let cur = truncToMonth(range.from);
+    const end = truncToMonth(range.to);
+    while (cur.getTime() <= end.getTime()) {
+      buckets.push({
+        key: bucketKey(cur),
+        label: `${MONTHS_ID[cur.getUTCMonth()]} ${cur.getUTCFullYear()}`,
+      });
+      cur = new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth() + 1, 1));
+    }
+    return buckets;
+  }
+
+  // week (Senin)
+  let cur = truncToWeekMonday(range.from);
+  const end = truncToWeekMonday(range.to);
+  while (cur.getTime() <= end.getTime()) {
+    buckets.push({
+      key: bucketKey(cur),
+      label: `${cur.getUTCDate()} ${MONTHS_ID[cur.getUTCMonth()]}`,
+    });
+    cur = new Date(cur);
+    cur.setUTCDate(cur.getUTCDate() + 7);
+  }
+  return buckets;
 }
