@@ -2523,7 +2523,11 @@ export class ReportsService {
     // amount_deducted), tinggal di-group per pet_membership_id.
     const cumulativeAgg: { _id: Types.ObjectId; total: number }[] =
       await this.bookingModel.aggregate([
-        { $match: { isDeleted: false } },
+        // Booking cancel hanya mengubah booking_status (isDeleted tetap false)
+        // dan tidak mengosongkan applied_benefits, sedangkan BenefitUsage-nya
+        // di-soft-delete. Kecualikan booking cancel agar cumulative_used &
+        // benefit_vs_price_pct konsisten dengan baris benefit yang ditampilkan.
+        { $match: { isDeleted: false, booking_status: { $ne: 'cancelled' } } },
         { $unwind: '$applied_benefits' },
         {
           $match: {
