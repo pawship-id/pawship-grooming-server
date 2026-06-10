@@ -83,6 +83,30 @@ export class ReportsService {
     return values.length === 1 ? values[0] : { $in: values };
   }
 
+  /**
+   * Parse a comma-separated list of store ids into a Mongo clause.
+   * store_id is stored as either an ObjectId or a string, so each id is
+   * matched in both forms.
+   */
+  private storeIdClause(raw?: string): any {
+    if (!raw) return undefined;
+    const ids = raw
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean);
+    if (ids.length === 0) return undefined;
+    const candidates: any[] = [];
+    for (const id of ids) {
+      candidates.push(id);
+      try {
+        candidates.push(new Types.ObjectId(id));
+      } catch {
+        /* not a valid ObjectId — string form already added */
+      }
+    }
+    return { $in: candidates };
+  }
+
   private buildFilter(dto: FinancialReportDto): Record<string, any> {
     const filter: Record<string, any> = { isDeleted: false };
 
@@ -95,14 +119,8 @@ export class ReportsService {
       if (dto.date_to) filter.date.$lte = new Date(dto.date_to);
     }
 
-    if (dto.store_id) {
-      try {
-        const oid = new Types.ObjectId(dto.store_id);
-        filter.store_id = { $in: [oid, dto.store_id] };
-      } catch {
-        filter.store_id = dto.store_id;
-      }
-    }
+    const storeClause = this.storeIdClause(dto.store_id);
+    if (storeClause !== undefined) filter.store_id = storeClause;
 
     const typeClause = this.multiValueClause(dto.booking_type);
     if (typeClause !== undefined) filter.type = typeClause;
