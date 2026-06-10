@@ -472,19 +472,19 @@ function bucketKey(date: Date): string {
   return new Date(date).toISOString().slice(0, 10);
 }
 
-const MONTHS_ID = [
+const MONTH_LABELS = [
   'Jan',
   'Feb',
   'Mar',
   'Apr',
-  'Mei',
+  'May',
   'Jun',
   'Jul',
-  'Agu',
+  'Aug',
   'Sep',
-  'Okt',
+  'Oct',
   'Nov',
-  'Des',
+  'Dec',
 ];
 
 /**
@@ -502,7 +502,7 @@ function buildBuckets(
     while (cur.getTime() <= end.getTime()) {
       buckets.push({
         key: bucketKey(cur),
-        label: `${MONTHS_ID[cur.getUTCMonth()]} ${cur.getUTCFullYear()}`,
+        label: `${MONTH_LABELS[cur.getUTCMonth()]} ${cur.getUTCFullYear()}`,
       });
       cur = new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth() + 1, 1));
     }
@@ -515,7 +515,7 @@ function buildBuckets(
   while (cur.getTime() <= end.getTime()) {
     buckets.push({
       key: bucketKey(cur),
-      label: `${cur.getUTCDate()} ${MONTHS_ID[cur.getUTCMonth()]}`,
+      label: `${cur.getUTCDate()} ${MONTH_LABELS[cur.getUTCMonth()]}`,
     });
     cur = new Date(cur);
     cur.setUTCDate(cur.getUTCDate() + 7);
