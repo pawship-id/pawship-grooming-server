@@ -52,6 +52,19 @@ export function parseRangeOrNull(from?: string, to?: string): DateRange | null {
   };
 }
 
+/**
+ * Build a Mongo match fragment that constrains `field` to the given range.
+ * When `range` is null ("Semua" / all time) returns an empty object so the
+ * caller can spread it without applying any date filter.
+ */
+export function buildDateMatch(
+  range: DateRange | null,
+  field = 'date',
+): Record<string, any> {
+  if (!range) return {};
+  return { [field]: { $gte: range.from, $lte: range.to } };
+}
+
 export function previousRange(range: DateRange): DateRange {
   const durationMs =
     toUtcStartOfDay(range.to).getTime() -

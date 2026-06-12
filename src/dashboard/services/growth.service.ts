@@ -5,9 +5,11 @@ import { Booking, BookingDocument } from 'src/booking/entities/booking.entity';
 import { Pet, PetDocument } from 'src/pet/entities/pet.entity';
 import { User, UserDocument } from 'src/user/entities/user.entity';
 import {
+  DateRange,
   parseRange,
   parseRangeOrNull,
   previousRange,
+  toUtcEndOfDay,
   toUtcStartOfDay,
 } from '../utils/date-range';
 
@@ -169,10 +171,14 @@ export class GrowthService {
   async getCustomerTrend(
     args: CustomerTrendArgs,
   ): Promise<CustomerTrendResponse> {
-    const range = parseRange(args.from, args.to);
     const granularity: TrendGranularity =
       args.granularity === 'month' ? 'month' : 'week';
     const storeMatch = buildStoreMatch(args.storeId);
+    // Tanpa rentang ("Semua") -> rentang membentang dari data paling awal
+    // sampai hari ini, sehingga tren ditampilkan untuk seluruh waktu.
+    const filterRange = parseRangeOrNull(args.from, args.to);
+    const range =
+      filterRange ?? (await this.resolveTrendAllTimeRange(storeMatch));
 
     // Daftar bucket berurutan (mengisi gap dengan 0).
     const buckets = buildBuckets(range, granularity);
@@ -250,6 +256,45 @@ export class GrowthService {
       granularity,
       points,
     };
+  }
+
+  /**
+   * Rentang "all time" untuk tren: dari tanggal data paling awal (registrasi
+   * customer atau booking, mana yang lebih dulu) sampai akhir hari ini. Fallback
+   * ke "hari ini" bila belum ada data sama sekali.
+   */
+  private async resolveTrendAllTimeRange(
+    storeMatch: Record<string, any>,
+  ): Promise<DateRange> {
+    const now = new Date();
+    const to = toUtcEndOfDay(now);
+    const fallbackFrom = toUtcStartOfDay(now);
+
+    const [firstCustomer, firstBooking] = await Promise.all([
+      this.userModel
+        .findOne({ role: 'customer', is_active: true, isDeleted: { $ne: true } })
+        .sort({ createdAt: 1 })
+        .select('createdAt')
+        .lean<any>()
+        .exec(),
+      this.bookingModel
+        .findOne({
+          ...storeMatch,
+          booking_status: { $nin: EXCLUDED_BOOKING_STATUSES },
+          isDeleted: { $ne: true },
+        })
+        .sort({ date: 1 })
+        .select('date')
+        .lean<any>()
+        .exec(),
+    ]);
+
+    const candidates = [firstCustomer?.createdAt, firstBooking?.date]
+      .filter(Boolean)
+      .map((d) => new Date(d).getTime());
+
+    if (candidates.length === 0) return { from: fallbackFrom, to };
+    return { from: toUtcStartOfDay(new Date(Math.min(...candidates))), to };
   }
 
   /**

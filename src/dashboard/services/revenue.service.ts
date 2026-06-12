@@ -7,7 +7,7 @@ import {
   PetMembershipDocument,
 } from 'src/pet-membership/entities/pet-membership.entity';
 import {
-  parseRange,
+  buildDateMatch,
   parseRangeOrNull,
   previousRange,
   toUtcStartOfDay,
@@ -129,8 +129,11 @@ export class RevenueService {
   ) {}
 
   async getRevenue(args: RevenueQueryArgs): Promise<RevenueResponse> {
-    const range = parseRange(args.from, args.to);
-    const prevRange = previousRange(range);
+    // Tanpa rentang ("Semua") -> null -> tidak ada filter periode (all time).
+    const filterRange = parseRangeOrNull(args.from, args.to);
+    const dateMatch = buildDateMatch(filterRange);
+    // Periode pembanding ("vs previous") hanya bermakna saat ada rentang.
+    const prevRange = filterRange ? previousRange(filterRange) : null;
     const storeMatch = buildStoreMatch(args.storeId);
 
     const [
@@ -142,18 +145,20 @@ export class RevenueService {
       membership,
       trend7d,
     ] = await Promise.all([
-      this.aggregateKpis(range, storeMatch),
-      this.aggregateKpis(prevRange, storeMatch),
-      this.aggregateByServiceType(range, storeMatch),
-      this.aggregateAddonAndPickup(range, storeMatch),
-      this.aggregateDiscountBreakdown(range, storeMatch),
+      this.aggregateKpis(dateMatch, storeMatch),
+      prevRange
+        ? this.aggregateKpis(buildDateMatch(prevRange), storeMatch)
+        : Promise.resolve(null),
+      this.aggregateByServiceType(dateMatch, storeMatch),
+      this.aggregateAddonAndPickup(dateMatch, storeMatch),
+      this.aggregateDiscountBreakdown(dateMatch, storeMatch),
       this.aggregateMembership(args.from, args.to),
       this.aggregateTrend7d(storeMatch),
     ]);
 
     // 2B grooming-only: breakdown per individual grooming service
     const byGroomingService = await this.aggregateGroomingServices(
-      range,
+      dateMatch,
       storeMatch,
     );
 
@@ -173,11 +178,37 @@ export class RevenueService {
     };
 
     const currentNet = current.gross - current.discount;
-    const previousNet = previous.gross - previous.discount;
     const currentNetCompleted =
       current.gross_completed - current.discount_completed;
-    const previousNetCompleted =
-      previous.gross_completed - previous.discount_completed;
+
+    // Tanpa periode pembanding (all time) semua delta = null.
+    const delta: RevenueKpis['delta'] = previous
+      ? {
+          gross_revenue_pct: pctDelta(current.gross, previous.gross),
+          net_revenue_pct: pctDelta(
+            currentNet,
+            previous.gross - previous.discount,
+          ),
+          total_orders_pct: pctDelta(
+            current.orders_completed,
+            previous.orders_completed,
+          ),
+          avg_order_value_pct: pctDelta(
+            current.orders_completed > 0
+              ? currentNetCompleted / current.orders_completed
+              : 0,
+            previous.orders_completed > 0
+              ? (previous.gross_completed - previous.discount_completed) /
+                  previous.orders_completed
+              : 0,
+          ),
+        }
+      : {
+          gross_revenue_pct: null,
+          net_revenue_pct: null,
+          total_orders_pct: null,
+          avg_order_value_pct: null,
+        };
 
     const kpis: RevenueKpis = {
       gross_revenue: current.gross,
@@ -202,28 +233,13 @@ export class RevenueService {
         current.orders_completed > 0
           ? Math.round(currentNetCompleted / current.orders_completed)
           : 0,
-      delta: {
-        gross_revenue_pct: pctDelta(current.gross, previous.gross),
-        net_revenue_pct: pctDelta(currentNet, previousNet),
-        total_orders_pct: pctDelta(
-          current.orders_completed,
-          previous.orders_completed,
-        ),
-        avg_order_value_pct: pctDelta(
-          current.orders_completed > 0
-            ? currentNetCompleted / current.orders_completed
-            : 0,
-          previous.orders_completed > 0
-            ? previousNetCompleted / previous.orders_completed
-            : 0,
-        ),
-      },
+      delta,
     };
 
     return {
       range: {
-        from: range.from.toISOString(),
-        to: range.to.toISOString(),
+        from: filterRange ? filterRange.from.toISOString() : '',
+        to: filterRange ? filterRange.to.toISOString() : '',
       },
       kpis,
       by_grooming_service: byGroomingService,
@@ -235,7 +251,7 @@ export class RevenueService {
   }
 
   private async aggregateKpis(
-    range: { from: Date; to: Date },
+    dateMatch: Record<string, any>,
     storeMatch: Record<string, any>,
   ) {
     const [row] = await this.bookingModel
@@ -245,7 +261,7 @@ export class RevenueService {
             ...storeMatch,
             booking_status: { $nin: EXCLUDED_REVENUE_STATUSES },
             isDeleted: { $ne: true },
-            date: { $gte: range.from, $lte: range.to },
+            ...dateMatch,
           },
         },
         {
@@ -323,7 +339,7 @@ export class RevenueService {
   }
 
   private async aggregateGroomingServices(
-    range: { from: Date; to: Date },
+    dateMatch: Record<string, any>,
     storeMatch: Record<string, any>,
   ): Promise<RevenueByGroomingServiceItem[]> {
     const rows = await this.bookingModel
@@ -333,7 +349,7 @@ export class RevenueService {
             ...storeMatch,
             booking_status: { $nin: EXCLUDED_REVENUE_STATUSES },
             isDeleted: { $ne: true },
-            date: { $gte: range.from, $lte: range.to },
+            ...dateMatch,
             'service_snapshot.service_type.title': { $regex: /grooming/i },
           },
         },
@@ -365,7 +381,7 @@ export class RevenueService {
   }
 
   private async aggregateByServiceType(
-    range: { from: Date; to: Date },
+    dateMatch: Record<string, any>,
     storeMatch: Record<string, any>,
   ): Promise<RevenueByServiceTypeItem[]> {
     const rows = await this.bookingModel
@@ -375,7 +391,7 @@ export class RevenueService {
             ...storeMatch,
             booking_status: { $nin: EXCLUDED_REVENUE_STATUSES },
             isDeleted: { $ne: true },
-            date: { $gte: range.from, $lte: range.to },
+            ...dateMatch,
           },
         },
         {
@@ -410,7 +426,7 @@ export class RevenueService {
    * the layanan category breakdown.
    */
   private async aggregateAddonAndPickup(
-    range: { from: Date; to: Date },
+    dateMatch: Record<string, any>,
     storeMatch: Record<string, any>,
   ): Promise<{ addon: number; pickup: number }> {
     const [row] = await this.bookingModel
@@ -420,7 +436,7 @@ export class RevenueService {
             ...storeMatch,
             booking_status: { $nin: EXCLUDED_REVENUE_STATUSES },
             isDeleted: { $ne: true },
-            date: { $gte: range.from, $lte: range.to },
+            ...dateMatch,
           },
         },
         {
@@ -457,7 +473,7 @@ export class RevenueService {
   }
 
   private async aggregateDiscountBreakdown(
-    range: { from: Date; to: Date },
+    dateMatch: Record<string, any>,
     storeMatch: Record<string, any>,
   ): Promise<{
     membership_benefit_total: number;
@@ -474,7 +490,7 @@ export class RevenueService {
             ...storeMatch,
             booking_status: { $nin: EXCLUDED_REVENUE_STATUSES },
             isDeleted: { $ne: true },
-            date: { $gte: range.from, $lte: range.to },
+            ...dateMatch,
           },
         },
         {

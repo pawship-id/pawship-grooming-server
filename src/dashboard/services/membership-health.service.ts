@@ -12,7 +12,11 @@ import {
 } from 'src/pet-membership/entities/pet-membership.entity';
 import { User, UserDocument } from 'src/user/entities/user.entity';
 import { UserRole } from 'src/user/dto/user.dto';
-import { parseRange, toUtcStartOfDay } from '../utils/date-range';
+import {
+  buildDateMatch,
+  parseRangeOrNull,
+  toUtcStartOfDay,
+} from '../utils/date-range';
 
 export interface MembershipTierItem {
   tier: string;
@@ -60,7 +64,9 @@ export class MembershipHealthService {
   async getMembershipHealth(
     args: MembershipHealthArgs,
   ): Promise<MembershipHealthResponse> {
-    const range = parseRange(args.from, args.to);
+    // Tanpa rentang ("Semua") -> null -> kartu yang per-periode dihitung all time.
+    const filterRange = parseRangeOrNull(args.from, args.to);
+    const createdMatch = buildDateMatch(filterRange, 'createdAt');
     const now = new Date();
     const today = toUtcStartOfDay(now);
 
@@ -155,7 +161,7 @@ export class MembershipHealthService {
               // (revenue.service.aggregateMembership): hanya pembelian aktif,
               // tidak termasuk yang dibatalkan (cancelled = is_active false).
               is_active: true,
-              createdAt: { $gte: range.from, $lte: range.to },
+              ...createdMatch,
               isDeleted: { $ne: true },
             },
           },
@@ -187,7 +193,7 @@ export class MembershipHealthService {
           {
             $match: {
               is_active: true,
-              createdAt: { $gte: range.from, $lte: range.to },
+              ...createdMatch,
               isDeleted: { $ne: true },
             },
           },
@@ -282,8 +288,8 @@ export class MembershipHealthService {
 
     return {
       range: {
-        from: range.from.toISOString(),
-        to: range.to.toISOString(),
+        from: filterRange ? filterRange.from.toISOString() : '',
+        to: filterRange ? filterRange.to.toISOString() : '',
       },
       active_memberships: activeMembers,
       active_count: activeOnly,
