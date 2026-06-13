@@ -7,7 +7,8 @@ import {
   PetMembershipDocument,
 } from 'src/pet-membership/entities/pet-membership.entity';
 import {
-  parseRange,
+  buildDateMatch,
+  parseRangeOrNull,
   previousRange,
   toUtcStartOfDay,
 } from '../utils/date-range';
@@ -25,6 +26,11 @@ export interface RevenueKpis {
   total_discount: number;
   discount_leakage_pct: number;
   total_orders: number;
+  gross_order_count: number;
+  gross_order_membership_count: number;
+  gross_order_onetime_count: number;
+  gross_order_inhome_count: number;
+  gross_order_instore_count: number;
   avg_order_value: number;
   delta: {
     gross_revenue_pct: number | null;
@@ -67,8 +73,11 @@ export interface RevenueByLayananCategoryItem {
 
 export interface DiscountBreakdown {
   membership_benefit_total: number;
+  membership_benefit_order_count: number;
   promotion_discount_total: number;
+  promotion_discount_order_count: number;
   admin_discount_total: number;
+  admin_discount_order_count: number;
   total_attributed: number;
   leakage_pct: number;
 }
@@ -120,8 +129,11 @@ export class RevenueService {
   ) {}
 
   async getRevenue(args: RevenueQueryArgs): Promise<RevenueResponse> {
-    const range = parseRange(args.from, args.to);
-    const prevRange = previousRange(range);
+    // Tanpa rentang ("Semua") -> null -> tidak ada filter periode (all time).
+    const filterRange = parseRangeOrNull(args.from, args.to);
+    const dateMatch = buildDateMatch(filterRange);
+    // Periode pembanding ("vs previous") hanya bermakna saat ada rentang.
+    const prevRange = filterRange ? previousRange(filterRange) : null;
     const storeMatch = buildStoreMatch(args.storeId);
 
     const [
@@ -133,18 +145,20 @@ export class RevenueService {
       membership,
       trend7d,
     ] = await Promise.all([
-      this.aggregateKpis(range, storeMatch),
-      this.aggregateKpis(prevRange, storeMatch),
-      this.aggregateByServiceType(range, storeMatch),
-      this.aggregateAddonAndPickup(range, storeMatch),
-      this.aggregateDiscountBreakdown(range, storeMatch),
-      this.aggregateMembership(range),
+      this.aggregateKpis(dateMatch, storeMatch),
+      prevRange
+        ? this.aggregateKpis(buildDateMatch(prevRange), storeMatch)
+        : Promise.resolve(null),
+      this.aggregateByServiceType(dateMatch, storeMatch),
+      this.aggregateAddonAndPickup(dateMatch, storeMatch),
+      this.aggregateDiscountBreakdown(dateMatch, storeMatch),
+      this.aggregateMembership(args.from, args.to),
       this.aggregateTrend7d(storeMatch),
     ]);
 
     // 2B grooming-only: breakdown per individual grooming service
     const byGroomingService = await this.aggregateGroomingServices(
-      range,
+      dateMatch,
       storeMatch,
     );
 
@@ -164,11 +178,37 @@ export class RevenueService {
     };
 
     const currentNet = current.gross - current.discount;
-    const previousNet = previous.gross - previous.discount;
     const currentNetCompleted =
       current.gross_completed - current.discount_completed;
-    const previousNetCompleted =
-      previous.gross_completed - previous.discount_completed;
+
+    // Tanpa periode pembanding (all time) semua delta = null.
+    const delta: RevenueKpis['delta'] = previous
+      ? {
+          gross_revenue_pct: pctDelta(current.gross, previous.gross),
+          net_revenue_pct: pctDelta(
+            currentNet,
+            previous.gross - previous.discount,
+          ),
+          total_orders_pct: pctDelta(
+            current.orders_completed,
+            previous.orders_completed,
+          ),
+          avg_order_value_pct: pctDelta(
+            current.orders_completed > 0
+              ? currentNetCompleted / current.orders_completed
+              : 0,
+            previous.orders_completed > 0
+              ? (previous.gross_completed - previous.discount_completed) /
+                  previous.orders_completed
+              : 0,
+          ),
+        }
+      : {
+          gross_revenue_pct: null,
+          net_revenue_pct: null,
+          total_orders_pct: null,
+          avg_order_value_pct: null,
+        };
 
     const kpis: RevenueKpis = {
       gross_revenue: current.gross,
@@ -183,32 +223,23 @@ export class RevenueService {
           ? round2((current.discount / current.gross) * 100)
           : 0,
       total_orders: current.orders_completed,
+      gross_order_count: current.orders_total,
+      gross_order_membership_count: current.orders_membership,
+      gross_order_onetime_count:
+        current.orders_total - current.orders_membership,
+      gross_order_inhome_count: current.orders_inhome,
+      gross_order_instore_count: current.orders_instore,
       avg_order_value:
         current.orders_completed > 0
           ? Math.round(currentNetCompleted / current.orders_completed)
           : 0,
-      delta: {
-        gross_revenue_pct: pctDelta(current.gross, previous.gross),
-        net_revenue_pct: pctDelta(currentNet, previousNet),
-        total_orders_pct: pctDelta(
-          current.orders_completed,
-          previous.orders_completed,
-        ),
-        avg_order_value_pct: pctDelta(
-          current.orders_completed > 0
-            ? currentNetCompleted / current.orders_completed
-            : 0,
-          previous.orders_completed > 0
-            ? previousNetCompleted / previous.orders_completed
-            : 0,
-        ),
-      },
+      delta,
     };
 
     return {
       range: {
-        from: range.from.toISOString(),
-        to: range.to.toISOString(),
+        from: filterRange ? filterRange.from.toISOString() : '',
+        to: filterRange ? filterRange.to.toISOString() : '',
       },
       kpis,
       by_grooming_service: byGroomingService,
@@ -220,7 +251,7 @@ export class RevenueService {
   }
 
   private async aggregateKpis(
-    range: { from: Date; to: Date },
+    dateMatch: Record<string, any>,
     storeMatch: Record<string, any>,
   ) {
     const [row] = await this.bookingModel
@@ -230,7 +261,7 @@ export class RevenueService {
             ...storeMatch,
             booking_status: { $nin: EXCLUDED_REVENUE_STATUSES },
             isDeleted: { $ne: true },
-            date: { $gte: range.from, $lte: range.to },
+            ...dateMatch,
           },
         },
         {
@@ -265,6 +296,30 @@ export class RevenueService {
                 ],
               },
             },
+            // Semua order yang masuk dalam scope gross (selain cancelled & rescheduled)
+            orders_total: { $sum: 1 },
+            // Order yang memakai benefit membership = order membership; sisanya one-time.
+            orders_membership: {
+              $sum: {
+                $cond: [
+                  {
+                    $gt: [
+                      { $size: { $ifNull: ['$applied_benefits', []] } },
+                      0,
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            // Lokasi layanan: 'in home' = home service, 'in store' = di toko.
+            orders_inhome: {
+              $sum: { $cond: [{ $eq: ['$type', 'in home'] }, 1, 0] },
+            },
+            orders_instore: {
+              $sum: { $cond: [{ $eq: ['$type', 'in store'] }, 1, 0] },
+            },
           },
         },
       ])
@@ -276,11 +331,15 @@ export class RevenueService {
       gross_completed: row?.gross_completed ?? 0,
       discount_completed: row?.discount_completed ?? 0,
       orders_completed: row?.orders_completed ?? 0,
+      orders_total: row?.orders_total ?? 0,
+      orders_membership: row?.orders_membership ?? 0,
+      orders_inhome: row?.orders_inhome ?? 0,
+      orders_instore: row?.orders_instore ?? 0,
     };
   }
 
   private async aggregateGroomingServices(
-    range: { from: Date; to: Date },
+    dateMatch: Record<string, any>,
     storeMatch: Record<string, any>,
   ): Promise<RevenueByGroomingServiceItem[]> {
     const rows = await this.bookingModel
@@ -290,7 +349,7 @@ export class RevenueService {
             ...storeMatch,
             booking_status: { $nin: EXCLUDED_REVENUE_STATUSES },
             isDeleted: { $ne: true },
-            date: { $gte: range.from, $lte: range.to },
+            ...dateMatch,
             'service_snapshot.service_type.title': { $regex: /grooming/i },
           },
         },
@@ -322,7 +381,7 @@ export class RevenueService {
   }
 
   private async aggregateByServiceType(
-    range: { from: Date; to: Date },
+    dateMatch: Record<string, any>,
     storeMatch: Record<string, any>,
   ): Promise<RevenueByServiceTypeItem[]> {
     const rows = await this.bookingModel
@@ -332,7 +391,7 @@ export class RevenueService {
             ...storeMatch,
             booking_status: { $nin: EXCLUDED_REVENUE_STATUSES },
             isDeleted: { $ne: true },
-            date: { $gte: range.from, $lte: range.to },
+            ...dateMatch,
           },
         },
         {
@@ -367,7 +426,7 @@ export class RevenueService {
    * the layanan category breakdown.
    */
   private async aggregateAddonAndPickup(
-    range: { from: Date; to: Date },
+    dateMatch: Record<string, any>,
     storeMatch: Record<string, any>,
   ): Promise<{ addon: number; pickup: number }> {
     const [row] = await this.bookingModel
@@ -377,7 +436,7 @@ export class RevenueService {
             ...storeMatch,
             booking_status: { $nin: EXCLUDED_REVENUE_STATUSES },
             isDeleted: { $ne: true },
-            date: { $gte: range.from, $lte: range.to },
+            ...dateMatch,
           },
         },
         {
@@ -414,12 +473,15 @@ export class RevenueService {
   }
 
   private async aggregateDiscountBreakdown(
-    range: { from: Date; to: Date },
+    dateMatch: Record<string, any>,
     storeMatch: Record<string, any>,
   ): Promise<{
     membership_benefit_total: number;
+    membership_benefit_order_count: number;
     promotion_discount_total: number;
+    promotion_discount_order_count: number;
     admin_discount_total: number;
+    admin_discount_order_count: number;
   }> {
     const [row] = await this.bookingModel
       .aggregate([
@@ -428,7 +490,7 @@ export class RevenueService {
             ...storeMatch,
             booking_status: { $nin: EXCLUDED_REVENUE_STATUSES },
             isDeleted: { $ne: true },
-            date: { $gte: range.from, $lte: range.to },
+            ...dateMatch,
           },
         },
         {
@@ -472,8 +534,17 @@ export class RevenueService {
           $group: {
             _id: null,
             membership_benefit_total: { $sum: '$benefits_total' },
+            membership_benefit_order_count: {
+              $sum: { $cond: [{ $gt: ['$benefits_total', 0] }, 1, 0] },
+            },
             promotion_discount_total: { $sum: '$promotions_total' },
+            promotion_discount_order_count: {
+              $sum: { $cond: [{ $gt: ['$promotions_total', 0] }, 1, 0] },
+            },
             admin_discount_total: { $sum: '$admin_total' },
+            admin_discount_order_count: {
+              $sum: { $cond: [{ $gt: ['$admin_total', 0] }, 1, 0] },
+            },
           },
         },
       ])
@@ -481,8 +552,11 @@ export class RevenueService {
 
     return {
       membership_benefit_total: row?.membership_benefit_total ?? 0,
+      membership_benefit_order_count: row?.membership_benefit_order_count ?? 0,
       promotion_discount_total: row?.promotion_discount_total ?? 0,
+      promotion_discount_order_count: row?.promotion_discount_order_count ?? 0,
       admin_discount_total: row?.admin_discount_total ?? 0,
+      admin_discount_order_count: row?.admin_discount_order_count ?? 0,
     };
   }
 
@@ -526,18 +600,26 @@ export class RevenueService {
       .filter((item) => item.revenue > 0 || item.category !== 'other');
   }
 
-  private async aggregateMembership(range: {
-    from: Date;
-    to: Date;
-  }): Promise<MembershipRevenue> {
+  private async aggregateMembership(
+    from?: string,
+    to?: string,
+  ): Promise<MembershipRevenue> {
+    // Hitung semua pembelian membership yang statusnya bukan "Dibatalkan".
+    // Cancelled = is_active: false (lihat computeStatus di pet-membership.service).
+    const match: Record<string, any> = {
+      is_active: true,
+      isDeleted: { $ne: true },
+    };
+
+    // Filter periode hanya jika range diberikan; tanpa range = all time.
+    const range = parseRangeOrNull(from, to);
+    if (range) {
+      match.createdAt = { $gte: range.from, $lte: range.to };
+    }
+
     const [row] = await this.petMembershipModel
       .aggregate([
-        {
-          $match: {
-            createdAt: { $gte: range.from, $lte: range.to },
-            isDeleted: { $ne: true },
-          },
-        },
+        { $match: match },
         {
           $group: {
             _id: null,

@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Booking, BookingDocument } from 'src/booking/entities/booking.entity';
-import { parseRange, previousRange } from '../utils/date-range';
+import {
+  buildDateMatch,
+  parseRangeOrNull,
+  previousRange,
+} from '../utils/date-range';
 
 export interface BookingsKpis {
   total_bookings: number;
@@ -64,8 +68,11 @@ export class BookingsMetricsService {
   ) {}
 
   async getBookings(args: BookingsQueryArgs): Promise<BookingsResponse> {
-    const range = parseRange(args.from, args.to);
-    const prevRange = previousRange(range);
+    // Tanpa rentang ("Semua") -> null -> tidak ada filter periode (all time).
+    const filterRange = parseRangeOrNull(args.from, args.to);
+    const dateMatch = buildDateMatch(filterRange);
+    // Periode pembanding ("vs previous") hanya bermakna saat ada rentang.
+    const prevRange = filterRange ? previousRange(filterRange) : null;
     const storeMatch = {
       ...buildStoreMatch(args.storeId),
       ...buildServiceTypeMatch(args.serviceType),
@@ -79,12 +86,14 @@ export class BookingsMetricsService {
       peakHour,
       byDay,
     ] = await Promise.all([
-      this.aggregateKpis(range, storeMatch),
-      this.aggregateKpis(prevRange, storeMatch),
-      this.aggregateByStatus(range, storeMatch),
-      this.aggregateByServiceType(range, storeMatch),
-      this.aggregatePeakHour(range, storeMatch),
-      this.aggregateByDay(range, storeMatch),
+      this.aggregateKpis(dateMatch, storeMatch),
+      prevRange
+        ? this.aggregateKpis(buildDateMatch(prevRange), storeMatch)
+        : Promise.resolve(null),
+      this.aggregateByStatus(dateMatch, storeMatch),
+      this.aggregateByServiceType(dateMatch, storeMatch),
+      this.aggregatePeakHour(dateMatch, storeMatch),
+      this.aggregateByDay(dateMatch, storeMatch),
     ]);
 
     const cancellationRate =
@@ -98,8 +107,8 @@ export class BookingsMetricsService {
 
     return {
       range: {
-        from: range.from.toISOString(),
-        to: range.to.toISOString(),
+        from: filterRange ? filterRange.from.toISOString() : '',
+        to: filterRange ? filterRange.to.toISOString() : '',
       },
       kpis: {
         total_bookings: current.total,
@@ -110,14 +119,21 @@ export class BookingsMetricsService {
         completed: current.completed,
         cancelled: current.cancelled,
         rescheduled: current.rescheduled,
-        delta: {
-          total_bookings_pct: pctDelta(current.total, previous.total),
-          new_pets_pct: pctDelta(current.newPets, previous.newPets),
-          returning_pets_pct: pctDelta(
-            current.returningPets,
-            previous.returningPets,
-          ),
-        },
+        // Tanpa periode pembanding (all time) semua delta = null.
+        delta: previous
+          ? {
+              total_bookings_pct: pctDelta(current.total, previous.total),
+              new_pets_pct: pctDelta(current.newPets, previous.newPets),
+              returning_pets_pct: pctDelta(
+                current.returningPets,
+                previous.returningPets,
+              ),
+            }
+          : {
+              total_bookings_pct: null,
+              new_pets_pct: null,
+              returning_pets_pct: null,
+            },
       },
       by_status: byStatus,
       by_service_type: byServiceType,
@@ -127,13 +143,13 @@ export class BookingsMetricsService {
   }
 
   private async aggregatePeakHour(
-    range: { from: Date; to: Date },
+    dateMatch: Record<string, any>,
     storeMatch: Record<string, any>,
   ): Promise<PeakHourBucket[]> {
     const rows = await this.bookingModel
       .find({
         ...storeMatch,
-        date: { $gte: range.from, $lte: range.to },
+        ...dateMatch,
         isDeleted: { $ne: true },
       })
       .select('time_range')
@@ -153,7 +169,7 @@ export class BookingsMetricsService {
   }
 
   private async aggregateByDay(
-    range: { from: Date; to: Date },
+    dateMatch: Record<string, any>,
     storeMatch: Record<string, any>,
   ): Promise<BookingsByDayBucket[]> {
     // $dayOfWeek: 1=Sunday..7=Saturday → remap to 0=Mon..6=Sun
@@ -163,7 +179,7 @@ export class BookingsMetricsService {
         {
           $match: {
             ...storeMatch,
-            date: { $gte: range.from, $lte: range.to },
+            ...dateMatch,
             isDeleted: { $ne: true },
           },
         },
@@ -191,7 +207,7 @@ export class BookingsMetricsService {
   }
 
   private async aggregateKpis(
-    range: { from: Date; to: Date },
+    dateMatch: Record<string, any>,
     storeMatch: Record<string, any>,
   ) {
     const [counts] = await this.bookingModel
@@ -199,7 +215,7 @@ export class BookingsMetricsService {
         {
           $match: {
             ...storeMatch,
-            date: { $gte: range.from, $lte: range.to },
+            ...dateMatch,
             isDeleted: { $ne: true },
           },
         },
@@ -238,7 +254,7 @@ export class BookingsMetricsService {
             ...storeMatch,
             booking_status: 'completed',
             isDeleted: { $ne: true },
-            date: { $gte: range.from, $lte: range.to },
+            ...dateMatch,
           },
         },
         {
@@ -272,7 +288,7 @@ export class BookingsMetricsService {
   }
 
   private async aggregateByStatus(
-    range: { from: Date; to: Date },
+    dateMatch: Record<string, any>,
     storeMatch: Record<string, any>,
   ): Promise<BookingStatusBreakdown[]> {
     const rows = await this.bookingModel
@@ -280,7 +296,7 @@ export class BookingsMetricsService {
         {
           $match: {
             ...storeMatch,
-            date: { $gte: range.from, $lte: range.to },
+            ...dateMatch,
             isDeleted: { $ne: true },
           },
         },
@@ -296,7 +312,7 @@ export class BookingsMetricsService {
   }
 
   private async aggregateByServiceType(
-    range: { from: Date; to: Date },
+    dateMatch: Record<string, any>,
     storeMatch: Record<string, any>,
   ): Promise<BookingServiceBreakdown[]> {
     const rows = await this.bookingModel
@@ -304,7 +320,7 @@ export class BookingsMetricsService {
         {
           $match: {
             ...storeMatch,
-            date: { $gte: range.from, $lte: range.to },
+            ...dateMatch,
             isDeleted: { $ne: true },
           },
         },

@@ -1,12 +1,43 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Booking, BookingDocument } from 'src/booking/entities/booking.entity';
 import { Pet, PetDocument } from 'src/pet/entities/pet.entity';
 import { User, UserDocument } from 'src/user/entities/user.entity';
-import { parseRange, previousRange, toUtcStartOfDay } from '../utils/date-range';
+import {
+  DateRange,
+  parseRange,
+  parseRangeOrNull,
+  previousRange,
+  toUtcEndOfDay,
+  toUtcStartOfDay,
+} from '../utils/date-range';
+
+const EXCLUDED_BOOKING_STATUSES = ['cancelled', 'rescheduled'];
 
 export type PetStatus = 'idle' | 'new' | 'active' | 'at_risk' | 'lapsed';
+
+export type TrendGranularity = 'week' | 'month';
+
+export interface CustomerTrendPoint {
+  bucket: string; // ISO date of bucket start (YYYY-MM-DD)
+  label: string; // human-friendly label
+  registered: number; // customers yang registrasi / masuk sistem pada bucket ini
+  transacting: number; // customers unik yang bertransaksi pada bucket ini
+}
+
+export interface CustomerTrendResponse {
+  range: { from: string; to: string };
+  granularity: TrendGranularity;
+  points: CustomerTrendPoint[];
+}
+
+interface CustomerTrendArgs {
+  storeId?: string;
+  from?: string;
+  to?: string;
+  granularity?: TrendGranularity;
+}
 
 export interface PetStatusSnapshot {
   idle: number;
@@ -19,7 +50,9 @@ export interface PetStatusSnapshot {
 
 export interface GrowthResponse {
   range: { from: string; to: string };
+  total_customers: number;
   new_customers: number;
+  total_pets: number;
   new_pets_registered: number;
   pets_from_existing_owners: number;
   first_booking_conversion_pct: number;
@@ -47,25 +80,48 @@ export class GrowthService {
   async getGrowth(args: GrowthArgs): Promise<GrowthResponse> {
     const range = parseRange(args.from, args.to);
     const prevRange = previousRange(range);
+    // "Tanpa filter" (custom tanpa tanggal) -> null -> diperlakukan all-time.
+    const filterRange = parseRangeOrNull(args.from, args.to);
 
     const [
-      newCustomers,
-      newPets,
+      totalCustomers,
+      newCustomersInRange,
+      totalPets,
+      newPetsInRange,
       prevCustomers,
       prevPets,
       conversion,
       status,
     ] = await Promise.all([
+      // Total customer all-time — tidak mengikuti filter tanggal. Hanya customer
+      // aktif & belum dihapus (konsisten dengan card "Classify all customers").
       this.userModel.countDocuments({
         role: 'customer',
-        createdAt: { $gte: range.from, $lte: range.to },
-      }),
-      this.petModel.countDocuments({
-        createdAt: { $gte: range.from, $lte: range.to },
+        is_active: true,
         isDeleted: { $ne: true },
       }),
+      // New customer mengikuti filter; null (tanpa filter) dihitung all-time di bawah.
+      filterRange
+        ? this.userModel.countDocuments({
+            role: 'customer',
+            is_active: true,
+            isDeleted: { $ne: true },
+            createdAt: { $gte: filterRange.from, $lte: filterRange.to },
+          })
+        : null,
+      // Total pet all-time — tidak mengikuti filter tanggal.
+      this.petModel.countDocuments({ isDeleted: { $ne: true } }),
+      // New pet mengikuti filter; null (tanpa filter) dihitung all-time di bawah.
+      filterRange
+        ? this.petModel.countDocuments({
+            createdAt: { $gte: filterRange.from, $lte: filterRange.to },
+            isDeleted: { $ne: true },
+          })
+        : null,
       this.userModel.countDocuments({
         role: 'customer',
+        is_active: true,
+        isDeleted: { $ne: true },
         createdAt: { $gte: prevRange.from, $lte: prevRange.to },
       }),
       this.petModel.countDocuments({
@@ -76,12 +132,18 @@ export class GrowthService {
       this.computePetStatusSnapshot(),
     ]);
 
+    // Tanpa filter -> new = seluruh entitas all-time (= total).
+    const newCustomers = newCustomersInRange ?? totalCustomers;
+    const newPets = newPetsInRange ?? totalPets;
+
     return {
       range: {
         from: range.from.toISOString(),
         to: range.to.toISOString(),
       },
+      total_customers: totalCustomers,
       new_customers: newCustomers,
+      total_pets: totalPets,
       new_pets_registered: newPets,
       pets_from_existing_owners: Math.max(0, newPets - newCustomers),
       first_booking_conversion_pct: conversion,
@@ -89,11 +151,150 @@ export class GrowthService {
       // Exact transition-in-period tracking butuh event log; di luar scope phase ini.
       net_pet_growth: newPets - status.lapsed,
       delta: {
-        new_customers_pct: pctDelta(newCustomers, prevCustomers),
-        new_pets_registered_pct: pctDelta(newPets, prevPets),
+        // Delta hanya bermakna saat ada rentang filter; tanpa filter -> null.
+        new_customers_pct: filterRange
+          ? pctDelta(newCustomers, prevCustomers)
+          : null,
+        new_pets_registered_pct: filterRange
+          ? pctDelta(newPets, prevPets)
+          : null,
       },
       pet_status: status,
     };
+  }
+
+  /**
+   * Time-series membandingkan jumlah customer yang registrasi (masuk sistem)
+   * dengan jumlah customer unik yang bertransaksi, dibucket per minggu/bulan.
+   * Mengikuti filter global (rentang tanggal + store).
+   */
+  async getCustomerTrend(
+    args: CustomerTrendArgs,
+  ): Promise<CustomerTrendResponse> {
+    const granularity: TrendGranularity =
+      args.granularity === 'month' ? 'month' : 'week';
+    const storeMatch = buildStoreMatch(args.storeId);
+    // Tanpa rentang ("Semua") -> rentang membentang dari data paling awal
+    // sampai hari ini, sehingga tren ditampilkan untuk seluruh waktu.
+    const filterRange = parseRangeOrNull(args.from, args.to);
+    const range =
+      filterRange ?? (await this.resolveTrendAllTimeRange(storeMatch));
+
+    // Daftar bucket berurutan (mengisi gap dengan 0).
+    const buckets = buildBuckets(range, granularity);
+    const registeredMap = new Map<string, number>();
+    const transactingMap = new Map<string, number>();
+
+    const dateTrunc = (field: string) =>
+      granularity === 'week'
+        ? {
+            $dateTrunc: {
+              date: field,
+              unit: 'week',
+              startOfWeek: 'monday',
+            },
+          }
+        : { $dateTrunc: { date: field, unit: 'month' } };
+
+    const [registeredRows, transactingRows] = await Promise.all([
+      // Customer yang registrasi/masuk sistem (berdasarkan createdAt).
+      this.userModel
+        .aggregate([
+          {
+            $match: {
+              role: 'customer',
+              is_active: true,
+              isDeleted: { $ne: true },
+              createdAt: { $gte: range.from, $lte: range.to },
+            },
+          },
+          {
+            $group: { _id: dateTrunc('$createdAt'), count: { $sum: 1 } },
+          },
+        ])
+        .exec(),
+      // Customer unik yang bertransaksi (punya booking pada bucket, exclude batal).
+      this.bookingModel
+        .aggregate([
+          {
+            $match: {
+              ...storeMatch,
+              booking_status: { $nin: EXCLUDED_BOOKING_STATUSES },
+              isDeleted: { $ne: true },
+              date: { $gte: range.from, $lte: range.to },
+            },
+          },
+          {
+            $group: {
+              _id: dateTrunc('$date'),
+              customers: { $addToSet: '$customer_id' },
+            },
+          },
+          {
+            $project: { count: { $size: '$customers' } },
+          },
+        ])
+        .exec(),
+    ]);
+
+    for (const r of registeredRows) {
+      registeredMap.set(bucketKey(r._id), r.count ?? 0);
+    }
+    for (const r of transactingRows) {
+      transactingMap.set(bucketKey(r._id), r.count ?? 0);
+    }
+
+    const points: CustomerTrendPoint[] = buckets.map((b) => ({
+      bucket: b.key,
+      label: b.label,
+      registered: registeredMap.get(b.key) ?? 0,
+      transacting: transactingMap.get(b.key) ?? 0,
+    }));
+
+    return {
+      range: { from: range.from.toISOString(), to: range.to.toISOString() },
+      granularity,
+      points,
+    };
+  }
+
+  /**
+   * Rentang "all time" untuk tren: dari tanggal data paling awal (registrasi
+   * customer atau booking, mana yang lebih dulu) sampai akhir hari ini. Fallback
+   * ke "hari ini" bila belum ada data sama sekali.
+   */
+  private async resolveTrendAllTimeRange(
+    storeMatch: Record<string, any>,
+  ): Promise<DateRange> {
+    const now = new Date();
+    const to = toUtcEndOfDay(now);
+    const fallbackFrom = toUtcStartOfDay(now);
+
+    const [firstCustomer, firstBooking] = await Promise.all([
+      this.userModel
+        .findOne({ role: 'customer', is_active: true, isDeleted: { $ne: true } })
+        .sort({ createdAt: 1 })
+        .select('createdAt')
+        .lean<any>()
+        .exec(),
+      this.bookingModel
+        .findOne({
+          ...storeMatch,
+          booking_status: { $nin: EXCLUDED_BOOKING_STATUSES },
+          isDeleted: { $ne: true },
+        })
+        .sort({ date: 1 })
+        .select('date')
+        .lean<any>()
+        .exec(),
+    ]);
+
+    const candidates = [firstCustomer?.createdAt, firstBooking?.date]
+      .filter(Boolean)
+      .map((d) => new Date(d).getTime());
+
+    if (candidates.length === 0) return { from: fallbackFrom, to };
+    return { from: toUtcStartOfDay(new Date(Math.min(...candidates))), to };
   }
 
   /**
@@ -116,14 +317,16 @@ export class GrowthService {
 
     if (recentPets.length === 0) return 0;
 
-    const recentPetIds = recentPets.map((p) => p._id);
-    const convertedIds = await this.bookingModel
-      .distinct('pet_id', {
-        pet_id: { $in: recentPetIds },
-        booking_status: 'completed',
-        isDeleted: { $ne: true },
-      })
-      .exec();
+    // pet_id pada koleksi bookings tersimpan sebagai string, sementara Pet._id
+    // adalah ObjectId. Mongoose otomatis meng-cast nilai query ke ObjectId
+    // (sesuai schema), sehingga query lewat bookingModel tidak akan match.
+    // Pakai koleksi raw + id string agar perbandingan tepat.
+    const recentPetIds = recentPets.map((p) => String(p._id));
+    const convertedIds = await this.bookingModel.collection.distinct('pet_id', {
+      pet_id: { $in: recentPetIds },
+      booking_status: 'completed',
+      isDeleted: { $ne: true },
+    });
 
     return round2((convertedIds.length / recentPets.length) * 100);
   }
@@ -136,8 +339,6 @@ export class GrowthService {
     const today = toUtcStartOfDay(new Date());
     const ago14 = new Date(today);
     ago14.setUTCDate(ago14.getUTCDate() - 14);
-    const ago30 = new Date(today);
-    ago30.setUTCDate(ago30.getUTCDate() - 30);
     const ago31 = new Date(today);
     ago31.setUTCDate(ago31.getUTCDate() - 31);
 
@@ -155,7 +356,11 @@ export class GrowthService {
                 $match: {
                   $expr: {
                     $and: [
-                      { $eq: ['$pet_id', '$$petId'] },
+                      // pet_id di koleksi bookings tersimpan sebagai string,
+                      // sedangkan Pet._id ObjectId. Aggregation $expr tidak
+                      // melakukan cast otomatis (beda dengan query Mongoose),
+                      // jadi samakan keduanya ke string sebelum dibandingkan.
+                      { $eq: [{ $toString: '$pet_id' }, { $toString: '$$petId' }] },
                       { $eq: ['$booking_status', 'completed'] },
                       { $ne: ['$isDeleted', true] },
                     ],
@@ -188,14 +393,24 @@ export class GrowthService {
           },
         },
         {
+          // 5-tier MECE. Prioritas top-to-bottom, first match wins.
+          // Threshold (CURDATE = awal hari ini, UTC):
+          //   ago14 = CURDATE - 14 hari, ago31 = CURDATE - 31 hari
+          // Mapping days_since_last_visit:
+          //   last_booking_date >= ago14  -> days_since <= 14
+          //   last_booking_date <  ago14  -> days_since >= 15
+          //   last_booking_date >= ago31  -> days_since <= 31
+          //   last_booking_date <  ago31  -> days_since >  31
           $addFields: {
             status: {
               $switch: {
                 branches: [
+                  // Idle: total_visits = 0 (terdaftar tapi belum pernah booking layanan)
                   {
                     case: { $eq: ['$total_visits', 0] },
                     then: 'idle',
                   },
+                  // New: total_visits >= 1 AND first_booking_date >= CURDATE()-14
                   {
                     case: {
                       $and: [
@@ -205,26 +420,36 @@ export class GrowthService {
                     },
                     then: 'new',
                   },
+                  // Active: days_since_last_visit <= 14
+                  // (New sudah dievaluasi lebih dulu, jadi pet baru tetap masuk "new")
                   {
-                    case: {
-                      $and: [
-                        { $gte: ['$last_booking_date', ago14] },
-                        { $lt: ['$first_booking_date', ago30] },
-                      ],
-                    },
+                    case: { $gte: ['$last_booking_date', ago14] },
                     then: 'active',
                   },
+                  // At risk: days_since_last_visit 15-31 AND total_visits > 1
                   {
                     case: {
                       $and: [
-                        { $gte: ['$last_booking_date', ago31] },
                         { $lt: ['$last_booking_date', ago14] },
+                        { $gte: ['$last_booking_date', ago31] },
                         { $gt: ['$total_visits', 1] },
                       ],
                     },
                     then: 'at_risk',
                   },
+                  // Lapsed: days_since_last_visit > 31 AND total_visits > 1
+                  {
+                    case: {
+                      $and: [
+                        { $lt: ['$last_booking_date', ago31] },
+                        { $gt: ['$total_visits', 1] },
+                      ],
+                    },
+                    then: 'lapsed',
+                  },
                 ],
+                // Sisa edge case (mis. tepat 1 kunjungan lama, atau pelanggan 15-30 hari
+                // yang baru aktif) jatuh ke lapsed agar snapshot tetap MECE.
                 default: 'lapsed',
               },
             },
@@ -265,4 +490,80 @@ function pctDelta(current: number, previous: number): number | null {
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+function buildStoreMatch(storeId?: string): Record<string, any> {
+  if (!storeId || storeId === 'all') return {};
+  if (!Types.ObjectId.isValid(storeId)) return {};
+  return { store_id: new Types.ObjectId(storeId) };
+}
+
+/** Awal minggu (Senin, UTC) untuk tanggal tertentu. */
+function truncToWeekMonday(date: Date): Date {
+  const d = toUtcStartOfDay(date);
+  const day = d.getUTCDay(); // 0=Min, 1=Sen, ...
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setUTCDate(d.getUTCDate() + diff);
+  return d;
+}
+
+/** Awal bulan (UTC) untuk tanggal tertentu. */
+function truncToMonth(date: Date): Date {
+  const d = toUtcStartOfDay(date);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+}
+
+function bucketKey(date: Date): string {
+  return new Date(date).toISOString().slice(0, 10);
+}
+
+const MONTH_LABELS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+/**
+ * Bangun daftar bucket berurutan (mengisi gap) dari range, sesuai granularity.
+ * Key = ISO tanggal awal bucket; label = ramah-baca.
+ */
+function buildBuckets(
+  range: { from: Date; to: Date },
+  granularity: TrendGranularity,
+): { key: string; label: string }[] {
+  const buckets: { key: string; label: string }[] = [];
+  if (granularity === 'month') {
+    let cur = truncToMonth(range.from);
+    const end = truncToMonth(range.to);
+    while (cur.getTime() <= end.getTime()) {
+      buckets.push({
+        key: bucketKey(cur),
+        label: `${MONTH_LABELS[cur.getUTCMonth()]} ${cur.getUTCFullYear()}`,
+      });
+      cur = new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth() + 1, 1));
+    }
+    return buckets;
+  }
+
+  // week (Senin)
+  let cur = truncToWeekMonday(range.from);
+  const end = truncToWeekMonday(range.to);
+  while (cur.getTime() <= end.getTime()) {
+    buckets.push({
+      key: bucketKey(cur),
+      label: `${cur.getUTCDate()} ${MONTH_LABELS[cur.getUTCMonth()]}`,
+    });
+    cur = new Date(cur);
+    cur.setUTCDate(cur.getUTCDate() + 7);
+  }
+  return buckets;
 }

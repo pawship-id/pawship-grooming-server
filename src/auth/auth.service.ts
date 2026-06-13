@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { comparePassword, hashPassword } from 'src/helpers/bcrypt';
@@ -48,11 +49,12 @@ export class AuthService {
       });
 
       return await user.save();
-    } catch (error) {
-      if (error.code === 11000) {
-        const duplicatedField = Object.keys(error.keyPattern)[0]; // ambil field yang duplicate
+    } catch (error: any) {
+      if (error?.code === 11000) {
+        const duplicatedField = Object.keys(error.keyPattern || {})[0];
         throw new BadRequestException(`${duplicatedField} already exists`);
       }
+      throw error;
     }
   }
 
@@ -384,5 +386,105 @@ export class AuthService {
     }
 
     throw new BadRequestException('Invalid or expired token');
+  }
+
+  async forgotPassword(email: string) {
+    const user = await this.userModel
+      .findOne({ email })
+      .select('username email')
+      .exec();
+
+    if (!user) {
+      return {
+        message:
+          'Jika email terdaftar, link reset password akan dikirim ke email Anda',
+      };
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const hashedToken = await hashPassword(token);
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await this.userModel.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          reset_password_token: hashedToken,
+          reset_password_token_expires_at: expiresAt,
+        },
+      },
+    );
+
+    try {
+      await this.emailService.sendPasswordResetEmail({
+        email,
+        username: user.username,
+        token,
+      });
+    } catch {
+      throw new InternalServerErrorException(
+        'Gagal mengirim email reset password. Periksa koneksi SMTP atau coba lagi.',
+      );
+    }
+
+    return {
+      message:
+        'Jika email terdaftar, link reset password akan dikirim ke email Anda',
+    };
+  }
+
+  async verifyResetToken(token: string) {
+    const users = await this.userModel
+      .find({
+        reset_password_token: { $exists: true, $ne: null },
+        reset_password_token_expires_at: { $gt: new Date() },
+      })
+      .select('username email reset_password_token')
+      .exec();
+
+    for (const user of users) {
+      const isMatch = await comparePassword(
+        token,
+        user.reset_password_token || '',
+      );
+      if (isMatch) {
+        return {
+          valid: true,
+          user: {
+            username: user.username,
+            email: user.email,
+          },
+        };
+      }
+    }
+
+    throw new BadRequestException('Token tidak valid atau sudah kadaluarsa');
+  }
+
+  async resetPassword(token: string, password: string) {
+    const users = await this.userModel
+      .find({
+        reset_password_token: { $exists: true, $ne: null },
+        reset_password_token_expires_at: { $gt: new Date() },
+      })
+      .exec();
+
+    for (const user of users) {
+      const isMatch = await comparePassword(
+        token,
+        user.reset_password_token || '',
+      );
+      if (isMatch) {
+        const hashedPassword = await hashPassword(password);
+        user.password = hashedPassword;
+        user.reset_password_token = undefined;
+        user.reset_password_token_expires_at = undefined;
+        await user.save();
+
+        return { message: 'Password berhasil direset' };
+      }
+    }
+
+    throw new BadRequestException('Token tidak valid atau sudah kadaluarsa');
   }
 }

@@ -12,9 +12,12 @@ import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { Public } from './public.decorator';
 import {
   CheckPhoneDto,
+  ForgotPasswordDto,
   RefreshTokenDto,
+  ResetPasswordDto,
   SendPasswordSetupDto,
   SetPasswordDto,
+  VerifyResetTokenDto,
   VerifySetupTokenDto,
 } from './auth.dto';
 
@@ -100,6 +103,27 @@ export class AuthController {
       body.password,
     );
     return result;
+  }
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
+    return this.authService.forgotPassword(body.email);
+  }
+
+  @Public()
+  @Post('verify-reset-token')
+  @HttpCode(HttpStatus.OK)
+  async verifyResetToken(@Body() body: VerifyResetTokenDto) {
+    return this.authService.verifyResetToken(body.token);
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() body: ResetPasswordDto) {
+    return this.authService.resetPassword(body.token, body.password);
   }
 
   @Post('logout')

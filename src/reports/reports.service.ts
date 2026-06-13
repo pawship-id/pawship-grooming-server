@@ -72,10 +72,46 @@ export class ReportsService {
     private readonly bookingEventsService: BookingEventsService,
   ) {}
 
+  /** Parse a comma-separated filter value into a Mongo equality / $in clause. */
+  private multiValueClause(raw?: string): any {
+    if (!raw) return undefined;
+    const values = raw
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean);
+    if (values.length === 0) return undefined;
+    return values.length === 1 ? values[0] : { $in: values };
+  }
+
+  /**
+   * Parse a comma-separated list of store ids into a Mongo clause.
+   * store_id is stored as either an ObjectId or a string, so each id is
+   * matched in both forms.
+   */
+  private storeIdClause(raw?: string): any {
+    if (!raw) return undefined;
+    const ids = raw
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean);
+    if (ids.length === 0) return undefined;
+    const candidates: any[] = [];
+    for (const id of ids) {
+      candidates.push(id);
+      try {
+        candidates.push(new Types.ObjectId(id));
+      } catch {
+        /* not a valid ObjectId — string form already added */
+      }
+    }
+    return { $in: candidates };
+  }
+
   private buildFilter(dto: FinancialReportDto): Record<string, any> {
     const filter: Record<string, any> = { isDeleted: false };
 
-    if (dto.booking_status) filter.booking_status = dto.booking_status;
+    const statusClause = this.multiValueClause(dto.booking_status);
+    if (statusClause !== undefined) filter.booking_status = statusClause;
 
     if (dto.date_from || dto.date_to) {
       filter.date = {};
@@ -83,16 +119,11 @@ export class ReportsService {
       if (dto.date_to) filter.date.$lte = new Date(dto.date_to);
     }
 
-    if (dto.store_id) {
-      try {
-        const oid = new Types.ObjectId(dto.store_id);
-        filter.store_id = { $in: [oid, dto.store_id] };
-      } catch {
-        filter.store_id = dto.store_id;
-      }
-    }
+    const storeClause = this.storeIdClause(dto.store_id);
+    if (storeClause !== undefined) filter.store_id = storeClause;
 
-    if (dto.booking_type) filter.type = dto.booking_type;
+    const typeClause = this.multiValueClause(dto.booking_type);
+    if (typeClause !== undefined) filter.type = typeClause;
 
     return filter;
   }
@@ -165,7 +196,8 @@ export class ReportsService {
   private buildOperationsFilter(dto: OperationsReportDto): Record<string, any> {
     const filter: Record<string, any> = { isDeleted: false };
 
-    if (dto.booking_status) filter.booking_status = dto.booking_status;
+    const statusClause = this.multiValueClause(dto.booking_status);
+    if (statusClause !== undefined) filter.booking_status = statusClause;
 
     if (dto.date_from || dto.date_to) {
       filter.date = {};
@@ -173,23 +205,29 @@ export class ReportsService {
       if (dto.date_to) filter.date.$lte = new Date(dto.date_to);
     }
 
-    if (dto.store_id) {
-      try {
-        const oid = new Types.ObjectId(dto.store_id);
-        filter.store_id = { $in: [oid, dto.store_id] };
-      } catch {
-        filter.store_id = dto.store_id;
-      }
-    }
+    const storeClause = this.storeIdClause(dto.store_id);
+    if (storeClause !== undefined) filter.store_id = storeClause;
 
-    if (dto.booking_type) filter.type = dto.booking_type;
+    const typeClause = this.multiValueClause(dto.booking_type);
+    if (typeClause !== undefined) filter.type = typeClause;
 
-    if (dto.session_status) filter['sessions.status'] = dto.session_status;
+    const sessionClause = this.multiValueClause(dto.session_status);
+    if (sessionClause !== undefined) filter['sessions.status'] = sessionClause;
 
     if (dto.service_type) {
-      filter['service_snapshot.service_type.title'] = {
-        $regex: new RegExp(`^${dto.service_type}$`, 'i'),
-      };
+      const titles = dto.service_type
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean);
+      if (titles.length === 1) {
+        filter['service_snapshot.service_type.title'] = {
+          $regex: new RegExp(`^${titles[0]}$`, 'i'),
+        };
+      } else if (titles.length > 1) {
+        filter['service_snapshot.service_type.title'] = {
+          $in: titles.map((t) => new RegExp(`^${t}$`, 'i')),
+        };
+      }
     }
 
     return filter;
@@ -263,13 +301,8 @@ export class ReportsService {
   async getCapacityUtilisationReport(dto: CapacityUtilisationReportDto) {
     // 1. Build usage filter
     const usageFilter: Record<string, any> = {};
-    if (dto.store_id) {
-      try {
-        usageFilter.store_id = new Types.ObjectId(dto.store_id);
-      } catch {
-        usageFilter.store_id = dto.store_id;
-      }
-    }
+    const usageStoreClause = this.storeIdClause(dto.store_id);
+    if (usageStoreClause !== undefined) usageFilter.store_id = usageStoreClause;
     if (dto.date_from || dto.date_to) {
       usageFilter.date = {};
       if (dto.date_from) usageFilter.date.$gte = new Date(dto.date_from);
@@ -332,13 +365,9 @@ export class ReportsService {
 
     // 6. Count bookings per store+date via aggregation
     const bookingFilter: Record<string, any> = { isDeleted: false };
-    if (dto.store_id) {
-      try {
-        bookingFilter.store_id = new Types.ObjectId(dto.store_id);
-      } catch {
-        bookingFilter.store_id = dto.store_id;
-      }
-    }
+    const bookingStoreClause = this.storeIdClause(dto.store_id);
+    if (bookingStoreClause !== undefined)
+      bookingFilter.store_id = bookingStoreClause;
     if (dto.date_from || dto.date_to) {
       bookingFilter.date = {};
       if (dto.date_from) bookingFilter.date.$gte = new Date(dto.date_from);
@@ -654,6 +683,11 @@ export class ReportsService {
       .exec();
 
     const pagedPetIds = pets.map((p: any) => p._id);
+    // Sebagian booking lama menyimpan pet_id sebagai string, sehingga
+    // `{ $in: <ObjectId[]> }` melewatkan match-nya. Sertakan kedua bentuk
+    // (ObjectId & string) agar agregasi last_visit/last_grooming tidak kosong
+    // untuk pet tersebut (pola sama dengan getCustomerRetention).
+    const pagedPetIdMatch = pagedPetIds.flatMap((id: any) => [id, id.toString()]);
     const pagedCustomerIds = [
       ...new Set(pets.map((p: any) => p.customer_id?.toString()).filter(Boolean)),
     ];
@@ -683,18 +717,25 @@ export class ReportsService {
           {
             $match: {
               isDeleted: false,
-              booking_status: 'completed',
-              pet_id: { $in: pagedPetIds },
+              booking_status: { $in: ['completed', 'returned'] },
+              pet_id: { $in: pagedPetIdMatch },
             },
           },
-          { $group: { _id: '$pet_id', last_at: { $max: '$date' } } },
+          {
+            $group: {
+              _id: '$pet_id',
+              last_at: { $max: '$date' },
+              count: { $sum: 1 },
+              lifetime_revenue: { $sum: { $ifNull: ['$final_total_price', 0] } },
+            },
+          },
         ]),
         this.bookingModel.aggregate([
           {
             $match: {
               isDeleted: false,
-              booking_status: 'completed',
-              pet_id: { $in: pagedPetIds },
+              booking_status: { $in: ['completed', 'returned'] },
+              pet_id: { $in: pagedPetIdMatch },
               'service_snapshot.service_type.title': {
                 $regex: new RegExp('^grooming$', 'i'),
               },
@@ -707,13 +748,77 @@ export class ReportsService {
     const userMap = new Map(
       users.map((u: any) => [u._id.toString(), u]),
     );
+    // Status membership dihitung konsisten dengan
+    // PetMembershipService.computeStatus: cancelled (is_active=false) >
+    // pending (belum mulai) > expired (sudah lewat) > active.
+    const membershipStatusOf = (
+      m: any,
+    ): 'active' | 'pending' | 'expired' | 'cancelled' => {
+      if (!m.is_active) return 'cancelled';
+      if (today < new Date(m.start_date)) return 'pending';
+      if (new Date(m.end_date) < toUtcStartOfDay(today)) return 'expired';
+      return 'active';
+    };
+
+    // Per pet, pilih membership yang ditampilkan berdasarkan prioritas status:
+    // aktif (0) > menunggu/pending (1) > berakhir/expired (2). Membership
+    // "dibatalkan" (cancelled) tidak pernah ditampilkan. Jika ada >1 membership
+    // dengan status yang sama, pilih yang start_date-nya paling lama (paling
+    // awal). Jika pet hanya punya membership cancelled (atau tidak ada sama
+    // sekali), tier & status dikosongkan → tampil "-" di tabel.
+    const STATUS_RANK: Record<string, number> = {
+      active: 0,
+      pending: 1,
+      expired: 2,
+    };
     const membershipMap = new Map<string, any>();
+    const membershipStatusMap = new Map<string, string>();
+    // Jumlah membership non-cancelled (aktif/menunggu/berakhir) per pet — dipakai
+    // untuk kolom "Total Transaksi".
+    const membershipCountMap = new Map<string, number>();
+    const membershipsByPet = new Map<string, any[]>();
     for (const m of memberships as any[]) {
       const key = m.pet_id.toString();
-      if (!membershipMap.has(key)) membershipMap.set(key, m);
+      const arr = membershipsByPet.get(key) ?? [];
+      arr.push(m);
+      membershipsByPet.set(key, arr);
+    }
+    for (const [key, list] of membershipsByPet) {
+      let best: any = null;
+      let bestStatus = '';
+      let nonCancelledCount = 0;
+      for (const m of list) {
+        const status = membershipStatusOf(m);
+        if (status === 'cancelled') continue;
+        nonCancelledCount++;
+        if (
+          best === null ||
+          STATUS_RANK[status] < STATUS_RANK[bestStatus] ||
+          (STATUS_RANK[status] === STATUS_RANK[bestStatus] &&
+            new Date(m.start_date) < new Date(best.start_date))
+        ) {
+          best = m;
+          bestStatus = status;
+        }
+      }
+      membershipCountMap.set(key, nonCancelledCount);
+      if (best) {
+        membershipMap.set(key, best);
+        membershipStatusMap.set(key, bestStatus);
+      }
     }
     const bookedPetSet = new Set(
       bookedPetIds.map((id: any) => id.toString()),
+    );
+    // Jumlah booking berstatus completed/returned per pet (sumber sama dengan
+    // lastVisitAgg) — dipakai untuk kolom "Total Transaksi".
+    const bookingCountMap = new Map<string, number>(
+      lastVisitAgg.map((a: any) => [a._id.toString(), a.count ?? 0]),
+    );
+    // Revenue lifetime per pet = total final_total_price booking completed/returned
+    // (sumber sama dengan lastVisitAgg) — dipakai untuk kolom "Total Revenue Lifetime".
+    const lifetimeRevenueMap = new Map<string, number>(
+      lastVisitAgg.map((a: any) => [a._id.toString(), a.lifetime_revenue ?? 0]),
     );
     const lastVisitMap = new Map<string, Date>(
       lastVisitAgg.map((a: any) => [a._id.toString(), a.last_at]),
@@ -757,16 +862,18 @@ export class ReportsService {
         pet_tags: p.tags ?? [],
         internal_note: p.internal_note ?? '',
         membership_tier: (membership?.membership_plan_id as any)?.name ?? '',
-        membership_status: membership
-          ? new Date(membership.end_date) >= toUtcStartOfDay(today)
-            ? 'active'
-            : 'expired'
-          : '',
+        membership_status: membershipStatusMap.get(p._id.toString()) ?? '',
         membership_start: membership?.start_date ?? null,
         membership_expiry: membership?.end_date ?? null,
         last_visit_at: lastVisitMap.get(p._id.toString()) ?? null,
         last_grooming_at: lastGroomingMap.get(p._id.toString()) ?? null,
         pet_registered_at: p.createdAt ?? null,
+        // Total transaksi per pet = jumlah booking completed/returned +
+        // jumlah membership non-cancelled (aktif/menunggu/berakhir).
+        total_transactions:
+          (bookingCountMap.get(p._id.toString()) ?? 0) +
+          (membershipCountMap.get(p._id.toString()) ?? 0),
+        total_revenue_lifetime: lifetimeRevenueMap.get(p._id.toString()) ?? 0,
         has_booked: bookedPetSet.has(p._id.toString()),
       };
     });
@@ -867,6 +974,10 @@ export class ReportsService {
       .exec();
 
     const pagedPetIds = pets.map((p: any) => p._id);
+    // Sebagian booking lama menyimpan pet_id sebagai string, sehingga
+    // `{ $in: <ObjectId[]> }` melewatkan match-nya → kolom kunjungan kosong.
+    // Sertakan kedua bentuk (ObjectId & string) agar agregasi booking match.
+    const pagedPetIdMatch = pagedPetIds.flatMap((id: any) => [id, id.toString()]);
     const pagedCustomerIds = [
       ...new Set(pets.map((p: any) => p.customer_id?.toString()).filter(Boolean)),
     ];
@@ -880,14 +991,14 @@ export class ReportsService {
     ] = await Promise.all([
       this.bookingModel.distinct('pet_id', {
         isDeleted: false,
-        pet_id: { $in: pagedPetIds },
+        pet_id: { $in: pagedPetIdMatch },
       }),
       this.bookingModel.aggregate([
         {
           $match: {
             isDeleted: false,
-            booking_status: 'completed',
-            pet_id: { $in: pagedPetIds },
+            booking_status: { $in: ['completed', 'returned'] },
+            pet_id: { $in: pagedPetIdMatch },
           },
         },
         { $group: { _id: '$pet_id', last_at: { $max: '$date' } } },
@@ -896,8 +1007,8 @@ export class ReportsService {
         {
           $match: {
             isDeleted: false,
-            booking_status: 'completed',
-            pet_id: { $in: pagedPetIds },
+            booking_status: { $in: ['completed', 'returned'] },
+            pet_id: { $in: pagedPetIdMatch },
           },
         },
         {
@@ -1246,7 +1357,7 @@ export class ReportsService {
 
     const matchStage: any = {
       isDeleted: false,
-      booking_status: 'completed',
+      booking_status: { $in: ['completed', 'returned'] },
     };
     if (searchPetIds) matchStage.pet_id = { $in: searchPetIds };
 
@@ -1299,6 +1410,15 @@ export class ReportsService {
     }
 
     const pagedPetIds = pagedAgg.map((a) => a._id).filter(Boolean);
+    // pagedPetIds berisi string (booking.pet_id disimpan sebagai string),
+    // sedangkan petmemberships.pet_id berbentuk ObjectId. Query $in dengan
+    // string tidak akan match → tier/revenue membership kosong. Sertakan kedua
+    // bentuk (string + ObjectId) agar match-nya andal.
+    const pagedPetIdMatch = pagedPetIds.flatMap((id: any) =>
+      typeof id === 'string' && Types.ObjectId.isValid(id)
+        ? [id, new Types.ObjectId(id)]
+        : [id],
+    );
 
     const pets = await this.petModel
       .find({ _id: { $in: pagedPetIds }, isDeleted: false })
@@ -1320,7 +1440,7 @@ export class ReportsService {
         .lean()
         .exec(),
       this.petMembershipModel
-        .find({ pet_id: { $in: pagedPetIds }, isDeleted: false })
+        .find({ pet_id: { $in: pagedPetIdMatch }, isDeleted: false })
         .populate({
           path: 'membership_plan_id',
           model: 'Membership',
@@ -1335,8 +1455,19 @@ export class ReportsService {
       users.map((u: any) => [u._id.toString(), u]),
     );
     const membershipMap = new Map<string, any>();
+    // Revenue Membership per pet = SUM(purchase_price) dari semua membership
+    // kecuali yang dibatalkan (is_active === false → status "cancelled").
+    const membershipRevenueMap = new Map<string, number>();
     for (const m of memberships as any[]) {
       const key = m.pet_id.toString();
+
+      if (m.is_active !== false) {
+        membershipRevenueMap.set(
+          key,
+          (membershipRevenueMap.get(key) ?? 0) + (m.purchase_price ?? 0),
+        );
+      }
+
       if (membershipMap.has(key)) continue;
       const notExpired = m.end_date
         ? new Date(m.end_date) >= toUtcStartOfDay(today)
@@ -1408,6 +1539,7 @@ export class ReportsService {
           membership_tier: (membership?.membership_plan_id as any)?.name ?? '',
           total_visits,
           lifetime_revenue: booking.lifetime_revenue ?? 0,
+          membership_revenue: membershipRevenueMap.get(petId) ?? 0,
           last_booking_date,
           days_since_last_visit,
           pet_status,
@@ -2407,7 +2539,11 @@ export class ReportsService {
     // amount_deducted), tinggal di-group per pet_membership_id.
     const cumulativeAgg: { _id: Types.ObjectId; total: number }[] =
       await this.bookingModel.aggregate([
-        { $match: { isDeleted: false } },
+        // Booking cancel hanya mengubah booking_status (isDeleted tetap false)
+        // dan tidak mengosongkan applied_benefits, sedangkan BenefitUsage-nya
+        // di-soft-delete. Kecualikan booking cancel agar cumulative_used &
+        // benefit_vs_price_pct konsisten dengan baris benefit yang ditampilkan.
+        { $match: { isDeleted: false, booking_status: { $ne: 'cancelled' } } },
         { $unwind: '$applied_benefits' },
         {
           $match: {
