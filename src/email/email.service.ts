@@ -77,16 +77,16 @@ export class EmailService {
     );
   }
 
-  async sendPasswordSetupEmail(data: {
-    email: string;
+  private async sendTokenEmail(data: {
+    to: string;
+    subject: string;
+    title: string;
     username: string;
-    token: string;
+    description: string;
+    buttonText: string;
+    link: string;
+    ignoreNote: string;
   }): Promise<void> {
-    const frontendUrl = this.configService.get(
-      'FRONTEND_URL',
-      'http://localhost:3000',
-    );
-    const setupLink = `${frontendUrl}/set-password?token=${data.token}`;
     const fromEmail = this.configService.get(
       'EMAIL_FROM',
       'dev.pawship@gmail.com',
@@ -97,7 +97,7 @@ export class EmailService {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Set Password - Pawship Grooming</title>
+    <title>${data.title}</title>
     <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f4f4f4; }
         .container { background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
@@ -115,14 +115,14 @@ export class EmailService {
         <div class="header"><h1>🐾 Pawship Grooming</h1></div>
         <div class="content">
             <p>Halo <strong>${data.username}</strong>,</p>
-            <p>Anda telah meminta untuk mengatur password akun Pawship Grooming Anda. Klik tombol di bawah ini untuk mengatur password Anda:</p>
-            <div class="button-container"><a href="${setupLink}" class="button">Set Password</a></div>
+            <p>${data.description}</p>
+            <div class="button-container"><a href="${data.link}" class="button">${data.buttonText}</a></div>
             <p>Atau salin dan tempel link berikut ke browser Anda:</p>
-            <p class="link">${setupLink}</p>
+            <p class="link">${data.link}</p>
             <p><strong>Penting:</strong></p>
             <ul>
                 <li>Link ini akan kadaluarsa dalam <strong>1 jam</strong></li>
-                <li>Jika Anda tidak meminta pengaturan password, abaikan email ini</li>
+                <li>${data.ignoreNote}</li>
                 <li>Jangan bagikan link ini kepada siapapun</li>
             </ul>
         </div>
@@ -136,8 +136,8 @@ export class EmailService {
 
     const mailOptions = {
       from: fromEmail,
-      to: data.email,
-      subject: 'Set Password - Pawship Grooming',
+      to: data.to,
+      subject: data.subject,
       html,
     };
 
@@ -151,7 +151,7 @@ export class EmailService {
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
           this.logger.log(
-            `Email send attempt ${attempt}/${maxRetries} to ${data.email}`,
+            `Email send attempt ${attempt}/${maxRetries} to ${data.to}`,
           );
 
           const result = await Promise.race([
@@ -164,7 +164,8 @@ export class EmailService {
             ),
           ]);
 
-          this.logger.log(`Password setup email sent to ${data.email}`, {
+          this.logger.log(`Email sent to ${data.to}`, {
+            subject: data.subject,
             messageId: result?.messageId ?? 'unknown',
             accepted: result?.accepted ?? [],
             rejected: result?.rejected ?? [],
@@ -185,10 +186,57 @@ export class EmailService {
       throw lastSendError;
     } catch (error) {
       this.logger.error(
-        `Failed to send password setup email to ${data.email}`,
+        `Failed to send email to ${data.to}`,
         error instanceof Error ? error.stack : String(error),
       );
       throw new Error('Failed to send email');
     }
+  }
+
+  async sendPasswordSetupEmail(data: {
+    email: string;
+    username: string;
+    token: string;
+  }): Promise<void> {
+    const frontendUrl = this.configService.get(
+      'FRONTEND_URL',
+      'http://localhost:3001',
+    );
+
+    return this.sendTokenEmail({
+      to: data.email,
+      subject: 'Set Password - Pawship Grooming',
+      title: 'Set Password - Pawship Grooming',
+      username: data.username,
+      description:
+        'Anda telah meminta untuk mengatur password akun Pawship Grooming Anda. Klik tombol di bawah ini untuk mengatur password Anda:',
+      buttonText: 'Set Password',
+      link: `${frontendUrl}/set-password?token=${data.token}`,
+      ignoreNote:
+        'Jika Anda tidak meminta pengaturan password, abaikan email ini',
+    });
+  }
+
+  async sendPasswordResetEmail(data: {
+    email: string;
+    username: string;
+    token: string;
+  }): Promise<void> {
+    const frontendUrl = this.configService.get(
+      'FRONTEND_URL',
+      'http://localhost:3001',
+    );
+
+    return this.sendTokenEmail({
+      to: data.email,
+      subject: 'Reset Password - Pawship Grooming',
+      title: 'Reset Password - Pawship Grooming',
+      username: data.username,
+      description:
+        'Anda telah meminta untuk mereset password akun Pawship Grooming Anda. Klik tombol di bawah ini untuk membuat password baru:',
+      buttonText: 'Reset Password',
+      link: `${frontendUrl}/reset-password?token=${data.token}`,
+      ignoreNote: 'Jika Anda tidak meminta reset password, abaikan email ini',
+    });
   }
 }

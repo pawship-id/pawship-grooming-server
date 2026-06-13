@@ -40,3 +40,23 @@ export class SetPasswordDto {
   @MinLength(6, { message: 'password must be at least 6 characters' })
   password: string;
 }
+
+export class ForgotPasswordDto {
+  @IsNotEmpty({ message: 'email is required' })
+  @IsEmail({}, { message: 'Invalid email format' })
+  email: string;
+}
+
+export class VerifyResetTokenDto {
+  @IsNotEmpty({ message: 'token is required' })
+  token: string;
+}
+
+export class ResetPasswordDto {
+  @IsNotEmpty({ message: 'token is required' })
+  token: string;
+
+  @IsNotEmpty({ message: 'password is required' })
+  @MinLength(6, { message: 'password must be at least 6 characters' })
+  password: string;
+}

@@ -178,6 +178,12 @@ export class User {
   @Prop({ default: null })
   password_setup_token_expires_at?: Date;
 
+  @Prop({ default: null, index: true })
+  reset_password_token?: string;
+
+  @Prop({ default: null })
+  reset_password_token_expires_at?: Date;
+
   @Prop({ default: null })
   deletedAt: Date;
 }
