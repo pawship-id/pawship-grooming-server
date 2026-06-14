@@ -2128,37 +2128,37 @@ export class BookingService {
           );
 
           try {
-              this.logger.log(
-                `[recordPromotionUsage] Recording usage with params: promotionId=${applied.promotion_id}, bookingId=${bookingId}, customerId=${body.customer_id}, petId=${body.pet_id}, limitType=${limitType}, usagePeriod=${usagePeriod}`,
-              );
+            this.logger.log(
+              `[recordPromotionUsage] Recording usage with params: promotionId=${applied.promotion_id}, bookingId=${bookingId}, customerId=${body.customer_id}, petId=${body.pet_id}, limitType=${limitType}, usagePeriod=${usagePeriod}`,
+            );
 
-              const usageRecord = await this.promotionUsageService.recordUsage({
-                promotionId: applied.promotion_id?.toString() || '',
-                bookingId,
-                bookingDate,
-                limitType,
-                usagePeriod,
-                userId: body.customer_id?.toString(),
-                petId: body.pet_id?.toString(),
-              });
+            const usageRecord = await this.promotionUsageService.recordUsage({
+              promotionId: applied.promotion_id?.toString() || '',
+              bookingId,
+              bookingDate,
+              limitType,
+              usagePeriod,
+              userId: body.customer_id?.toString(),
+              petId: body.pet_id?.toString(),
+            });
 
-              this.logger.log(
-                `[recordPromotionUsage] ✓ Successfully recorded usage for promo ${applied.code}, usage record ID: ${(usageRecord as any)._id}`,
-              );
-            } catch (err) {
-              // Non-fatal: usage recording failure should not roll back a committed booking
+            this.logger.log(
+              `[recordPromotionUsage] ✓ Successfully recorded usage for promo ${applied.code}, usage record ID: ${(usageRecord as any)._id}`,
+            );
+          } catch (err) {
+            // Non-fatal: usage recording failure should not roll back a committed booking
+            this.logger.error(
+              `[recordPromotionUsage] ✗ Failed to record usage for promo ${applied.code}`,
+            );
+            this.logger.error(
+              `[recordPromotionUsage] Error details: ${err instanceof Error ? err.message : String(err)}`,
+            );
+            if (err instanceof Error && err.stack) {
               this.logger.error(
-                `[recordPromotionUsage] ✗ Failed to record usage for promo ${applied.code}`,
+                `[recordPromotionUsage] Stack trace: ${err.stack}`,
               );
-              this.logger.error(
-                `[recordPromotionUsage] Error details: ${err instanceof Error ? err.message : String(err)}`,
-              );
-              if (err instanceof Error && err.stack) {
-                this.logger.error(
-                  `[recordPromotionUsage] Stack trace: ${err.stack}`,
-                );
-              }
             }
+          }
         }
       }
 
@@ -2295,9 +2295,7 @@ export class BookingService {
     if (groomerId) {
       const groomer = await this.userModel
         .findById(groomerId)
-        .select(
-          'profile.placements profile.placement profile.groomer_skills',
-        )
+        .select('profile.placements profile.placement profile.groomer_skills')
         .lean();
       const placementsArr = (groomer?.profile as any)?.placements;
       const legacyPlacement = (groomer?.profile as any)?.placement;
@@ -2496,10 +2494,11 @@ export class BookingService {
     }
 
     if (service_type) {
-      filter['service_snapshot.service_type._id'] =
-        Types.ObjectId.isValid(service_type)
-          ? new Types.ObjectId(service_type)
-          : service_type;
+      filter['service_snapshot.service_type._id'] = Types.ObjectId.isValid(
+        service_type,
+      )
+        ? new Types.ObjectId(service_type)
+        : service_type;
     }
 
     // Match bookings that have at least one session assigned to this groomer.
@@ -3364,7 +3363,11 @@ export class BookingService {
       );
 
       // Kurangi StoreDailyUsage saat booking di-cancel
-      if (status === BookingStatus.CANCELLED && isBookingWithUsage && serviceDuration > 0) {
+      if (
+        status === BookingStatus.CANCELLED &&
+        isBookingWithUsage &&
+        serviceDuration > 0
+      ) {
         try {
           await this.storeDailyUsageModel.findOneAndUpdate(
             {
@@ -3632,8 +3635,7 @@ export class BookingService {
       ?.service_type?.title as string | undefined;
     const isHotelPricing = isHotelServiceType(snapshotServiceTypeTitle);
     const pricingStart = existing.date;
-    const pricingEnd =
-      (existing as any).end_date ?? existing.date;
+    const pricingEnd = (existing as any).end_date ?? existing.date;
     const pricingNights = isHotelPricing
       ? computeHotelNights(pricingStart, pricingEnd)
       : 1;
@@ -3883,11 +3885,24 @@ export class BookingService {
             (existing.pick_up || existing.delivery) && tFeeDisc > 0
               ? tFeeDisc
               : null,
-          edited_addon_prices: addonItems.map((a) => ({
-            addon_id: a.addon_id,
-            price: a.base,
-            discount: a.disc,
-          })),
+          edited_addon_prices: addonItems
+            .filter((a) => {
+              const snapshotAddon = (
+                existing.service_snapshot.addons ?? []
+              ).find((sa) => sa._id?.toString() === a.addon_id);
+              return a.disc > 0 || a.base !== (snapshotAddon?.price ?? 0);
+            })
+            .map((a) => {
+              const snapshotAddon = (
+                existing.service_snapshot.addons ?? []
+              ).find((sa) => sa._id?.toString() === a.addon_id);
+              const priceChanged = a.base !== (snapshotAddon?.price ?? 0);
+              return {
+                addon_id: a.addon_id,
+                price: priceChanged ? a.base : undefined,
+                discount: a.disc || undefined,
+              };
+            }),
         },
       },
       { new: true },
@@ -4076,7 +4091,7 @@ export class BookingService {
         count: validResults.length,
         data: validResults,
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error fetching daily usages: ${error.message}`);
       throw error;
     }
