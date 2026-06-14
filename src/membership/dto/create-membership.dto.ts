@@ -42,7 +42,7 @@ class CreateMembershipBenefitDto {
 
   @IsOptional()
   @IsEnum(BenefitPeriod, {
-    message: 'period must be one of: weekly, monthly, unlimited',
+    message: 'period must be one of: weekly, monthly, unlimited, once',
   })
   period?: BenefitPeriod = BenefitPeriod.UNLIMITED;
 

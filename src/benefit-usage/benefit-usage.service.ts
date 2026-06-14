@@ -33,7 +33,7 @@ export class BenefitUsageService {
    * - unlimited → null
    */
   static computePeriodKey(date: Date, period: BenefitPeriod): string | null {
-    if (period === BenefitPeriod.UNLIMITED) return null;
+    if (period === BenefitPeriod.UNLIMITED || period === BenefitPeriod.ONCE) return null;
 
     if (period === BenefitPeriod.MONTHLY) {
       const y = date.getFullYear();

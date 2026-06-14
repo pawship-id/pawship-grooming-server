@@ -18,6 +18,7 @@ export enum BenefitPeriod {
   WEEKLY = 'weekly',
   MONTHLY = 'monthly',
   UNLIMITED = 'unlimited', // No reset, berlaku sepanjang membership
+  ONCE = 'once', // Hanya sekali selama masa membership, tidak pernah reset
 }
 
 @Schema({ _id: false })

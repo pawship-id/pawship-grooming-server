@@ -1217,7 +1217,7 @@ export class PetMembershipService implements OnModuleInit {
     baseDate: Date | null,
     period: BenefitPeriod,
   ): Date | null {
-    if (!baseDate || period === BenefitPeriod.UNLIMITED) {
+    if (!baseDate || period === BenefitPeriod.UNLIMITED || period === BenefitPeriod.ONCE) {
       return null;
     }
 
@@ -1247,7 +1247,7 @@ export class PetMembershipService implements OnModuleInit {
     period: BenefitPeriod,
     now: Date,
   ): boolean {
-    if (!lastResetDate || period === BenefitPeriod.UNLIMITED) {
+    if (!lastResetDate || period === BenefitPeriod.UNLIMITED || period === BenefitPeriod.ONCE) {
       return false;
     }
 
