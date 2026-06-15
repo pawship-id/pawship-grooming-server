@@ -18,7 +18,27 @@ import {
   BenefitType,
   BenefitScope,
   BenefitPeriod,
+  BenefitDiscountType,
+  BenefitVariantMode,
 } from '../entities/membership.entity';
+
+class CreateBenefitVariantDiscountDto {
+  @IsOptional()
+  @IsMongoId({ message: 'pet_type_id must be a valid MongoDB ID' })
+  pet_type_id?: string;
+
+  @IsOptional()
+  @IsMongoId({ message: 'size_id must be a valid MongoDB ID' })
+  size_id?: string;
+
+  @IsOptional()
+  @IsMongoId({ message: 'hair_id must be a valid MongoDB ID' })
+  hair_id?: string;
+
+  @IsNumber({}, { message: 'value must be a number' })
+  @Min(0, { message: 'value must be >= 0' })
+  value: number;
+}
 
 class CreateMembershipBenefitDto {
   @IsEnum(BenefitScope, {
@@ -51,11 +71,34 @@ class CreateMembershipBenefitDto {
   @Min(0, { message: 'limit must be >= 0' })
   limit?: number;
 
-  @ValidateIf((o) => o.type === BenefitType.DISCOUNT)
+  // value required for discount only when NOT per-variant mode
+  @ValidateIf(
+    (o) =>
+      o.type === BenefitType.DISCOUNT &&
+      o.variant_mode !== BenefitVariantMode.PER_VARIANT,
+  )
   @IsNotEmpty({ message: 'value is required for discount type' })
   @IsNumber({}, { message: 'value must be a number' })
   @Min(0, { message: 'value must be >= 0' })
   value?: number;
+
+  @IsOptional()
+  @IsEnum(BenefitDiscountType, {
+    message: 'discount_type must be one of: percentage, fixed',
+  })
+  discount_type?: BenefitDiscountType;
+
+  @IsOptional()
+  @IsEnum(BenefitVariantMode, {
+    message: 'variant_mode must be one of: all, per_variant',
+  })
+  variant_mode?: BenefitVariantMode;
+
+  @IsOptional()
+  @IsArray({ message: 'variant_discounts must be an array' })
+  @ValidateNested({ each: true })
+  @Type(() => CreateBenefitVariantDiscountDto)
+  variant_discounts?: CreateBenefitVariantDiscountDto[];
 }
 
 export class CreateMembershipDto {

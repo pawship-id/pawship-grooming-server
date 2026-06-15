@@ -4,6 +4,8 @@ import {
   BenefitType,
   BenefitScope,
   BenefitPeriod,
+  BenefitDiscountType,
+  BenefitVariantMode,
 } from 'src/membership/entities/membership.entity';
 
 export type PetMembershipDocument = HydratedDocument<PetMembership>;
@@ -33,6 +35,30 @@ export class PetMembershipBenefit {
 
   @Prop()
   value?: number;
+
+  @Prop({ enum: BenefitDiscountType })
+  discount_type?: BenefitDiscountType;
+
+  @Prop({ enum: BenefitVariantMode })
+  variant_mode?: BenefitVariantMode;
+
+  @Prop({
+    type: [
+      {
+        pet_type_id: { type: Types.ObjectId },
+        size_id: { type: Types.ObjectId },
+        hair_id: { type: Types.ObjectId },
+        value: { type: Number, required: true },
+      },
+    ],
+    default: undefined,
+  })
+  variant_discounts?: Array<{
+    pet_type_id?: Types.ObjectId;
+    size_id?: Types.ObjectId;
+    hair_id?: Types.ObjectId;
+    value: number;
+  }>;
 
   @Prop({ default: 0 })
   used: number; // Track usage untuk periode saat ini
@@ -92,6 +118,16 @@ export class PetMembership {
         },
         limit: { type: Number },
         value: { type: Number },
+        discount_type: { type: String, enum: Object.values(BenefitDiscountType) },
+        variant_mode: { type: String, enum: Object.values(BenefitVariantMode) },
+        variant_discounts: [
+          {
+            pet_type_id: { type: Types.ObjectId },
+            size_id: { type: Types.ObjectId },
+            hair_id: { type: Types.ObjectId },
+            value: { type: Number, required: true },
+          },
+        ],
         used: { type: Number, default: 0 },
         period_reset_date: { type: Date, default: null },
       },

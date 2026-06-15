@@ -427,6 +427,12 @@ export class BookingService {
                 discountBase = travelFee;
               }
 
+              const amountDiscount = b.can_apply
+                ? b.type === 'discount'
+                  ? this.computeDiscountAmount(b, discountBase, pet)
+                  : discountBase
+                : 0;
+
               return {
                 _id: b._id,
                 applies_to: b.applies_to,
@@ -437,17 +443,19 @@ export class BookingService {
                 period: b.period,
                 limit: b.limit,
                 value: b.value,
+                discount_type: b.discount_type,
+                variant_mode: b.variant_mode,
+                effective_value:
+                  b.type === 'discount'
+                    ? this.getEffectiveValue(b, pet)
+                    : null,
                 used: b.used,
                 remaining: b.remaining,
                 can_apply: b.can_apply,
                 period_reset_date: b.period_reset_date,
                 next_reset_date: b.next_reset_date,
-                amount_discount: b.can_apply
-                  ? b.type === 'discount'
-                    ? (b.value / 100) * discountBase
-                    : discountBase // quota = full base price is free
-                  : 0,
-                description: this.getBenefitDescription(b),
+                amount_discount: amountDiscount,
+                description: this.getBenefitDescription(b, amountDiscount),
               };
             })
         : [];
@@ -540,17 +548,28 @@ export class BookingService {
   /**
    * Generate human-readable benefit description
    */
-  private getBenefitDescription(benefit: any): string {
+  private getBenefitDescription(benefit: any, amountDiscount?: number): string {
     const typeLabel =
       {
         discount: 'Discount',
         quota: 'Free Sessions',
       }[benefit.type] || 'Benefit';
 
-    const valueStr =
-      benefit.type === 'discount'
-        ? `${benefit.value}%`
-        : `${benefit.service?.name ?? benefit.label ?? 'Free'}`;
+    let valueStr: string;
+    if (benefit.type === 'discount') {
+      if (benefit.variant_mode === 'per_variant') {
+        valueStr =
+          amountDiscount != null && amountDiscount > 0
+            ? `Rp${Math.round(amountDiscount).toLocaleString('id-ID')} (per varian)`
+            : 'Per-variant discount';
+      } else if (benefit.discount_type === 'fixed') {
+        valueStr = `Rp${(benefit.value ?? 0).toLocaleString('id-ID')}`;
+      } else {
+        valueStr = benefit.value != null ? `${benefit.value}%` : 'Diskon';
+      }
+    } else {
+      valueStr = `${benefit.service?.name ?? benefit.label ?? 'Free'}`;
+    }
 
     const periodLabel =
       {
@@ -564,6 +583,54 @@ export class BookingService {
     const limitStr = benefit.limit === null ? '∞' : `${benefit.limit}`;
 
     return `${typeLabel}: ${valueStr} (${periodLabel}) - ${remainingStr}/${limitStr} remaining`;
+  }
+
+  private getEffectiveValue(benefit: any, pet: any): number | null {
+    const variantMode: string = benefit.variant_mode ?? 'all';
+    if (variantMode === 'per_variant' && benefit.variant_discounts?.length) {
+      const match = benefit.variant_discounts.find(
+        (vd: any) =>
+          (!vd.pet_type_id ||
+            vd.pet_type_id.toString() === pet.pet_type?._id?.toString()) &&
+          (!vd.size_id ||
+            vd.size_id.toString() === pet.size?._id?.toString()) &&
+          (!vd.hair_id ||
+            vd.hair_id.toString() === pet.hair?._id?.toString()),
+      );
+      return match?.value ?? null;
+    }
+    return benefit.value ?? null;
+  }
+
+  private computeDiscountAmount(
+    benefit: any,
+    basePrice: number,
+    pet: any,
+  ): number {
+    const discountType: string = benefit.discount_type ?? 'percentage';
+    const variantMode: string = benefit.variant_mode ?? 'all';
+
+    let effectiveValue: number = benefit.value ?? 0;
+
+    if (variantMode === 'per_variant' && benefit.variant_discounts?.length) {
+      const match = benefit.variant_discounts.find(
+        (vd: any) =>
+          (!vd.pet_type_id ||
+            vd.pet_type_id.toString() ===
+              pet.pet_type?._id?.toString()) &&
+          (!vd.size_id ||
+            vd.size_id.toString() === pet.size?._id?.toString()) &&
+          (!vd.hair_id ||
+            vd.hair_id.toString() === pet.hair?._id?.toString()),
+      );
+      effectiveValue = match?.value ?? 0;
+    }
+
+    if (discountType === 'fixed') {
+      return Math.min(effectiveValue, basePrice);
+    }
+    // percentage (default / legacy path)
+    return (effectiveValue / 100) * basePrice;
   }
 
   /**
@@ -784,7 +851,7 @@ export class BookingService {
           }
           let addonDiscount = 0;
           if (benefit.type === 'discount') {
-            addonDiscount = (benefit.value / 100) * addonBasePrice;
+            addonDiscount = this.computeDiscountAmount(benefit, addonBasePrice, pet);
           } else if (benefit.type === 'quota') {
             addonDiscount = addonBasePrice;
           }
@@ -890,7 +957,7 @@ export class BookingService {
       // ── Apply discount or quota ───────────────────────────────────────────
       let discountAmount = 0;
       if (benefit.type === 'discount') {
-        discountAmount = (benefit.value / 100) * basePrice;
+        discountAmount = this.computeDiscountAmount(benefit, basePrice, pet);
       } else if (benefit.type === 'quota') {
         discountAmount = basePrice; // fully free
       }
