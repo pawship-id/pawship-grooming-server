@@ -128,6 +128,9 @@ export class PetMembershipService implements OnModuleInit {
         period: b.period,
         limit: b.limit,
         value: b.value,
+        discount_type: b.discount_type,
+        variant_mode: b.variant_mode,
+        variant_discounts: b.variant_discounts,
         used: 0,
         period_reset_date: periodResetDate,
       };
@@ -953,6 +956,9 @@ export class PetMembershipService implements OnModuleInit {
       period: b.period,
       limit: b.limit,
       value: b.value,
+      discount_type: b.discount_type,
+      variant_mode: b.variant_mode,
+      variant_discounts: b.variant_discounts,
       used: 0,
       period_reset_date: this.calculateNextPeriodResetDate(
         newStartDate,
@@ -1101,6 +1107,9 @@ export class PetMembershipService implements OnModuleInit {
           period: b.period || 'unlimited',
           limit: b.limit,
           value: b.value,
+          discount_type: b.discount_type,
+          variant_mode: b.variant_mode,
+          variant_discounts: b.variant_discounts,
           used: existingBenefit ? existingBenefit.used : 0,
           period_reset_date: existingBenefit
             ? existingBenefit.period_reset_date
@@ -1197,6 +1206,9 @@ export class PetMembershipService implements OnModuleInit {
           period: b.period,
           limit: b.limit ?? null,
           value: b.value ?? null,
+          discount_type: b.discount_type ?? 'percentage',
+          variant_mode: b.variant_mode ?? 'all',
+          variant_discounts: b.variant_discounts ?? [],
           used: currentUsed,
           remaining,
           can_apply: b.limit == null || (remaining !== null && remaining > 0),
@@ -1217,7 +1229,7 @@ export class PetMembershipService implements OnModuleInit {
     baseDate: Date | null,
     period: BenefitPeriod,
   ): Date | null {
-    if (!baseDate || period === BenefitPeriod.UNLIMITED) {
+    if (!baseDate || period === BenefitPeriod.UNLIMITED || period === BenefitPeriod.ONCE) {
       return null;
     }
 
@@ -1247,7 +1259,7 @@ export class PetMembershipService implements OnModuleInit {
     period: BenefitPeriod,
     now: Date,
   ): boolean {
-    if (!lastResetDate || period === BenefitPeriod.UNLIMITED) {
+    if (!lastResetDate || period === BenefitPeriod.UNLIMITED || period === BenefitPeriod.ONCE) {
       return false;
     }
 

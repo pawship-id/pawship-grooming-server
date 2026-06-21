@@ -18,6 +18,32 @@ export enum BenefitPeriod {
   WEEKLY = 'weekly',
   MONTHLY = 'monthly',
   UNLIMITED = 'unlimited', // No reset, berlaku sepanjang membership
+  ONCE = 'once', // Hanya sekali selama masa membership, tidak pernah reset
+}
+
+export enum BenefitDiscountType {
+  PERCENTAGE = 'percentage',
+  FIXED = 'fixed',
+}
+
+export enum BenefitVariantMode {
+  ALL = 'all',
+  PER_VARIANT = 'per_variant',
+}
+
+@Schema({ _id: false })
+export class MembershipBenefitVariantDiscount {
+  @Prop({ type: Types.ObjectId })
+  pet_type_id?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId })
+  size_id?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId })
+  hair_id?: Types.ObjectId;
+
+  @Prop({ required: true })
+  value: number;
 }
 
 @Schema({ _id: false })
@@ -44,7 +70,27 @@ export class MembershipBenefit {
   limit?: number; // null/omitted = unlimited
 
   @Prop()
-  value?: number; // Required for discount type (percentage)
+  value?: number; // Required for discount type (percentage or global fixed)
+
+  // New fields — absence means legacy behavior (percentage, all variants)
+  @Prop({ enum: BenefitDiscountType })
+  discount_type?: BenefitDiscountType;
+
+  @Prop({ enum: BenefitVariantMode })
+  variant_mode?: BenefitVariantMode;
+
+  @Prop({
+    type: [
+      {
+        pet_type_id: { type: Types.ObjectId },
+        size_id: { type: Types.ObjectId },
+        hair_id: { type: Types.ObjectId },
+        value: { type: Number, required: true },
+      },
+    ],
+    default: undefined,
+  })
+  variant_discounts?: MembershipBenefitVariantDiscount[];
 }
 
 @Schema({
@@ -105,6 +151,16 @@ export class Membership {
         },
         limit: { type: Number },
         value: { type: Number },
+        discount_type: { type: String, enum: Object.values(BenefitDiscountType) },
+        variant_mode: { type: String, enum: Object.values(BenefitVariantMode) },
+        variant_discounts: [
+          {
+            pet_type_id: { type: Types.ObjectId },
+            size_id: { type: Types.ObjectId },
+            hair_id: { type: Types.ObjectId },
+            value: { type: Number, required: true },
+          },
+        ],
       },
     ],
     default: [],

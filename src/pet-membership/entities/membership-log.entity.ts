@@ -4,6 +4,8 @@ import {
   BenefitType,
   BenefitScope,
   BenefitPeriod,
+  BenefitDiscountType,
+  BenefitVariantMode,
 } from 'src/membership/entities/membership.entity';
 
 export type MembershipLogDocument = HydratedDocument<MembershipLog>;
@@ -74,6 +76,16 @@ export class MembershipLog {
         period: { type: String, enum: Object.values(BenefitPeriod) },
         limit: { type: Number },
         value: { type: Number },
+        discount_type: { type: String, enum: Object.values(BenefitDiscountType) },
+        variant_mode: { type: String, enum: Object.values(BenefitVariantMode) },
+        variant_discounts: [
+          {
+            pet_type_id: { type: Types.ObjectId },
+            size_id: { type: Types.ObjectId },
+            hair_id: { type: Types.ObjectId },
+            value: { type: Number, required: true },
+          },
+        ],
         used: { type: Number, default: 0 },
         period_reset_date: { type: Date, default: null },
       },
