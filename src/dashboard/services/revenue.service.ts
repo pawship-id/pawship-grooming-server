@@ -31,6 +31,10 @@ export interface RevenueKpis {
   gross_order_onetime_count: number;
   gross_order_inhome_count: number;
   gross_order_instore_count: number;
+  gross_order_onetime_inhome_count: number;
+  gross_order_onetime_instore_count: number;
+  gross_order_membership_inhome_count: number;
+  gross_order_membership_instore_count: number;
   avg_order_value: number;
   delta: {
     gross_revenue_pct: number | null;
@@ -229,6 +233,10 @@ export class RevenueService {
         current.orders_total - current.orders_membership,
       gross_order_inhome_count: current.orders_inhome,
       gross_order_instore_count: current.orders_instore,
+      gross_order_onetime_inhome_count: current.orders_onetime_inhome,
+      gross_order_onetime_instore_count: current.orders_onetime_instore,
+      gross_order_membership_inhome_count: current.orders_membership_inhome,
+      gross_order_membership_instore_count: current.orders_membership_instore,
       avg_order_value:
         current.orders_completed > 0
           ? Math.round(currentNetCompleted / current.orders_completed)
@@ -320,6 +328,63 @@ export class RevenueService {
             orders_instore: {
               $sum: { $cond: [{ $eq: ['$type', 'in store'] }, 1, 0] },
             },
+            // Cross-breakdown: type (onetime/membership) x location (inhome/instore)
+            orders_onetime_inhome: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ['$type', 'in home'] },
+                      { $eq: [{ $size: { $ifNull: ['$applied_benefits', []] } }, 0] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            orders_onetime_instore: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ['$type', 'in store'] },
+                      { $eq: [{ $size: { $ifNull: ['$applied_benefits', []] } }, 0] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            orders_membership_inhome: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ['$type', 'in home'] },
+                      { $gt: [{ $size: { $ifNull: ['$applied_benefits', []] } }, 0] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            orders_membership_instore: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ['$type', 'in store'] },
+                      { $gt: [{ $size: { $ifNull: ['$applied_benefits', []] } }, 0] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
           },
         },
       ])
@@ -335,6 +400,10 @@ export class RevenueService {
       orders_membership: row?.orders_membership ?? 0,
       orders_inhome: row?.orders_inhome ?? 0,
       orders_instore: row?.orders_instore ?? 0,
+      orders_onetime_inhome: row?.orders_onetime_inhome ?? 0,
+      orders_onetime_instore: row?.orders_onetime_instore ?? 0,
+      orders_membership_inhome: row?.orders_membership_inhome ?? 0,
+      orders_membership_instore: row?.orders_membership_instore ?? 0,
     };
   }
 
