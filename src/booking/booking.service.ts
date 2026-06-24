@@ -2541,7 +2541,11 @@ export class BookingService {
     }
 
     if (created_by_role) {
-      filter.created_by_role = created_by_role;
+      const roles = created_by_role
+        .split(',')
+        .map((r) => r.trim())
+        .filter(Boolean);
+      filter.created_by_role = roles.length > 1 ? { $in: roles } : roles[0];
     }
 
     if (customer_id) {
@@ -2553,11 +2557,30 @@ export class BookingService {
     }
 
     if (store_id) {
-      filter.store_id = store_id;
+      const storeIds = store_id
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
+      // Bookings may store store_id as either ObjectId or plain string depending
+      // on when the document was created, so include both forms in $in.
+      filter.store_id = {
+        $in: storeIds.flatMap((id) =>
+          Types.ObjectId.isValid(id) ? [new Types.ObjectId(id), id] : [id],
+        ),
+      };
     }
 
     if (service_id) {
-      filter.service_id = service_id;
+      const serviceIds = service_id
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
+      // Same dual-form approach: match regardless of ObjectId vs string storage.
+      filter.service_id = {
+        $in: serviceIds.flatMap((id) =>
+          Types.ObjectId.isValid(id) ? [new Types.ObjectId(id), id] : [id],
+        ),
+      };
     }
 
     if (service_type) {
